@@ -7,11 +7,11 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {RoomKey} from "src/RoomKey.sol";
 
 contract RoomKeyScript is Script {
-  function setUp() public {}
+    function setUp() public {}
 
-  function run() public {
-    // TODO: Set addresses for the variables below, then uncomment the following section:
-    /*
+    function run() public {
+        // TODO: Set addresses for the variables below, then uncomment the following section:
+        /*
     vm.startBroadcast();
     address initialOwner = <Set initialOwner address here>;
     address proxy = Upgrades.deployUUPSProxy(
@@ -21,6 +21,6 @@ contract RoomKeyScript is Script {
     RoomKey instance = RoomKey(proxy);
     console.log("Proxy deployed to %s", address(instance));
     vm.stopBroadcast();
-    */
-  }
+        */
+    }
 }
