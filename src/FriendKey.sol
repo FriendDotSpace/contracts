@@ -41,7 +41,7 @@ contract FriendKey is
         address indexed creator,
         bool isBuy,
         uint256 shareAmount,
-        uint256 tokenAmount // Renamed from ethAmount
+        uint256 tokenAmount
     );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
