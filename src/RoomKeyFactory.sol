@@ -25,7 +25,6 @@ contract RoomKeyFactory is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    
     function initialize(address initialOwner, address _roomKeyImplementation) public initializer {
         __Ownable_init(initialOwner);
         require(_roomKeyImplementation != address(0), "Factory: Implementation is zero address");

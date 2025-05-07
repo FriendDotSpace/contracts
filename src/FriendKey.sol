@@ -3,13 +3,15 @@
 pragma solidity ^0.8.27;
 
 import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
-import {ERC1155BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155BurnableUpgradeable.sol";
-import {ERC1155SupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
+import {ERC1155BurnableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155BurnableUpgradeable.sol";
+import {ERC1155SupplyUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract FriendKey is
     Initializable,
@@ -20,6 +22,7 @@ contract FriendKey is
     UUPSUpgradeable
 {
     using SafeERC20 for IERC20Metadata;
+
     uint256 public BPS_SCALE; // Basis Point Scale (100% = 10000 BPS)
 
     address public devFeeDestination;
@@ -78,7 +81,7 @@ contract FriendKey is
 
         uint8 decimals = bondingToken.decimals();
         require(decimals > 0, "Bonding token decimals must be greater than zero");
-        bondingTokenPriceUnit = 10**decimals;
+        bondingTokenPriceUnit = 10 ** decimals;
     }
 
     function setURI(string memory newuri) public onlyOwner {
@@ -189,14 +192,7 @@ contract FriendKey is
             bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
 
-        emit Trade(
-            msg.sender,
-            tokenId,
-            creatorAddress,
-            true,
-            amount,
-            price
-        );
+        emit Trade(msg.sender, tokenId, creatorAddress, true, amount, price);
     }
 
     function sellShares(address creatorAddress, uint256 amount) public {
@@ -218,14 +214,7 @@ contract FriendKey is
 
         _burn(msg.sender, tokenId, amount);
 
-        emit Trade(
-            msg.sender,
-            tokenId,
-            creatorAddress,
-            false,
-            amount,
-            price
-        );
+        emit Trade(msg.sender, tokenId, creatorAddress, false, amount, price);
 
         if (proceeds > 0) {
             bondingToken.transfer(msg.sender, proceeds);
@@ -240,7 +229,7 @@ contract FriendKey is
             bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
     }
-  
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // The following functions are overrides required by Solidity.
