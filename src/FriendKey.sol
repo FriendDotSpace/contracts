@@ -8,6 +8,8 @@ import {ERC1155SupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract FriendKey is
     Initializable,
@@ -17,6 +19,7 @@ contract FriendKey is
     ERC1155SupplyUpgradeable,
     UUPSUpgradeable
 {
+    using SafeERC20 for IERC20Metadata;
     uint256 public BPS_SCALE; // Basis Point Scale (100% = 10000 BPS)
 
     address public devFeeDestination;
@@ -24,6 +27,9 @@ contract FriendKey is
     uint256 public creatorFeePercent;
     address public tradingPoolFeeDestination;
     uint256 public tradingPoolFeePercent;
+
+    IERC20Metadata public bondingToken; // Changed to IERC20Metadata
+    uint256 public bondingTokenPriceUnit; // Added bonding token price unit (e.g., 10**decimals)
 
     // Mapping from creator's address to their associated token ID
     mapping(address => uint256) public creatorByTokenId;
@@ -35,7 +41,7 @@ contract FriendKey is
         address indexed creator,
         bool isBuy,
         uint256 shareAmount,
-        uint256 ethAmount
+        uint256 tokenAmount // Renamed from ethAmount
     );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -49,7 +55,8 @@ contract FriendKey is
         uint256 _devFeePercent,
         uint256 _creatorFeePercent,
         address _tradingPoolFeeDestination,
-        uint256 _tradingPoolFeePercent
+        uint256 _tradingPoolFeePercent,
+        address _bondingTokenAddress
     ) public initializer {
         __ERC1155_init("");
         __Ownable_init(initialOwner);
@@ -60,12 +67,18 @@ contract FriendKey is
         BPS_SCALE = 10000;
 
         require(_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
+        require(_bondingTokenAddress != address(0), "Bonding token address cannot be zero");
 
         devFeeDestination = _devFeeDestination;
         devFeePercent = _devFeePercent;
         creatorFeePercent = _creatorFeePercent;
         tradingPoolFeeDestination = _tradingPoolFeeDestination;
         tradingPoolFeePercent = _tradingPoolFeePercent;
+        bondingToken = IERC20Metadata(_bondingTokenAddress);
+
+        uint8 decimals = bondingToken.decimals();
+        require(decimals > 0, "Bonding token decimals must be greater than zero");
+        bondingTokenPriceUnit = 10**decimals;
     }
 
     function setURI(string memory newuri) public onlyOwner {
@@ -85,7 +98,7 @@ contract FriendKey is
     }
 
     function setCreatorFeePercent(uint256 _feePercent) public onlyOwner {
-        require(_feePercent <= BPS_SCALE, "Creator fee percent too high"); // Updated message
+        require(_feePercent <= BPS_SCALE, "Creator fee percent too high");
         require(devFeePercent + _feePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         creatorFeePercent = _feePercent;
     }
@@ -101,19 +114,19 @@ contract FriendKey is
     }
 
     function registerCreator(address creatorAccount, uint256 id) public onlyOwner {
-        require(creatorAccount != address(0), "Creator account cannot be zero address"); // Updated message
+        require(creatorAccount != address(0), "Creator account cannot be zero address");
         creatorByTokenId[creatorAccount] = id;
     }
 
     // --- Pricing Logic ---
 
-    function getPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
+    function getPrice(uint256 supply, uint256 amount) public view returns (uint256) {
         uint256 sum1 = supply == 0 ? 0 : (supply - 1) * (supply) * (2 * (supply - 1) + 1) / 6;
         uint256 sum2 = supply == 0 && amount == 1
             ? 0
             : (supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1) / 6;
         uint256 summation = sum2 - sum1;
-        return summation * 1 ether / 16000;
+        return summation * bondingTokenPriceUnit / 16000;
     }
 
     function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
@@ -144,14 +157,14 @@ contract FriendKey is
 
     // --- Buy and Sell Shares ---
 
-    function buyShares(address creatorAddress, uint256 amount) public payable {
+    function buyShares(address creatorAddress, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
         uint256 tokenId = creatorByTokenId[creatorAddress];
-        require(tokenId != 0, "Creator not registered or no token ID associated"); // Updated message
+        require(tokenId != 0, "Creator not registered or no token ID associated");
 
         uint256 currentSupply = totalSupply(tokenId);
         if (currentSupply == 0) {
-            require(msg.sender == creatorAddress, "Only creator can buy the first share"); // Updated message
+            require(msg.sender == creatorAddress, "Only creator can buy the first share");
         }
 
         uint256 price = getPrice(currentSupply, amount);
@@ -160,23 +173,20 @@ contract FriendKey is
         uint256 tradingPoolFee = price * tradingPoolFeePercent / BPS_SCALE;
         uint256 totalCost = price + devFee + creatorFee + tradingPoolFee;
 
-        require(msg.value >= totalCost, "Insufficient payment");
+        if (totalCost > 0) {
+            bondingToken.transferFrom(msg.sender, address(this), totalCost);
+        }
 
         _mint(msg.sender, tokenId, amount, "");
 
         if (devFee > 0 && devFeeDestination != address(0)) {
-            payable(devFeeDestination).transfer(devFee);
+            bondingToken.transfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
-            userAccumulatedFees[creatorAddress] += creatorFee; // Used creatorAddress
+            userAccumulatedFees[creatorAddress] += creatorFee;
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
-            payable(tradingPoolFeeDestination).transfer(tradingPoolFee);
-        }
-
-        // Refund any excess ETH sent
-        if (msg.value > totalCost) {
-            payable(msg.sender).transfer(msg.value - totalCost);
+            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
 
         emit Trade(
@@ -192,7 +202,7 @@ contract FriendKey is
     function sellShares(address creatorAddress, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
         uint256 tokenId = creatorByTokenId[creatorAddress];
-        require(tokenId != 0, "Creator not registered or no token ID associated"); // Updated message
+        require(tokenId != 0, "Creator not registered or no token ID associated");
         require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares");
 
         uint256 currentSupply = totalSupply(tokenId);
@@ -218,16 +228,16 @@ contract FriendKey is
         );
 
         if (proceeds > 0) {
-            payable(msg.sender).transfer(proceeds);
+            bondingToken.transfer(msg.sender, proceeds);
         }
         if (devFee > 0 && devFeeDestination != address(0)) {
-            payable(devFeeDestination).transfer(devFee);
+            bondingToken.transfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
-            userAccumulatedFees[creatorAddress] += creatorFee; // Used creatorAddress
+            userAccumulatedFees[creatorAddress] += creatorFee;
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
-            payable(tradingPoolFeeDestination).transfer(tradingPoolFee);
+            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
     }
 
