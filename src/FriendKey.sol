@@ -36,7 +36,7 @@ contract FriendKey is
 
     // Mapping from creator's address to their associated token ID
     mapping(address => uint256) public creatorByTokenId;
-    mapping(address => uint256) public userAccumulatedFees;
+    mapping(address => uint256) public bondingCurveReserves;
 
     event Trade(
         address indexed trader,
@@ -176,8 +176,11 @@ contract FriendKey is
         uint256 tradingPoolFee = price * tradingPoolFeePercent / BPS_SCALE;
         uint256 totalCost = price + devFee + creatorFee + tradingPoolFee;
 
+        bondingCurveReserves[creatorAddress] += price;
+
         if (totalCost > 0) {
-            bondingToken.transferFrom(msg.sender, address(this), totalCost);
+            bool ok = bondingToken.transferFrom(msg.sender, address(this), totalCost);
+            require(ok, "Transfer failed");
         }
 
         _mint(msg.sender, tokenId, amount, "");
@@ -186,7 +189,7 @@ contract FriendKey is
             bondingToken.transfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
-            userAccumulatedFees[creatorAddress] += creatorFee;
+            bondingToken.transfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
@@ -214,21 +217,31 @@ contract FriendKey is
 
         _burn(msg.sender, tokenId, amount);
 
-        emit Trade(msg.sender, tokenId, creatorAddress, false, amount, price);
-
         if (proceeds > 0) {
             bondingToken.transfer(msg.sender, proceeds);
+            bondingCurveReserves[creatorAddress] -= price;
         }
         if (devFee > 0 && devFeeDestination != address(0)) {
             bondingToken.transfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
-            userAccumulatedFees[creatorAddress] += creatorFee;
+            bondingToken.transfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
+
+        emit Trade(msg.sender, tokenId, creatorAddress, false, amount, price);
     }
+
+    // TODO: full withdraw when?
+    // function withdrawCreatorFees() public {
+    //     uint256 amount = creatorAccumulatedFees[msg.sender];
+    //     require(amount > 0, "No fees accumulated");
+        
+    //     creatorAccumulatedFees[msg.sender] = 0;
+    //     bondingToken.transfer(msg.sender, amount);
+    // }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
