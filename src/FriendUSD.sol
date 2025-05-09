@@ -9,7 +9,12 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract FriendUSD is ERC20, ERC20Burnable, Ownable, ERC20Permit {
     constructor(address initialOwner) ERC20("FriendUSD", "FUSD") Ownable(initialOwner) ERC20Permit("FriendUSD") {}
 
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
     function mint(address to, uint256 amount) public onlyOwner {
+        require(amount <= 100 * 10 ** decimals(), "FriendUSD: Cannot mint more than 100 tokens at once");
         _mint(to, amount);
     }
 }
