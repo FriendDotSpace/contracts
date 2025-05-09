@@ -12,3 +12,7 @@ docs/
 
 # Dotenv file
 .env
+
+# Misc
+.DS_Store
+.vscode
