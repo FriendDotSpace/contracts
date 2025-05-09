@@ -124,12 +124,12 @@ contract FriendKey is
     // --- Pricing Logic ---
 
     function getPrice(uint256 supply, uint256 amount) public view returns (uint256) {
-        uint256 sum1 = supply == 0 ? 0 : (supply - 1) * (supply) * (2 * (supply - 1) + 1) / 6;
+        uint256 sum1 = supply == 0 ? 0 : ((supply - 1) * (supply) * (2 * (supply - 1) + 1)) / 6;
         uint256 sum2 = supply == 0 && amount == 1
             ? 0
-            : (supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1) / 6;
+            : ((supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1)) / 6;
         uint256 summation = sum2 - sum1;
-        return summation * bondingTokenPriceUnit / 16000;
+        return (summation * bondingTokenPriceUnit) / 16000;
     }
 
     function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
@@ -143,17 +143,17 @@ contract FriendKey is
 
     function getBuyPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
         uint256 price = getBuyPrice(id, amount);
-        uint256 devFee = price * devFeePercent / BPS_SCALE;
-        uint256 creatorFee = price * creatorFeePercent / BPS_SCALE;
-        uint256 tradingPoolFee = price * tradingPoolFeePercent / BPS_SCALE;
+        uint256 devFee = (price * devFeePercent) / BPS_SCALE;
+        uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
+        uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
         return price + devFee + creatorFee + tradingPoolFee;
     }
 
     function getSellPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
         uint256 price = getSellPrice(id, amount);
-        uint256 devFee = price * devFeePercent / BPS_SCALE;
-        uint256 creatorFee = price * creatorFeePercent / BPS_SCALE;
-        uint256 tradingPoolFee = price * tradingPoolFeePercent / BPS_SCALE;
+        uint256 devFee = (price * devFeePercent) / BPS_SCALE;
+        uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
+        uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
         uint256 totalFees = devFee + creatorFee + tradingPoolFee;
         return price > totalFees ? price - totalFees : 0;
     }
@@ -171,9 +171,9 @@ contract FriendKey is
         }
 
         uint256 price = getPrice(currentSupply, amount);
-        uint256 devFee = price * devFeePercent / BPS_SCALE;
-        uint256 creatorFee = price * creatorFeePercent / BPS_SCALE;
-        uint256 tradingPoolFee = price * tradingPoolFeePercent / BPS_SCALE;
+        uint256 devFee = (price * devFeePercent) / BPS_SCALE;
+        uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
+        uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
         uint256 totalCost = price + devFee + creatorFee + tradingPoolFee;
 
         bondingCurveReserves[creatorAddress] += price;
@@ -208,9 +208,9 @@ contract FriendKey is
         require(currentSupply > amount, "Cannot sell shares if it makes supply zero or less through this method");
 
         uint256 price = getPrice(currentSupply - amount, amount);
-        uint256 devFee = price * devFeePercent / BPS_SCALE;
-        uint256 creatorFee = price * creatorFeePercent / BPS_SCALE;
-        uint256 tradingPoolFee = price * tradingPoolFeePercent / BPS_SCALE;
+        uint256 devFee = (price * devFeePercent) / BPS_SCALE;
+        uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
+        uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
 
         uint256 totalFees = devFee + creatorFee + tradingPoolFee;
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
@@ -238,7 +238,7 @@ contract FriendKey is
     // function withdrawCreatorFees() public {
     //     uint256 amount = creatorAccumulatedFees[msg.sender];
     //     require(amount > 0, "No fees accumulated");
-        
+
     //     creatorAccumulatedFees[msg.sender] = 0;
     //     bondingToken.transfer(msg.sender, amount);
     // }
