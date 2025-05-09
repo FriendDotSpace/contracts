@@ -57,15 +57,18 @@ forge test --force
 
 You can simulate a deployment by running the script:
 
-```
+```bash
 forge script script/FriendKey.s.sol --force
 ```
 
 To deploy to a real network, add your private key and API keys to a `.env` file, then run:
 
+```bash
+forge script script/FriendKey.s.sol --rpc-url <your_rpc_name> --broadcast --verify -vvvv
 ```
-forge script script/FriendKey.s.sol --rpc-url <your_rpc_url> --broadcast --verify -vvvv
-```
+
+> [!NOTE]
+> If it does not work, add `--legacy` to the command.
 
 ## Technical Details
 
@@ -90,6 +93,22 @@ Three types of fees are applied to transactions:
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Additional Resources
+## Dev hacks
 
-See [Solidity scripting guide](https://book.getfoundry.sh/guides/scripting-with-solidity) for more information on deploying with Foundry.
+### Proper file import in VSCode
+
+To ensure proper file import in VSCode, add the following to your `.vscode`:
+
+```json
+{
+  "solidity.packageDefaultDependenciesContractsDirectory": "src",
+  "solidity.packageDefaultDependenciesDirectory": "lib",
+  "solidity.compileUsingRemoteVersion": "v0.8.27",
+  "solidity.remappings": [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "forge-std/=lib/forge-std/src/",
+    "openzeppelin-foundry-upgrades/=lib/openzeppelin-foundry-upgrades/src/"
+  ]
+}
+```
