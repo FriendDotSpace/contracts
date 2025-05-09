@@ -9,9 +9,17 @@ remappings = [
     "openzeppelin-foundry-upgrades/=lib/openzeppelin-foundry-upgrades/src/",
 ]
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
-
+optimizer = true
+optimizer_runs = 200
+# Upgradable contracts
 ffi = true
 ast = true
 build_info = true
 extra_output = ["storageLayout"]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[rpc_endpoints]
+testnet = "${TEST_RPC_URL}"
+prod = "${PROD_RPC_URL}"
+local = "${LOCAL_RPC_URL}"
