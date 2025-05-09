@@ -114,7 +114,7 @@ contract FriendKeyTest is Test {
     }
 
     // Helper function to check balances and token ownership
-    function assertBalances(address account, uint256 expectedUsdcBalance, uint256 expectedTokenBalance) view internal {
+    function assertBalances(address account, uint256 expectedUsdcBalance, uint256 expectedTokenBalance) internal view {
         assertEq(mockUsdc.balanceOf(account), expectedUsdcBalance, "USDC balance mismatch");
         assertEq(instance.balanceOf(account, CREATOR_TOKEN_ID), expectedTokenBalance, "Token balance mismatch");
     }
