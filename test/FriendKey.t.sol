@@ -114,7 +114,7 @@ contract FriendKeyTest is Test {
     }
 
     // Helper function to check balances and token ownership
-    function assertBalances(address account, uint256 expectedUsdcBalance, uint256 expectedTokenBalance) internal {
+    function assertBalances(address account, uint256 expectedUsdcBalance, uint256 expectedTokenBalance) view internal {
         assertEq(mockUsdc.balanceOf(account), expectedUsdcBalance, "USDC balance mismatch");
         assertEq(instance.balanceOf(account, CREATOR_TOKEN_ID), expectedTokenBalance, "Token balance mismatch");
     }
@@ -319,7 +319,8 @@ contract FriendKeyTest is Test {
         // Record initial balances
         uint256 initialDevBalance = mockUsdc.balanceOf(devFeeDestination);
         uint256 initialTradingPoolBalance = mockUsdc.balanceOf(tradingPoolFeeDestination);
-        uint256 initialCreatorFees = instance.userAccumulatedFees(creatorAccount);
+        uint256 initialCreatorFees = mockUsdc.balanceOf(creatorAccount);
+        uint256 initialResevere = instance.bondingCurveReserves(creatorAccount);
 
         // Buyer buys shares
         uint256 buyAmount = 10;
@@ -335,6 +336,7 @@ contract FriendKeyTest is Test {
         uint256 expectedDevFee = buyPrice * DEV_FEE_PERCENT / instance.BPS_SCALE();
         uint256 expectedCreatorFee = buyPrice * CREATOR_FEE_PERCENT / instance.BPS_SCALE();
         uint256 expectedTradingPoolFee = buyPrice * TRADING_POOL_FEE_PERCENT / instance.BPS_SCALE();
+        uint256 expectedReserve = buyPrice;
 
         // Verify fees were distributed correctly
         assertEq(
@@ -348,9 +350,15 @@ contract FriendKeyTest is Test {
             "Trading pool fee not distributed correctly"
         );
         assertEq(
-            instance.userAccumulatedFees(creatorAccount) - initialCreatorFees,
+            mockUsdc.balanceOf(creatorAccount) - initialCreatorFees,
             expectedCreatorFee,
             "Creator fee not accumulated correctly"
+        );
+
+        assertEq(
+            instance.bondingCurveReserves(creatorAccount) - initialResevere,
+            expectedReserve,
+            "Reserve not accumulated correctly"
         );
     }
 }
