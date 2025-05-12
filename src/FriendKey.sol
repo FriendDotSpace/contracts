@@ -47,6 +47,12 @@ contract FriendKey is
         uint256 supply
     );
 
+    event KeyCreated(
+        address indexed creator,
+        uint256 indexed tokenId,
+        string tokenURI
+    );
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -116,9 +122,13 @@ contract FriendKey is
         tradingPoolFeePercent = _feePercent;
     }
 
-    function registerCreator(address creatorAccount, uint256 id) public onlyOwner {
-        require(creatorAccount != address(0), "Creator account cannot be zero address");
-        creatorByTokenId[creatorAccount] = id;
+    function registerCreator() public {
+        address creatorAddress = msg.sender;
+        uint256 tokenId = creatorByTokenId[creatorAddress];
+        require(tokenId == 0, "Creator already registered");
+        uint256 id = uint256(uint160(creatorAddress));
+        creatorByTokenId[creatorAddress] = id;
+        emit KeyCreated(creatorAddress, id, "");
     }
 
     // --- Pricing Logic ---
