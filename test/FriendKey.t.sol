@@ -106,7 +106,7 @@ contract FriendKeyTest is Test {
         vm.stopPrank();
 
         vm.startPrank(creatorAccount);
-         // Register creator
+        // Register creator
         instance.registerCreator();
         CREATOR_TOKEN_ID = uint256(uint160(creatorAccount));
         assertEq(instance.creatorByTokenId(creatorAccount), CREATOR_TOKEN_ID, "TOKEN_ID mismatch");

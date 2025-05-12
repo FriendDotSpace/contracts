@@ -49,12 +49,7 @@ contract FriendKey is
         uint256 supply
     );
 
-    event KeyCreated(
-        address indexed creator,
-        uint256 indexed tokenId,
-        string tokenURI,
-        uint256 initialSupply
-    );
+    event KeyCreated(address indexed creator, uint256 indexed tokenId, string tokenURI, uint256 initialSupply);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -141,13 +136,12 @@ contract FriendKey is
         address creatorAddress = address(uint160(tokenId));
         uint256 created = creatorByTokenId[creatorAddress];
         require(created != 0, "Creator not registered");
-        string memory tokenURI =  tokenId.toString();
+        string memory tokenURI = tokenId.toString();
         string memory base = super.uri(tokenId);
 
         // If token URI is set, concatenate base URI and tokenURI (via string.concat).
         return bytes(base).length > 0 ? string.concat(base, tokenURI) : base;
     }
-
 
     // --- Pricing Logic ---
 
