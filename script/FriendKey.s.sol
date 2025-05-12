@@ -17,9 +17,9 @@ contract RoomKeyScript is Script {
         uint256 DEV_FEE_PERCENT = 400;
         uint256 CREATOR_FEE_PERCENT = 400;
         uint256 TRADING_POOL_FEE_PERCENT = 400;
-        address tradingPoolFeeDestination = address(0);
+        address tradingPoolFeeDestination = initialOwner;
         address devFeeDestination = initialOwner;
-        address mockUsdc = address(0x0);
+        address usdc = 0x7CC500472aA79548742f4330A4120F4C0fC5F3a1;
 
         bytes memory initializeData = abi.encodeCall(
             FriendKey.initialize,
@@ -30,7 +30,7 @@ contract RoomKeyScript is Script {
                 CREATOR_FEE_PERCENT,
                 tradingPoolFeeDestination,
                 TRADING_POOL_FEE_PERCENT,
-                address(mockUsdc)
+                address(usdc)
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
