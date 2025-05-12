@@ -23,3 +23,7 @@ extra_output = ["storageLayout"]
 testnet = "${TEST_RPC_URL}"
 prod = "${RPC_URL}"
 local = "${LOCAL_RPC_URL}"
+
+[etherscan]
+testnet = { key = "${ETHERSCAN_API_KEY}" }
+base = { key = "${ETHERSCAN_API_KEY}" }
