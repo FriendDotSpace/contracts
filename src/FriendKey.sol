@@ -12,6 +12,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract FriendKey is
     Initializable,
@@ -22,6 +23,7 @@ contract FriendKey is
     UUPSUpgradeable
 {
     using SafeERC20 for IERC20Metadata;
+    using Strings for uint256;
 
     uint256 public BPS_SCALE; // Basis Point Scale (100% = 10000 BPS)
 
@@ -50,7 +52,8 @@ contract FriendKey is
     event KeyCreated(
         address indexed creator,
         uint256 indexed tokenId,
-        string tokenURI
+        string tokenURI,
+        uint256 initialSupply
     );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -127,9 +130,24 @@ contract FriendKey is
         uint256 tokenId = creatorByTokenId[creatorAddress];
         require(tokenId == 0, "Creator already registered");
         uint256 id = uint256(uint160(creatorAddress));
+        // uint256 balance = balanceOf(msg.sender, tokenId);
+        // require(balance == 0, "Balance initialized");
         creatorByTokenId[creatorAddress] = id;
-        emit KeyCreated(creatorAddress, id, "");
+        // _mint(creatorAddress, id, 1, ""); // Mint 1 share to the creator
+        emit KeyCreated(creatorAddress, id, "", 0);
     }
+
+    function uri(uint256 tokenId) public view override returns (string memory) {
+        address creatorAddress = address(uint160(tokenId));
+        uint256 created = creatorByTokenId[creatorAddress];
+        require(created != 0, "Creator not registered");
+        string memory tokenURI =  tokenId.toString();
+        string memory base = super.uri(tokenId);
+
+        // If token URI is set, concatenate base URI and tokenURI (via string.concat).
+        return bytes(base).length > 0 ? string.concat(base, tokenURI) : base;
+    }
+
 
     // --- Pricing Logic ---
 
