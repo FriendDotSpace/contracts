@@ -55,6 +55,15 @@ forge test --force
 
 ### Deployment
 
+> [!IMPORTANT]
+> Make sure to set up your environment variables (`.env`) before deploying.
+
+```bash
+TEST_RPC_URL=https://sepolia.base.org
+RPC_URL=https://mainnet.base.org
+PRIVATE_KEY=0x<PRIVATE_KEY>
+```
+
 You can simulate a deployment by running the script:
 
 ```bash
