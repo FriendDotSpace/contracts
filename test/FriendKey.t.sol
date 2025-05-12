@@ -76,7 +76,7 @@ contract FriendKeyTest is Test {
     uint256 public constant DEV_FEE_PERCENT = 100;
     uint256 public constant CREATOR_FEE_PERCENT = 100;
     uint256 public constant TRADING_POOL_FEE_PERCENT = 100;
-    uint256 public constant CREATOR_TOKEN_ID = 1;
+    uint256 public CREATOR_TOKEN_ID = 1;
 
     function setUp() public {
         owner = vm.addr(1);
@@ -103,9 +103,13 @@ contract FriendKeyTest is Test {
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
         instance = FriendKey(proxy);
+        vm.stopPrank();
 
-        // Register creator
-        instance.registerCreator(creatorAccount, CREATOR_TOKEN_ID);
+        vm.startPrank(creatorAccount);
+         // Register creator
+        instance.registerCreator();
+        CREATOR_TOKEN_ID = uint256(uint160(creatorAccount));
+        assertEq(instance.creatorByTokenId(creatorAccount), CREATOR_TOKEN_ID, "TOKEN_ID mismatch");
         vm.stopPrank();
 
         mockUsdc.mint(creatorAccount, 1_000_000 * (10 ** 6));
