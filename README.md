@@ -41,15 +41,18 @@ See [Foundry installation guide](https://book.getfoundry.sh/getting-started/inst
 
 ### Initializing the project
 
+```bash
+forge build
 ```
-bash setup.sh
-```
+
+> [!TIP]
+> If you get random errors try `forge clean` and `forge build` again.
 
 ## Development
 
 ### Testing the contract
 
-```
+```bash
 forge test --force
 ```
 
@@ -76,8 +79,21 @@ To deploy to a real network, add your private key and API keys to a `.env` file,
 forge script script/FriendKey.s.sol --rpc-url <your_rpc_name> --broadcast --verify -vvvv
 ```
 
-> [!NOTE]
-> If it does not work, add `--legacy` to the command.
+> [!TIP]
+> If you get an error `Failed to get EIP-1559 fees`
+> you have to use `--legacy` flag [source](https://ethereum.stackexchange.com/questions/147942/failed-to-get-eip-1559-fees-error-when-deploying-to-zkevm-polygon-using-foundry)
+
+
+FriendKey is an UUPS [upgradable smart contract](https://docs.openzeppelin.com/upgrades-plugins/).
+In order to run some checks about upgradability, previous version of contract is required and
+`@custom:oz-upgrades-from <reference>` annotation in new version.
+After deployment of one version, the file has to remain unchanged to verify upgradability to the next version.
+It is recommended to create a new file for the next version.
+
+To check upgradability run
+```bash
+npx @openzeppelin/upgrades-core validate
+```
 
 ## Technical Details
 
