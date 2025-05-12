@@ -6,7 +6,7 @@ import {console2} from "forge-std/console2.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 
-contract RoomKeyScript is Script {
+contract FriendKeyScript is Script {
     function setUp() public {}
 
     function run() public {
