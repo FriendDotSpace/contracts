@@ -40,11 +40,11 @@ contract FriendKey is
 
     event Trade(
         address indexed trader,
-        uint256 indexed id,
-        address indexed creator,
+        address indexed subject,
         bool isBuy,
         uint256 shareAmount,
-        uint256 tokenAmount
+        uint256 tokenAmount,
+        uint256 supply
     );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -195,7 +195,7 @@ contract FriendKey is
             bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
 
-        emit Trade(msg.sender, tokenId, creatorAddress, true, amount, price);
+        emit Trade(msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
     }
 
     function sellShares(address creatorAddress, uint256 amount) public {
@@ -231,7 +231,7 @@ contract FriendKey is
             bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
 
-        emit Trade(msg.sender, tokenId, creatorAddress, false, amount, price);
+        emit Trade(msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
     }
 
     // TODO: full withdraw when?
