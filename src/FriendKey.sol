@@ -25,6 +25,8 @@ contract FriendKey is
     using SafeERC20 for IERC20Metadata;
     using Strings for uint256;
 
+    uint256 private _nextTokenId;
+
     uint256 public BPS_SCALE; // Basis Point Scale (100% = 10000 BPS)
 
     address public devFeeDestination;
@@ -33,14 +35,15 @@ contract FriendKey is
     address public tradingPoolFeeDestination;
     uint256 public tradingPoolFeePercent;
 
-    IERC20Metadata public bondingToken; // Changed to IERC20Metadata
+    IERC20Metadata public bondingToken;
     uint256 public bondingTokenPriceUnit; // Added bonding token price unit (e.g., 10**decimals)
 
-    // Mapping from creator's address to their associated token ID
-    mapping(address => uint256) public creatorByTokenId;
+    // Mapping from tokenId to creator's address
+    mapping(uint256 => address) public creatorByTokenId;
     mapping(address => uint256) public bondingCurveReserves;
 
     event Trade(
+        uint256 indexed tokenId,
         address indexed trader,
         address indexed subject,
         bool isBuy,
@@ -49,7 +52,7 @@ contract FriendKey is
         uint256 supply
     );
 
-    event KeyCreated(address indexed creator, uint256 indexed tokenId, string tokenURI, uint256 initialSupply);
+    event KeyCreated(uint256 indexed tokenId, address indexed creator, string tokenURI, uint256 initialSupply);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -121,21 +124,18 @@ contract FriendKey is
     }
 
     function registerCreator() public {
-        address creatorAddress = msg.sender;
-        uint256 tokenId = creatorByTokenId[creatorAddress];
-        require(tokenId == 0, "Creator already registered");
-        uint256 id = uint256(uint160(creatorAddress));
+        address creator = msg.sender;
+        uint256 id = ++_nextTokenId;
         // uint256 balance = balanceOf(msg.sender, tokenId);
         // require(balance == 0, "Balance initialized");
-        creatorByTokenId[creatorAddress] = id;
+        creatorByTokenId[id] = creator;
         // _mint(creatorAddress, id, 1, ""); // Mint 1 share to the creator
-        emit KeyCreated(creatorAddress, id, "", 0);
+        emit KeyCreated(id, creator, "", 0);
     }
 
     function uri(uint256 tokenId) public view override returns (string memory) {
-        address creatorAddress = address(uint160(tokenId));
-        uint256 created = creatorByTokenId[creatorAddress];
-        require(created != 0, "Creator not registered");
+        address creator = creatorByTokenId[tokenId];
+        require(creator != address(0), "Creator not registered");
         string memory tokenURI = tokenId.toString();
         string memory base = super.uri(tokenId);
 
@@ -182,10 +182,10 @@ contract FriendKey is
 
     // --- Buy and Sell Shares ---
 
-    function buyShares(address creatorAddress, uint256 amount) public {
+    function buyShares(uint256 tokenId, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
-        uint256 tokenId = creatorByTokenId[creatorAddress];
-        require(tokenId != 0, "Creator not registered or no token ID associated");
+        address creatorAddress = creatorByTokenId[tokenId];
+        require(creatorAddress != address(0), "Creator not registered or no token ID associated");
 
         uint256 currentSupply = totalSupply(tokenId);
         if (currentSupply == 0) {
@@ -217,13 +217,13 @@ contract FriendKey is
             bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
 
-        emit Trade(msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
+        emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
     }
 
-    function sellShares(address creatorAddress, uint256 amount) public {
+    function sellShares(uint256 tokenId, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
-        uint256 tokenId = creatorByTokenId[creatorAddress];
-        require(tokenId != 0, "Creator not registered or no token ID associated");
+        address creatorAddress = creatorByTokenId[tokenId];
+        require(creatorAddress != address(0), "Creator not registered or no token ID associated");
         require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares");
 
         uint256 currentSupply = totalSupply(tokenId);
@@ -253,7 +253,7 @@ contract FriendKey is
             bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
 
-        emit Trade(msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
+        emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
     }
 
     // TODO: full withdraw when?
