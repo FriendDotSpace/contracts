@@ -285,7 +285,7 @@ contract FriendKey is
      * @return True if the user is eligible, false otherwise
      */
     function isUserEligible(uint256 tokenId, address user) public view returns (bool) {
-        return getKeyHoldingDuration(tokenId, user) >= block.timestamp + 24 hours; // Example: 1 day eligibility
+        return block.timestamp >= getKeyHoldingDuration(tokenId, user) + 24 hours; // Example: 1 day eligibility
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
