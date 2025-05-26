@@ -42,6 +42,9 @@ contract FriendKey is
     mapping(uint256 => address) public creatorByTokenId;
     mapping(address => uint256) public bondingCurveReserves;
 
+    // Mapping to track when a user first held a token (tokenId => userAddress => timestamp)
+    mapping(uint256 => mapping(address => uint256)) public keyHoldingSince;
+
     event Trade(
         uint256 indexed tokenId,
         address indexed trader,
@@ -265,6 +268,16 @@ contract FriendKey is
     //     bondingToken.transfer(msg.sender, amount);
     // }
 
+    /**
+     * @dev Returns how long a user has been continuously holding at least one token of a specific ID
+     * @param tokenId The ID of the token to check
+     * @param user The address of the user to check
+     * @return The timestamp when the user first obtained the token, or 0 if they don't currently hold any
+     */
+    function getKeyHoldingDuration(uint256 tokenId, address user) public view returns (uint256) {
+        return keyHoldingSince[tokenId][user];
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // The following functions are overrides required by Solidity.
@@ -273,6 +286,22 @@ contract FriendKey is
         internal
         override(ERC1155Upgradeable, ERC1155SupplyUpgradeable)
     {
+        // Call super first to get the updated balances when checking in the later conditions
         super._update(from, to, ids, values);
+
+        // For each token ID in the batch
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 tokenId = ids[i];
+
+            // Handle recipient (to) - for mint and transfer operations
+            if (to != address(0) && balanceOf(to, tokenId) == values[i]) {
+                keyHoldingSince[tokenId][to] = block.timestamp;
+            }
+
+            // Handle sender (from) - reset timestamp if they no longer hold the token
+            if (from != address(0) && balanceOf(from, tokenId) == 0) {
+                keyHoldingSince[tokenId][from] = 0;
+            }
+        }
     }
 }
