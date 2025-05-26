@@ -7,7 +7,6 @@ import {console2} from "forge-std/console2.sol";
 import {FriendKey} from "src/FriendKey.sol";
 
 contract RegisterKeyScript is Script {
-
     address constant IMPLEMENTATION = 0xB9efc37B877D69FFc7b116b62648C8892C29e53c;
     address constant PROXY = 0x0270f6b4A017750925B8a880b04d64ad0aaE91Ea;
 
@@ -20,7 +19,7 @@ contract RegisterKeyScript is Script {
         console2.log("Proxy deployed to %s", address(instance));
 
         instance.registerCreator();
-        
+
         vm.stopBroadcast();
     }
 }

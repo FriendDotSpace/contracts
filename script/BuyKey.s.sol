@@ -8,7 +8,6 @@ import {FriendKey} from "src/FriendKey.sol";
 import {FriendUSD} from "src/FriendUSD.sol";
 
 contract BuyKeyScript is Script {
-
     address constant IMPLEMENTATION = 0xB9efc37B877D69FFc7b116b62648C8892C29e53c;
     address constant PROXY = 0x0270f6b4A017750925B8a880b04d64ad0aaE91Ea;
     address constant USDC = 0x7CC500472aA79548742f4330A4120F4C0fC5F3a1;
@@ -24,9 +23,9 @@ contract BuyKeyScript is Script {
         FriendUSD usdc = FriendUSD(USDC);
 
         usdc.approve(PROXY, type(uint256).max);
-        
+
         instance.buyShares(TOKEN_ID, AMOUNT);
-        
+
         vm.stopBroadcast();
     }
 }
