@@ -278,6 +278,16 @@ contract FriendKey is
         return keyHoldingSince[tokenId][user];
     }
 
+    /**
+     * @dev Checks if a user is eligible for some action based on how long they have held a specific token
+     * @param tokenId The ID of the token to check
+     * @param user The address of the user to check
+     * @return True if the user is eligible, false otherwise
+     */
+    function isUserEligible(uint256 tokenId, address user) public view returns (bool) {
+        return getKeyHoldingDuration(tokenId, user) >= block.timestamp + 24 hours; // Example: 1 day eligibility
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // The following functions are overrides required by Solidity.
