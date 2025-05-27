@@ -269,12 +269,12 @@ contract FriendKey is
     // }
 
     /**
-     * @dev Returns how long a user has been continuously holding at least one token of a specific ID
+     * @dev Returns since when a user has been continuously holding at least one token of a specific ID
      * @param tokenId The ID of the token to check
      * @param user The address of the user to check
      * @return The timestamp when the user first obtained the token, or 0 if they don't currently hold any
      */
-    function getKeyHoldingDuration(uint256 tokenId, address user) public view returns (uint256) {
+    function getKeyHoldingSince(uint256 tokenId, address user) public view returns (uint256) {
         return keyHoldingSince[tokenId][user];
     }
 
