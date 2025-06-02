@@ -132,32 +132,24 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
 
-        assertBalances(creatorAccount, initialBalance - price, 1);
+        assertBalances(creatorAccount, initialBalance - price, 2);
 
         // Verify supply
-        assertEq(instance.totalSupply(CREATOR_TOKEN_ID), 1);
+        assertEq(instance.totalSupply(CREATOR_TOKEN_ID), 2);
     }
 
-    function testCannotBuyFirstShareAsNonCreator() public {
+    function testBuyFirstShareAsNonCreator() public {
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), 1000 * (10 ** 6));
 
-        vm.expectRevert("Only creator can buy the first share");
         instance.buyShares(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
 
-        // Verify supply remains 0
-        assertEq(instance.totalSupply(CREATOR_TOKEN_ID), 0);
+        // Verify supply remains 2 // one share on registration, one share bought by buyer
+        assertEq(instance.totalSupply(CREATOR_TOKEN_ID), 2);
     }
 
     function testBuySharesAfterFirstShare() public {
-        // Creator buys first share
-        vm.startPrank(creatorAccount);
-        uint256 initialCreatorPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
-        mockUsdc.approve(address(instance), initialCreatorPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
-        vm.stopPrank();
-
         // Buyer buys shares after creator
         uint256 initialBuyerBalance = mockUsdc.balanceOf(buyerAccount);
         uint256 shareAmount = 3;
@@ -182,13 +174,6 @@ contract FriendKeyTest is Test {
     }
 
     function testBuyMultipleSharesBatch() public {
-        // Creator buys first share
-        vm.startPrank(creatorAccount);
-        uint256 firstSharePrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
-        mockUsdc.approve(address(instance), firstSharePrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
-        vm.stopPrank();
-
         // Multiple users buy shares
         uint256 buyerShareAmount = 2;
         uint256 anotherBuyerShareAmount = 5;
@@ -218,13 +203,6 @@ contract FriendKeyTest is Test {
 
     // Tests for selling shares
     function testSellShares() public {
-        // Setup: Creator buys first share
-        vm.startPrank(creatorAccount);
-        uint256 firstSharePrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
-        mockUsdc.approve(address(instance), firstSharePrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
-        vm.stopPrank();
-
         // Buyer buys shares
         uint256 buyAmount = 3;
         uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
@@ -249,13 +227,6 @@ contract FriendKeyTest is Test {
     }
 
     function testSellMultipleShares() public {
-        // Setup: Creator buys first share
-        vm.startPrank(creatorAccount);
-        uint256 firstSharePrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
-        mockUsdc.approve(address(instance), firstSharePrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
-        vm.stopPrank();
-
         // Buyer buys shares
         uint256 buyAmount = 5;
         uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
@@ -277,13 +248,6 @@ contract FriendKeyTest is Test {
     }
 
     function testCannotSellMoreThanOwned() public {
-        // Setup: Creator buys first share
-        vm.startPrank(creatorAccount);
-        uint256 firstSharePrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
-        mockUsdc.approve(address(instance), firstSharePrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
-        vm.stopPrank();
-
         // Buyer buys shares
         uint256 buyAmount = 2;
         uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
@@ -299,12 +263,7 @@ contract FriendKeyTest is Test {
     }
 
     function testCannotSellAllRemainingShares() public {
-        // Setup: Creator buys first share
         vm.startPrank(creatorAccount);
-        uint256 firstSharePrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
-        mockUsdc.approve(address(instance), firstSharePrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
-
         // Creator attempts to sell all shares
         vm.expectRevert("Cannot sell shares if it makes supply zero or less through this method");
         instance.sellShares(CREATOR_TOKEN_ID, 1);
@@ -312,13 +271,6 @@ contract FriendKeyTest is Test {
     }
 
     function testFeeDistribution() public {
-        // Setup: Creator buys first share
-        vm.startPrank(creatorAccount);
-        uint256 firstSharePrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
-        mockUsdc.approve(address(instance), firstSharePrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
-        vm.stopPrank();
-
         // Record initial balances
         uint256 initialDevBalance = mockUsdc.balanceOf(devFeeDestination);
         uint256 initialTradingPoolBalance = mockUsdc.balanceOf(tradingPoolFeeDestination);
