@@ -123,14 +123,14 @@ contract FriendKey is
         tradingPoolFeePercent = _feePercent;
     }
 
-    function registerCreator() public {
+    function registerCreator() public returns (uint256) {
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
-        // uint256 balance = balanceOf(msg.sender, tokenId);
-        // require(balance == 0, "Balance initialized");
         creatorByTokenId[id] = creator;
-        // _mint(creatorAddress, id, 1, ""); // Mint 1 share to the creator
-        emit KeyCreated(id, creator, "", 0);
+        buyShares(id, 1); // Mint 1 share to the creator
+        string memory tokenUri = uri(id);
+        emit KeyCreated(id, creator, tokenUri, 1);
+        return id;
     }
 
     function uri(uint256 tokenId) public view override returns (string memory) {
