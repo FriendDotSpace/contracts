@@ -154,7 +154,7 @@ contract FriendKey is
             ? 0
             : ((supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1)) / 6;
         uint256 summation = sum2 - sum1;
-        return (summation * bondingTokenPriceUnit) / 16000;
+        return (summation * bondingTokenPriceUnit) / 200;
     }
 
     function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
