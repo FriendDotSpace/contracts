@@ -4,6 +4,7 @@ pragma solidity ^0.8.27;
 import {Test, console} from "forge-std/Test.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
+import {console2} from "forge-std/console2.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 // Simple Mock ERC20 for testing purposes
@@ -125,6 +126,7 @@ contract FriendKeyTest is Test {
     // Tests for buying shares
     function testBuyFirstShareAsCreator() public {
         uint256 initialBalance = mockUsdc.balanceOf(creatorAccount);
+        uint256 basePrice = instance.getBuyPrice(CREATOR_TOKEN_ID, 1);
         uint256 price = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
 
         vm.startPrank(creatorAccount);
@@ -132,7 +134,9 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
 
-        assertBalances(creatorAccount, initialBalance - price, 2);
+
+        uint256 creatorFee = (basePrice * CREATOR_FEE_PERCENT) / instance.BPS_SCALE();
+        assertBalances(creatorAccount, initialBalance - price + creatorFee, 2);
 
         // Verify supply
         assertEq(instance.totalSupply(CREATOR_TOKEN_ID), 2);
