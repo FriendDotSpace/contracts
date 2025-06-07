@@ -25,6 +25,13 @@ contract FriendKey is
     using SafeERC20 for IERC20Metadata;
     using Strings for uint256;
 
+    // Room tier enum for defining different bonding curve tiers
+    enum RoomTier {
+        Casual,
+        Club,
+        Exclusive
+    }
+
     uint256 private _nextTokenId;
 
     uint256 public BPS_SCALE; // Basis Point Scale (100% = 10000 BPS)
@@ -45,6 +52,9 @@ contract FriendKey is
     // Mapping to track when a user first held a token (tokenId => userAddress => timestamp)
     mapping(uint256 => mapping(address => uint256)) public keyHoldingSince;
 
+    // Mapping from tokenId to room tier
+    mapping(uint256 => RoomTier) public tokenTier;
+
     event Trade(
         uint256 indexed tokenId,
         address indexed trader,
@@ -55,7 +65,9 @@ contract FriendKey is
         uint256 supply
     );
 
-    event KeyCreated(uint256 indexed tokenId, address indexed creator, string tokenURI, uint256 initialSupply);
+    event KeyCreated(
+        uint256 indexed tokenId, address indexed creator, string tokenURI, uint256 initialSupply, RoomTier tier
+    );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -126,14 +138,20 @@ contract FriendKey is
         tradingPoolFeePercent = _feePercent;
     }
 
-    function registerCreator() public returns (uint256) {
+    function registerCreator(RoomTier tier) public returns (uint256) {
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
+        tokenTier[id] = tier;
         buyShares(id, 1); // Mint 1 share to the creator
         string memory tokenUri = uri(id);
-        emit KeyCreated(id, creator, tokenUri, 1);
+        emit KeyCreated(id, creator, tokenUri, 1, tier);
         return id;
+    }
+
+    // Add a backward-compatible version that defaults to Casual tier
+    function registerCreator() public returns (uint256) {
+        return registerCreator(RoomTier.Casual);
     }
 
     function uri(uint256 tokenId) public view override returns (string memory) {
