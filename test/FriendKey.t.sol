@@ -134,7 +134,6 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
 
-
         uint256 creatorFee = (basePrice * CREATOR_FEE_PERCENT) / instance.BPS_SCALE();
         assertBalances(creatorAccount, initialBalance - price + creatorFee, 2);
 
