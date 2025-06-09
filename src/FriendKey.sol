@@ -55,6 +55,8 @@ contract FriendKey is
     // Mapping from tokenId to room tier
     mapping(uint256 => RoomTier) public tokenTier;
 
+    uint256[] public bondingCurveDivisors;
+
     event Trade(
         uint256 indexed tokenId,
         address indexed trader,
@@ -104,6 +106,7 @@ contract FriendKey is
         uint8 decimals = bondingToken.decimals();
         require(decimals > 0, "Bonding token decimals must be greater than zero");
         bondingTokenPriceUnit = 10 ** decimals;
+        bondingCurveDivisors = [3200, 200, 2];
     }
 
     function setURI(string memory newuri) public onlyOwner {
@@ -166,22 +169,25 @@ contract FriendKey is
 
     // --- Pricing Logic ---
 
-    function getPrice(uint256 supply, uint256 amount) public view returns (uint256) {
+    function getPrice(uint256 supply, uint256 amount, uint256 divisor) public view returns (uint256) {
+        require(divisor > 0, "Divisor must be greater than zero");
         uint256 sum1 = supply == 0 ? 0 : ((supply - 1) * (supply) * (2 * (supply - 1) + 1)) / 6;
         uint256 sum2 = supply == 0 && amount == 1
             ? 0
             : ((supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1)) / 6;
         uint256 summation = sum2 - sum1;
-        return (summation * bondingTokenPriceUnit) / 200;
+        return (summation * bondingTokenPriceUnit) / divisor;
     }
 
     function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
-        return getPrice(totalSupply(id), amount);
+        uint256 divisor = bondingCurveDivisors[uint256(tokenTier[id])];
+        return getPrice(totalSupply(id), amount, divisor);
     }
 
     function getSellPrice(uint256 id, uint256 amount) public view returns (uint256) {
         require(totalSupply(id) >= amount, "Amount exceeds supply");
-        return getPrice(totalSupply(id) - amount, amount);
+        uint256 divisor = bondingCurveDivisors[uint256(tokenTier[id])];
+        return getPrice(totalSupply(id) - amount, amount, divisor);
     }
 
     function getBuyPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
@@ -213,7 +219,7 @@ contract FriendKey is
             require(msg.sender == creatorAddress, "Only creator can buy the first share");
         }
 
-        uint256 price = getPrice(currentSupply, amount);
+        uint256 price = getPrice(currentSupply, amount, bondingCurveDivisors[uint256(tokenTier[tokenId])]);
         uint256 devFee = (price * devFeePercent) / BPS_SCALE;
         uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
         uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
@@ -250,7 +256,7 @@ contract FriendKey is
         uint256 currentSupply = totalSupply(tokenId);
         require(currentSupply > amount, "Cannot sell shares if it makes supply zero or less through this method");
 
-        uint256 price = getPrice(currentSupply - amount, amount);
+        uint256 price = getPrice(currentSupply - amount, amount, bondingCurveDivisors[uint256(tokenTier[tokenId])]);
         uint256 devFee = (price * devFeePercent) / BPS_SCALE;
         uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
         uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
