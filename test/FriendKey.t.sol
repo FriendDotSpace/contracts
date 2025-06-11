@@ -231,12 +231,12 @@ contract FriendKeyTest is Test {
 
     function testUri() public {
         string memory myLittleUri = "http://localhost:3001/api/metadata/";
-        
+
         // Set the URI (assuming the owner has permission to do this)
         vm.startPrank(owner);
         instance.setURI(myLittleUri);
         vm.stopPrank();
-        
+
         // Verify the URI for the token
         string memory retrievedUri = instance.uri(CREATOR_TOKEN_ID);
         string memory expectedUri = string.concat(myLittleUri, CREATOR_TOKEN_ID.toString());
