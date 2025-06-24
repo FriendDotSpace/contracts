@@ -53,7 +53,7 @@ contract FriendKey is
     mapping(uint256 => mapping(address => uint256)) public keyHoldingSince;
 
     // Mapping from tokenId to room tier
-    mapping(uint256 => RoomTier) public tokenTier;
+    mapping(uint256 => RoomTier) public roomTiers;
 
     uint256[] public bondingCurveDivisors;
 
@@ -145,7 +145,7 @@ contract FriendKey is
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
-        tokenTier[id] = tier;
+        roomTiers[id] = tier;
         buyShares(id, 1); // Mint 1 share to the creator
         string memory tokenUri = uri(id);
         emit KeyCreated(id, creator, tokenUri, 1, tier);
@@ -180,13 +180,13 @@ contract FriendKey is
     }
 
     function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
-        uint256 divisor = bondingCurveDivisors[uint256(tokenTier[id])];
+        uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return getPrice(totalSupply(id), amount, divisor);
     }
 
     function getSellPrice(uint256 id, uint256 amount) public view returns (uint256) {
         require(totalSupply(id) >= amount, "Amount exceeds supply");
-        uint256 divisor = bondingCurveDivisors[uint256(tokenTier[id])];
+        uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return getPrice(totalSupply(id) - amount, amount, divisor);
     }
 
@@ -219,7 +219,7 @@ contract FriendKey is
             require(msg.sender == creatorAddress, "Only creator can buy the first share");
         }
 
-        uint256 price = getPrice(currentSupply, amount, bondingCurveDivisors[uint256(tokenTier[tokenId])]);
+        uint256 price = getPrice(currentSupply, amount, bondingCurveDivisors[uint256(roomTiers[tokenId])]);
         uint256 devFee = (price * devFeePercent) / BPS_SCALE;
         uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
         uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
@@ -256,7 +256,7 @@ contract FriendKey is
         uint256 currentSupply = totalSupply(tokenId);
         require(currentSupply > amount, "Cannot sell shares if it makes supply zero or less through this method");
 
-        uint256 price = getPrice(currentSupply - amount, amount, bondingCurveDivisors[uint256(tokenTier[tokenId])]);
+        uint256 price = getPrice(currentSupply - amount, amount, bondingCurveDivisors[uint256(roomTiers[tokenId])]);
         uint256 devFee = (price * devFeePercent) / BPS_SCALE;
         uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
         uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
