@@ -5,6 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
+import {FriendStake} from "src/FriendStake.sol";
 
 contract FriendKeyScript is Script {
     function setUp() public {}
@@ -21,6 +22,8 @@ contract FriendKeyScript is Script {
         address devFeeDestination = initialOwner;
         address usdc = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
 
+        FriendStake friendStake = new FriendStake();
+
         bytes memory initializeData = abi.encodeCall(
             FriendKey.initialize,
             (
@@ -30,7 +33,8 @@ contract FriendKeyScript is Script {
                 CREATOR_FEE_PERCENT,
                 tradingPoolFeeDestination,
                 TRADING_POOL_FEE_PERCENT,
-                address(usdc)
+                address(usdc),
+                address(friendStake)
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);

@@ -4,7 +4,7 @@ pragma solidity ^0.8.27;
 import {Test, console} from "forge-std/Test.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
-import {console2} from "forge-std/console2.sol";
+import {FriendStake} from "src/FriendStake.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IFriendPool} from "src/interfaces/IFriendPool.sol";
@@ -110,6 +110,7 @@ contract FriendKeyTest is Test {
 
         MockPool pool = new MockPool(address(mockUsdc));
         tradingPoolFeeDestination = address(pool); //vm.addr(4);
+        FriendStake friendStake = new FriendStake();
 
         vm.startPrank(owner);
         bytes memory initializeData = abi.encodeCall(
@@ -121,7 +122,8 @@ contract FriendKeyTest is Test {
                 CREATOR_FEE_PERCENT,
                 tradingPoolFeeDestination,
                 TRADING_POOL_FEE_PERCENT,
-                address(mockUsdc)
+                address(mockUsdc),
+                address(friendStake)
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);

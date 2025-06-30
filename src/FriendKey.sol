@@ -14,6 +14,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IFriendPool} from "./interfaces/IFriendPool.sol";
+import {FriendStake} from "./FriendStake.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 contract FriendKey is
     Initializable,
@@ -42,12 +44,14 @@ contract FriendKey is
     uint256 public creatorFeePercent;
     address public tradingPoolFeeDestination;
     uint256 public tradingPoolFeePercent;
+    address public friendStake; // Address of the FriendStake contract to clone for staking pools
 
     IERC20Metadata public bondingToken;
     uint256 public bondingTokenPriceUnit; // Added bonding token price unit (e.g., 10**decimals)
 
     // Mapping from tokenId to creator's address
     mapping(uint256 => address) public creatorByTokenId;
+    mapping(uint256 => address) public stakingPoolByTokenId;
     mapping(address => uint256) public bondingCurveReserves;
 
     // Mapping to track when a user first held a token (tokenId => userAddress => timestamp)
@@ -69,7 +73,12 @@ contract FriendKey is
     );
 
     event KeyCreated(
-        uint256 indexed tokenId, address indexed creator, string tokenURI, uint256 initialSupply, RoomTier tier
+        uint256 indexed tokenId,
+        address indexed creator,
+        address stakingPool,
+        string tokenURI,
+        uint256 initialSupply,
+        RoomTier tier
     );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -84,7 +93,8 @@ contract FriendKey is
         uint256 _creatorFeePercent,
         address _tradingPoolFeeDestination,
         uint256 _tradingPoolFeePercent,
-        address _bondingTokenAddress
+        address _bondingTokenAddress,
+        address _friendStake
     ) public initializer {
         __ERC1155_init("");
         __Ownable_init(initialOwner);
@@ -103,6 +113,7 @@ contract FriendKey is
         tradingPoolFeeDestination = _tradingPoolFeeDestination;
         tradingPoolFeePercent = _tradingPoolFeePercent;
         bondingToken = IERC20Metadata(_bondingTokenAddress);
+        friendStake = _friendStake;
 
         uint8 decimals = bondingToken.decimals();
         require(decimals > 0, "Bonding token decimals must be greater than zero");
@@ -149,7 +160,12 @@ contract FriendKey is
         roomTiers[id] = tier;
         buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
         string memory tokenUri = uri(id);
-        emit KeyCreated(id, creator, tokenUri, 1 + additionalKeys, tier);
+
+        address cloneAddress = Clones.clone(friendStake);
+        FriendStake(cloneAddress).initialize(address(this), address(this), address(bondingToken), id);
+
+        stakingPoolByTokenId[id] = cloneAddress;
+        emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
         return id;
     }
 
@@ -238,6 +254,7 @@ contract FriendKey is
             require(ok, "Transfer failed");
         }
 
+        //todo abi.encodePacked(msg.sender)
         _mint(msg.sender, tokenId, amount, "");
 
         if (devFee > 0 && devFeeDestination != address(0)) {
