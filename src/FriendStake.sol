@@ -9,7 +9,6 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IterableMapping} from "./lib/IterableMapping.sol";
-import {console2} from "forge-std/console2.sol";
 
 contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradeable {
     using SafeERC20 for IERC20;
@@ -18,7 +17,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     IERC20 public rewardToken;
     uint256 public tokenId;
     bool public isOpenForStaking;
-    uint256 i = 0;
+    uint256 rewardDistributionIndex;
     uint256 public rewardAmount;
 
     // Array to track users who have claimed rewards
@@ -126,14 +125,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
 
         uint256 userReward = (rewardAmount * userStake) / totalStaked;
         uint256 userClaim = userReward > remainingAmount ? remainingAmount : userReward;
-        console2.log("User %s has staked %d tokens and can claim %d rewards, total %d");
-        console2.log(user);
-        console2.log(userStake);
-        console2.log(userReward);
-        console2.log(rewardAmount);
-        console2.log(remainingAmount);
-        console2.log(userClaim);
-        console2.log(totalStaked);
+
         require(userClaim > 0, "FriendStake: No reward for user");
         uint256 userIndex = stakedBalances.indexOf[user];
         require(!claimed[userIndex], "FriendStake: User has already claimed rewards");
@@ -165,27 +157,27 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         require(isOpenForStaking, "FriendStake: Staking is already closed");
         isOpenForStaking = false;
         rewardAmount = rewardToken.balanceOf(address(this));
+        rewardDistributionIndex = 0;
 
-        i = 0;
         claimed = new bool[](stakedBalances.size()); // Reset claimed array
     }
 
-    function distributeRewards() public {
+    function distributeRewards(uint256 batchSize) public {
         require(!isOpenForStaking, "FriendStake: Staking is still open");
-        uint256 rewardAmount = rewardToken.balanceOf(address(this));
-        require(rewardAmount > 0, "FriendStake: No rewards to distribute");
-        require(totalStaked > 0, "FriendStake: No staked tokens to distribute rewards");
-        // TODO limit the number of iterations to prevent gas limit issues
-        for (; i < stakedBalances.size(); i++) {
-            address user = stakedBalances.getKeyAtIndex(i);
+
+        uint256 endIndex = rewardDistributionIndex + batchSize > stakedBalances.size()
+            ? stakedBalances.size()
+            : rewardDistributionIndex + batchSize;
+        for (; rewardDistributionIndex < endIndex; rewardDistributionIndex++) {
+            address user = stakedBalances.getKeyAtIndex(rewardDistributionIndex);
             uint256 userStake = stakedBalances.get(user);
-            if (userStake > 0 && !claimed[i]) {
+            if (userStake > 0 && !claimed[rewardDistributionIndex]) {
                 uint256 userReward = (rewardAmount * userStake) / totalStaked;
                 require(userReward > 0, "FriendStake: No reward for user");
                 claimRewards(user);
             }
         }
-        if (i == stakedBalances.size() - 1) {
+        if (rewardDistributionIndex == stakedBalances.size()) {
             isOpenForStaking = true; // Reopen staking after distribution
         }
     }

@@ -154,7 +154,7 @@ contract FriendStakeTest is Test {
         uint256 staker2InitialBalance = mockUsdc.balanceOf(staker2);
 
         // Distribute rewards
-        stake.distributeRewards();
+        stake.distributeRewards(10);
 
         // Both stakers should have received rewards
         uint256 staker1Reward = (rewardAmount * 2) / 5;
@@ -163,6 +163,7 @@ contract FriendStakeTest is Test {
         assertEq(mockUsdc.balanceOf(staker2), staker2InitialBalance + staker2Reward);
 
         assertEq(stake.totalStaked(), 5);
+        assertEq(stake.isOpenForStaking(), true); // Staking should be reopened after distribution
     }
 
     function testCannotStakeWhenClosed() public {
