@@ -106,7 +106,7 @@ contract FriendKey is
         uint8 decimals = bondingToken.decimals();
         require(decimals > 0, "Bonding token decimals must be greater than zero");
         bondingTokenPriceUnit = 10 ** decimals;
-        bondingCurveDivisors = [3200, 200, 2];
+        bondingCurveDivisors = [4000, 40, 4];
     }
 
     function setURI(string memory newuri) public onlyOwner {
