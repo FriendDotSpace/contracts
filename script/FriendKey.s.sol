@@ -14,9 +14,9 @@ contract FriendKeyScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         address initialOwner = vm.addr(deployerPrivateKey);
-        uint256 DEV_FEE_PERCENT = 400;
-        uint256 CREATOR_FEE_PERCENT = 400;
-        uint256 TRADING_POOL_FEE_PERCENT = 400;
+        uint256 DEV_FEE_PERCENT = 200;
+        uint256 CREATOR_FEE_PERCENT = 200;
+        uint256 TRADING_POOL_FEE_PERCENT = 600;
         address tradingPoolFeeDestination = initialOwner;
         address devFeeDestination = initialOwner;
         address usdc = 0x7CC500472aA79548742f4330A4120F4C0fC5F3a1;
