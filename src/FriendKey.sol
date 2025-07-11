@@ -13,6 +13,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {IFriendPool} from "./interfaces/IFriendPool.sol";
 
 contract FriendKey is
     Initializable,
@@ -241,7 +242,9 @@ contract FriendKey is
             bondingToken.transfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
-            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+            bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee);
+            IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee);
+            // bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
@@ -277,7 +280,8 @@ contract FriendKey is
             bondingToken.transfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
-            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+            bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee);
+            IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee);
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
