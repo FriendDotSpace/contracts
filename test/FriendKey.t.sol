@@ -63,7 +63,7 @@ contract MockERC20 is IERC20Metadata {
     }
 }
 
-contract MockPool  {
+contract MockPool {
     MockERC20 public bondingToken;
 
     constructor(address _bondingToken) {
@@ -74,7 +74,6 @@ contract MockPool  {
         bool success = bondingToken.transferFrom(msg.sender, address(this), amount);
         console.log("Pull called with tokenId:", tokenId, "and amount:", amount);
         return success;
-
     }
 }
 
@@ -100,14 +99,14 @@ contract FriendKeyTest is Test {
     function setUp() public {
         owner = vm.addr(1);
         devFeeDestination = vm.addr(2);
-        
+
         creatorAccount = vm.addr(5);
         buyerAccount = vm.addr(6);
         anotherBuyerAccount = vm.addr(7);
 
         mockUsdc = new MockERC20("Mock USDC", "mUSDC", 6);
 
-        MockPool pool = new MockPool(address(mockUsdc)); 
+        MockPool pool = new MockPool(address(mockUsdc));
         tradingPoolFeeDestination = address(pool); //vm.addr(4);
 
         vm.startPrank(owner);

@@ -67,12 +67,12 @@ contract DispatchTargetMock {
     uint256 public receivedAmount;
     address public receivedFrom;
     bytes public receivedData;
-    
+
     receive() external payable {
         receivedAmount = msg.value;
         receivedFrom = msg.sender;
     }
-    
+
     function handleDispatch(bytes calldata data) external {
         receivedData = data;
         receivedFrom = msg.sender;
@@ -121,7 +121,7 @@ contract FriendPoolTest is Test {
         revertingMock = new RevertingMock();
 
         vm.startPrank(owner);
-        
+
         // Deploy FriendKey
         bytes memory friendKeyInitializeData = abi.encodeCall(
             FriendKey.initialize,
@@ -137,21 +137,15 @@ contract FriendPoolTest is Test {
         );
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitializeData);
         friendKey = FriendKey(friendKeyProxy);
-        
+
         // Deploy FriendPool
-        bytes memory friendPoolInitializeData = abi.encodeCall(
-            FriendPool.initialize,
-            (
-                owner,
-                address(friendKey)
-            )
-        );
+        bytes memory friendPoolInitializeData = abi.encodeCall(FriendPool.initialize, (owner, address(friendKey)));
         address friendPoolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", friendPoolInitializeData);
         friendPool = FriendPool(friendPoolProxy);
-        
+
         // Set FriendPool as trading pool fee destination in FriendKey
         friendKey.setTradingPoolFeeDestination(address(friendPool));
-        
+
         vm.stopPrank();
 
         vm.startPrank(creatorAccount);
@@ -184,35 +178,43 @@ contract FriendPoolTest is Test {
     function testPullFunds() public {
         // Buy shares to generate trading pool fees
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 5);
-        
+
         // The pool reserves should be non-zero after the trade
         uint256 actualReserves = friendPool.poolReserves(CREATOR_TOKEN_ID);
         assertGt(actualReserves, 0, "Pool should have some reserves after trade");
-        
+
         // Check that FriendPool received the fees
-        assertEq(mockUsdc.balanceOf(address(friendPool)), actualReserves, "FriendPool USDC balance should match pool reserves");
+        assertEq(
+            mockUsdc.balanceOf(address(friendPool)),
+            actualReserves,
+            "FriendPool USDC balance should match pool reserves"
+        );
     }
 
     function testPullFundsMultipleTrades() public {
         // First trade
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 3);
         uint256 firstReserves = friendPool.poolReserves(CREATOR_TOKEN_ID);
-        
+
         // Second trade
         _buyShares(anotherBuyerAccount, CREATOR_TOKEN_ID, 2);
         uint256 totalReserves = friendPool.poolReserves(CREATOR_TOKEN_ID);
-        
+
         // Check that reserves accumulate
         assertGt(firstReserves, 0, "First trade should generate some reserves");
         assertGt(totalReserves, firstReserves, "Total reserves should be greater than first trade reserves");
-        assertEq(mockUsdc.balanceOf(address(friendPool)), totalReserves, "FriendPool USDC balance should match total reserves");
+        assertEq(
+            mockUsdc.balanceOf(address(friendPool)),
+            totalReserves,
+            "FriendPool USDC balance should match total reserves"
+        );
     }
 
     function testPullFundsOnlyFromFriendKey() public {
         // Try to call pull directly (should fail)
         vm.startPrank(creatorAccount);
         mockUsdc.approve(address(friendPool), 1000);
-        
+
         vm.expectRevert("FriendPool: Caller is not the FriendKey contract");
         friendPool.pull(CREATOR_TOKEN_ID, 1000);
         vm.stopPrank();
@@ -221,66 +223,68 @@ contract FriendPoolTest is Test {
     function testDispatchByCreator() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 5);
-        
+
         uint256 poolBalance = friendPool.poolReserves(CREATOR_TOKEN_ID);
         assertGt(poolBalance, 0, "Pool should have some balance before dispatch");
-        
+
         // Prepare dispatch data
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("test dispatch data")
-        );
-        
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("test dispatch data"));
+
         // Creator dispatches funds
         vm.startPrank(creatorAccount);
         vm.expectEmit(true, true, false, true);
         emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, address(dispatchTarget), poolBalance);
-        
+
         uint256 dispatchedAmount = friendPool.dispatch(CREATOR_TOKEN_ID, address(dispatchTarget), dispatchData);
         vm.stopPrank();
-        
+
         // Verify dispatch results
         assertEq(dispatchedAmount, poolBalance, "Dispatched amount should equal pool balance");
         assertEq(friendPool.poolReserves(CREATOR_TOKEN_ID), 0, "Pool reserves should be zero after dispatch");
-        assertEq(mockUsdc.allowance(address(friendPool), address(dispatchTarget)), poolBalance, "Target should have allowance for dispatched amount");
+        assertEq(
+            mockUsdc.allowance(address(friendPool), address(dispatchTarget)),
+            poolBalance,
+            "Target should have allowance for dispatched amount"
+        );
     }
 
     function testDispatchByOwner() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 3);
-        
+
         uint256 poolBalance = friendPool.poolReserves(CREATOR_TOKEN_ID);
         assertGt(poolBalance, 0, "Pool should have some balance before dispatch");
-        
+
         // Prepare dispatch data
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("owner dispatch data")
-        );
-        
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("owner dispatch data"));
+
         // Owner dispatches funds
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true);
         emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, address(dispatchTarget), poolBalance);
-        
+
         uint256 dispatchedAmount = friendPool.dispatchAs(CREATOR_TOKEN_ID, address(dispatchTarget), dispatchData);
         vm.stopPrank();
-        
+
         // Verify dispatch results
         assertEq(dispatchedAmount, poolBalance, "Dispatched amount should equal pool balance");
         assertEq(friendPool.poolReserves(CREATOR_TOKEN_ID), 0, "Pool reserves should be zero after dispatch");
-        assertEq(mockUsdc.allowance(address(friendPool), address(dispatchTarget)), poolBalance, "Target should have allowance for dispatched amount");
+        assertEq(
+            mockUsdc.allowance(address(friendPool), address(dispatchTarget)),
+            poolBalance,
+            "Target should have allowance for dispatched amount"
+        );
     }
 
     function testDispatchFailsForNonCreator() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
-        
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("unauthorized dispatch")
-        );
-        
+
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("unauthorized dispatch"));
+
         // Non-creator tries to dispatch (should fail)
         vm.startPrank(buyerAccount);
         vm.expectRevert("FriendPool: Only the creator can perform this action");
@@ -291,12 +295,10 @@ contract FriendPoolTest is Test {
     function testDispatchFailsForNonOwner() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
-        
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("unauthorized dispatch")
-        );
-        
+
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("unauthorized dispatch"));
+
         // Non-owner tries to dispatch as owner (should fail)
         vm.startPrank(buyerAccount);
         vm.expectRevert();
@@ -306,11 +308,9 @@ contract FriendPoolTest is Test {
 
     function testDispatchFailsWithZeroBalance() public {
         // Try to dispatch when pool has no balance
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("empty pool dispatch")
-        );
-        
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("empty pool dispatch"));
+
         vm.startPrank(creatorAccount);
         vm.expectRevert("FriendPool: No funds available for dispatch");
         friendPool.dispatch(CREATOR_TOKEN_ID, address(dispatchTarget), dispatchData);
@@ -320,12 +320,10 @@ contract FriendPoolTest is Test {
     function testDispatchFailsWithZeroAddress() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
-        
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("zero address dispatch")
-        );
-        
+
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("zero address dispatch"));
+
         vm.startPrank(creatorAccount);
         vm.expectRevert("FriendPool: Recipient address cannot be zero");
         friendPool.dispatch(CREATOR_TOKEN_ID, address(0), dispatchData);
@@ -335,10 +333,10 @@ contract FriendPoolTest is Test {
     function testDispatchFailsWithBadCalldata() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
-        
+
         // Create calldata that will cause the call to revert
         bytes memory badCalldata = abi.encodeWithSelector(RevertingMock.alwaysRevert.selector);
-        
+
         vm.startPrank(creatorAccount);
         vm.expectRevert("FriendPool: Dispatch failed");
         friendPool.dispatch(CREATOR_TOKEN_ID, address(revertingMock), badCalldata);
@@ -348,52 +346,54 @@ contract FriendPoolTest is Test {
     function testDispatchCreatesCorrectApproval() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 4);
-        
+
         uint256 poolBalance = friendPool.poolReserves(CREATOR_TOKEN_ID);
-        
+
         // Prepare dispatch data
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("approval test")
-        );
-        
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("approval test"));
+
         // Check initial allowance
-        assertEq(mockUsdc.allowance(address(friendPool), address(dispatchTarget)), 0, "Initial allowance should be zero");
-        
+        assertEq(
+            mockUsdc.allowance(address(friendPool), address(dispatchTarget)), 0, "Initial allowance should be zero"
+        );
+
         // Creator dispatches funds
         vm.startPrank(creatorAccount);
         friendPool.dispatch(CREATOR_TOKEN_ID, address(dispatchTarget), dispatchData);
         vm.stopPrank();
-        
+
         // Check final allowance
-        assertEq(mockUsdc.allowance(address(friendPool), address(dispatchTarget)), poolBalance, "Final allowance should equal dispatched amount");
+        assertEq(
+            mockUsdc.allowance(address(friendPool), address(dispatchTarget)),
+            poolBalance,
+            "Final allowance should equal dispatched amount"
+        );
     }
 
     function testPoolReservesTrackingAccuracy() public {
         // Test that pool reserves are accurately tracked across multiple operations
         uint256 initialReserves = friendPool.poolReserves(CREATOR_TOKEN_ID);
         assertEq(initialReserves, 0, "Initial reserves should be zero");
-        
+
         // First trade
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
         uint256 firstReserves = friendPool.poolReserves(CREATOR_TOKEN_ID);
         assertGt(firstReserves, 0, "First trade should generate reserves");
-        
+
         // Second trade
         _buyShares(anotherBuyerAccount, CREATOR_TOKEN_ID, 3);
         uint256 totalReserves = friendPool.poolReserves(CREATOR_TOKEN_ID);
         assertGt(totalReserves, firstReserves, "Total reserves should be greater than first trade");
-        
+
         // Partial dispatch (dispatch all available)
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("partial dispatch")
-        );
-        
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("partial dispatch"));
+
         vm.startPrank(creatorAccount);
         friendPool.dispatch(CREATOR_TOKEN_ID, address(dispatchTarget), dispatchData);
         vm.stopPrank();
-        
+
         assertEq(friendPool.poolReserves(CREATOR_TOKEN_ID), 0, "Reserves should be zero after dispatch");
     }
 
@@ -402,29 +402,29 @@ contract FriendPoolTest is Test {
         vm.startPrank(anotherBuyerAccount);
         uint256 secondTokenId = friendKey.registerCreator();
         vm.stopPrank();
-        
+
         // Generate fees for both tokens
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
         _buyShares(creatorAccount, secondTokenId, 3);
-        
+
         uint256 firstTokenReserves = friendPool.poolReserves(CREATOR_TOKEN_ID);
         uint256 secondTokenReserves = friendPool.poolReserves(secondTokenId);
-        
+
         // Check that reserves are tracked separately
         assertGt(firstTokenReserves, 0, "First token should have some reserves");
         assertGt(secondTokenReserves, 0, "Second token should have some reserves");
-        
+
         // Dispatch from first token should not affect second
-        bytes memory dispatchData = abi.encodeWithSelector(
-            DispatchTargetMock.handleDispatch.selector,
-            bytes("multi-token dispatch")
-        );
-        
+        bytes memory dispatchData =
+            abi.encodeWithSelector(DispatchTargetMock.handleDispatch.selector, bytes("multi-token dispatch"));
+
         vm.startPrank(creatorAccount);
         friendPool.dispatch(CREATOR_TOKEN_ID, address(dispatchTarget), dispatchData);
         vm.stopPrank();
-        
+
         assertEq(friendPool.poolReserves(CREATOR_TOKEN_ID), 0, "First token reserves should be zero after dispatch");
-        assertEq(friendPool.poolReserves(secondTokenId), secondTokenReserves, "Second token reserves should be unchanged");
+        assertEq(
+            friendPool.poolReserves(secondTokenId), secondTokenReserves, "Second token reserves should be unchanged"
+        );
     }
 }
