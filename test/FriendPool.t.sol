@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test, console2} from "forge-std/Test.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendPool} from "src/FriendPool.sol";
@@ -76,6 +76,7 @@ contract DispatchTargetMock {
     function handleDispatch(bytes calldata data) external {
         receivedData = data;
         receivedFrom = msg.sender;
+        console2.log("Dispatch handled with data:", string(data));
     }
 }
 
