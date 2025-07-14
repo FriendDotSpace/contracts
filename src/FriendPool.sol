@@ -68,10 +68,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return amount;
     }
 
-    function _dispatch(uint256 tokenId, address recipient, bytes calldata data)
-        internal
-        returns (uint256)
-    {
+    function _dispatch(uint256 tokenId, address recipient, bytes calldata data) internal returns (uint256) {
         require(recipient != address(0), "FriendPool: Recipient address cannot be zero");
 
         uint256 amount = poolReserves[tokenId];

@@ -17,7 +17,7 @@ contract FriendUSD is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         if (msg.sender != owner()) {
             require(amount <= 100 * 10 ** decimals(), "FriendUSD: Cannot mint more than 100 tokens at once");
         }
-        
+
         _mint(to, amount);
     }
 }

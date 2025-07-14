@@ -3,7 +3,6 @@
 
 pragma solidity ^0.8.27;
 
-
 /**
  * @dev Minimal Interface of the FriendPool.
  */
