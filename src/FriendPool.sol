@@ -14,6 +14,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20Metadata;
 
     IFriendKey public friendKey;
+    address private _dispatcher;
 
     // from tokenId to amount of reserves
     mapping(uint256 => uint256) public poolReserves;
@@ -51,8 +52,13 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _;
     }
 
+    function setDispatcher(address dispatcher) external onlyOwner {
+        require(dispatcher != address(0), "FriendPool: Dispatcher address cannot be zero");
+        _dispatcher = dispatcher;
+    }
 
-    function dispatchAs(uint256 tokenId, address recipient, bytes calldata data) external onlyOwner returns (uint256) {
+    function dispatchAs(uint256 tokenId, address recipient, bytes calldata data) external returns (uint256) {
+        require(msg.sender == _dispatcher || msg.sender == owner(), "FriendPool: Caller is not the dispatcher");
         uint256 amount = _dispatch(tokenId, recipient, data);
         return amount;
     }
@@ -80,14 +86,15 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return amount;
     }
 
-    function dispatch(uint256 tokenId, address recipient, bytes calldata data)
-        external
-        onlyKeyCreator(tokenId)
-        returns (uint256)
-    {
-        uint256 amount = _dispatch(tokenId, recipient, data);
-        return amount;
-    }
+    // DEV: up to discussion with the client
+    // function dispatch(uint256 tokenId, address recipient, bytes calldata data)
+    //     external
+    //     onlyKeyCreator(tokenId)
+    //     returns (uint256)
+    // {
+    //     uint256 amount = _dispatch(tokenId, recipient, data);
+    //     return amount;
+    // }
 
     function pull(uint256 tokenId, uint256 amount) external onlyFriendKey returns (bool) {
         IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
