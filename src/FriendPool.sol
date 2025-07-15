@@ -45,12 +45,12 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _;
     }
 
-    modifier onlyKeyCreator(uint256 tokenId) {
-        address creator = friendKey.creatorByTokenId(tokenId);
-        require(creator != address(0), "FriendPool: Token does not exist or creator is zero address");
-        require(creator == msg.sender, "FriendPool: Only the creator can perform this action");
-        _;
-    }
+    // modifier onlyKeyCreator(uint256 tokenId) {
+    //     address creator = friendKey.creatorByTokenId(tokenId);
+    //     require(creator != address(0), "FriendPool: Token does not exist or creator is zero address");
+    //     require(creator == msg.sender, "FriendPool: Only the creator can perform this action");
+    //     _;
+    // }
 
     function setDispatcher(address dispatcher) external onlyOwner {
         require(dispatcher != address(0), "FriendPool: Dispatcher address cannot be zero");
