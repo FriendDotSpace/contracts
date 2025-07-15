@@ -51,17 +51,6 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _;
     }
 
-    // // msg sender should be friendKey contract
-    // function allowDispatchAs(uint256 tokenId, address to) external onlyFriendKey returns (bool) {}
-
-    // function allowDispatch(uint256 tokenId, address to) external onlyKeyCreator(tokenId) returns (bool) {
-    //     IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
-    // }
-
-    // // function _allowDispatch(uint256 tokenId) internal view returns (bool) {
-    // //     address creator = friendKey.creatorByTokenId(tokenId);
-    // //     return creator != address(0) && creator == msg.sender;
-    // // }
 
     function dispatchAs(uint256 tokenId, address recipient, bytes calldata data) external onlyOwner returns (uint256) {
         uint256 amount = _dispatch(tokenId, recipient, data);
@@ -77,12 +66,13 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
         require(bondingToken.balanceOf(address(this)) >= amount, "FriendPool: Insufficient pool reserves");
 
-        // approve funds to recipient
-        bondingToken.approve(recipient, amount);
-
         // remove funds from pool reserves
         poolReserves[tokenId] -= amount;
 
+        // approve funds to recipient
+        bondingToken.approve(recipient, amount);
+
+        // dispatch funds to recipient
         (bool success,) = recipient.call(data);
         require(success, "FriendPool: Dispatch failed");
 
