@@ -166,6 +166,41 @@ contract FriendStakeTest is Test {
         assertEq(stake.isOpenForStaking(), true); // Staking should be reopened after distribution
     }
 
+    function testDistributeRewardsLimit() public {
+        // find the gas usage for different batch sizes
+        uint256 batchSize = 1000;
+        for (uint256 i = 0; i < 5; i++) {
+            console.log("Trying batch size:", batchSize);
+
+            vm.pauseGasMetering(); // this loop would exceed gas limit of tests
+            for (uint256 j = 0; j < batchSize; j++) {
+                // Mint tokens to stakers
+                address staker = vm.addr(j + 10);
+                vm.startPrank(staker);
+                mockUsdc.mint(staker, 1_000_000 * (10 ** 6));
+                uint256 price1 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+                mockUsdc.approve(address(friendKey), price1);
+                friendKey.buyShares(CREATOR_TOKEN_ID, 1);
+                friendKey.safeTransferFrom(staker, address(stake), CREATOR_TOKEN_ID, 1, "");
+                vm.stopPrank();
+            }
+            vm.resumeGasMetering();
+            // Fund rewards
+            uint256 rewardAmount = 1_000 * (10 ** 6);
+            mockUsdc.mint(address(stake), rewardAmount);
+
+            // Owner closes staking
+            vm.prank(owner);
+            stake.lockStaking();
+            vm.startSnapshotGas("distribution");
+
+            stake.distributeRewards(batchSize);
+            uint256 gasUsed = vm.stopSnapshotGas();
+            console.log("Gas used for batch size", batchSize, ":", gasUsed);
+            batchSize += 1000;
+        }
+    }
+
     function testCannotStakeWhenClosed() public {
         // Owner closes staking
         vm.prank(owner);
