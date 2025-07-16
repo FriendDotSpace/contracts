@@ -158,13 +158,13 @@ contract FriendKey is
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
-        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
         string memory tokenUri = uri(id);
 
         address cloneAddress = Clones.clone(friendStake);
         FriendStake(cloneAddress).initialize(address(this), address(this), address(bondingToken), id);
 
         stakingPoolByTokenId[id] = cloneAddress;
+        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
         emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
         return id;
     }
@@ -254,8 +254,13 @@ contract FriendKey is
             require(ok, "Transfer failed");
         }
 
-        //todo abi.encodePacked(msg.sender)
-        _mint(msg.sender, tokenId, amount, "");
+        FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
+        if (stakingPool.isOpenForStaking() == false) {
+            _mint(msg.sender, tokenId, amount, "");
+        } else {
+            bytes memory sender = abi.encode(msg.sender);
+            _mint(stakingPoolByTokenId[tokenId], tokenId, amount, sender);
+        }
 
         if (devFee > 0 && devFeeDestination != address(0)) {
             bondingToken.transfer(devFeeDestination, devFee);

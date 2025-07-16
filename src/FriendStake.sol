@@ -71,6 +71,9 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         require(_msgSender() == address(friendKeyToken), "FriendStake: Only FriendKey tokens can be staked");
         require(id == tokenId, "FriendStake: Invalid token ID");
         require(value > 0, "FriendStake: Cannot stake zero tokens");
+        if (data.length != 0) {
+            from = abi.decode(data, (address));
+        }
         uint256 balance = stakedBalances.get(from);
         stakedBalances.set(from, balance + value);
         totalStaked += value;

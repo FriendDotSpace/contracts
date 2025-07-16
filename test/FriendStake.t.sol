@@ -78,10 +78,8 @@ contract FriendStakeTest is Test {
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 1);
 
-        friendKey.safeTransferFrom(creatorAccount, address(stake), CREATOR_TOKEN_ID, 1, "");
-
-        // Check staked balance
-        assertEq(stake.totalStaked(), 1);
+        // Check staked balance 1 initial + 1 bought
+        assertEq(stake.totalStaked(), 2);
         vm.stopPrank();
     }
 
@@ -92,6 +90,9 @@ contract FriendStakeTest is Test {
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 3);
 
+        stake.unstake(2); // Unstake 2 share to test batch staking
+        assertEq(stake.totalStaked(), 2);
+
         // Approve and stake 2 shares in batch
         friendKey.setApprovalForAll(address(stake), true);
         uint256[] memory ids = new uint256[](1);
@@ -100,7 +101,7 @@ contract FriendStakeTest is Test {
         amounts[0] = 2;
         friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
 
-        assertEq(stake.totalStaked(), 2);
+        assertEq(stake.totalStaked(), 4);
         vm.stopPrank();
     }
 
@@ -110,15 +111,14 @@ contract FriendStakeTest is Test {
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 2);
-        friendKey.safeTransferFrom(staker1, address(stake), CREATOR_TOKEN_ID, 2, "");
-        assertEq(stake.totalStaked(), 2);
+        assertEq(stake.totalStaked(), 3); // 1 initial + 2 staked
 
         // Unstake 1
         stake.unstake(1);
-        assertEq(stake.totalStaked(), 1);
+        assertEq(stake.totalStaked(), 2);
         // Unstake remaining
         stake.unstakeAll();
-        assertEq(stake.totalStaked(), 0);
+        assertEq(stake.totalStaked(), 1); // 1 initial share by owner remains staked
         vm.stopPrank();
     }
 
@@ -128,14 +128,12 @@ contract FriendStakeTest is Test {
         uint256 price1 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
         mockUsdc.approve(address(friendKey), price1);
         friendKey.buyShares(CREATOR_TOKEN_ID, 2);
-        friendKey.safeTransferFrom(staker1, address(stake), CREATOR_TOKEN_ID, 2, "");
         vm.stopPrank();
 
         vm.startPrank(staker2);
         uint256 price2 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 3);
         mockUsdc.approve(address(friendKey), price2);
         friendKey.buyShares(CREATOR_TOKEN_ID, 3);
-        friendKey.safeTransferFrom(staker2, address(stake), CREATOR_TOKEN_ID, 3, "");
         vm.stopPrank();
 
         // Fund rewards
@@ -146,7 +144,7 @@ contract FriendStakeTest is Test {
         vm.prank(owner);
         stake.lockStaking();
         assertEq(stake.isOpenForStaking(), false);
-        assertEq(stake.totalStaked(), 5);
+        assertEq(stake.totalStaked(), 6); // 2 from staker1 + 3 from staker2 + 1 initial
         vm.stopPrank();
 
         // Check initial balances
@@ -157,12 +155,12 @@ contract FriendStakeTest is Test {
         stake.distributeRewards(10);
 
         // Both stakers should have received rewards
-        uint256 staker1Reward = (rewardAmount * 2) / 5;
-        uint256 staker2Reward = (rewardAmount * 3) / 5;
+        uint256 staker1Reward = (rewardAmount * 2) / 6;
+        uint256 staker2Reward = (rewardAmount * 3) / 6;
         assertEq(mockUsdc.balanceOf(staker1), staker1InitialBalance + staker1Reward);
         assertEq(mockUsdc.balanceOf(staker2), staker2InitialBalance + staker2Reward);
 
-        assertEq(stake.totalStaked(), 5);
+        assertEq(stake.totalStaked(), 6);
         assertEq(stake.isOpenForStaking(), true); // Staking should be reopened after distribution
     }
 
@@ -171,6 +169,7 @@ contract FriendStakeTest is Test {
         uint256 batchSize = 1000;
         for (uint256 i = 0; i < 5; i++) {
             console.log("Trying batch size:", batchSize);
+            assertTrue(stake.isOpenForStaking(), "Staking should be open");
 
             vm.pauseGasMetering(); // this loop would exceed gas limit of tests
             for (uint256 j = 0; j < batchSize; j++) {
@@ -181,7 +180,7 @@ contract FriendStakeTest is Test {
                 uint256 price1 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
                 mockUsdc.approve(address(friendKey), price1);
                 friendKey.buyShares(CREATOR_TOKEN_ID, 1);
-                friendKey.safeTransferFrom(staker, address(stake), CREATOR_TOKEN_ID, 1, "");
+                // friendKey.safeTransferFrom(staker, address(stake), CREATOR_TOKEN_ID, 1, "");
                 vm.stopPrank();
             }
             vm.resumeGasMetering();
@@ -194,7 +193,7 @@ contract FriendStakeTest is Test {
             stake.lockStaking();
             vm.startSnapshotGas("distribution");
 
-            stake.distributeRewards(batchSize);
+            stake.distributeRewards(batchSize + 1);
             uint256 gasUsed = vm.stopSnapshotGas();
             console.log("Gas used for batch size", batchSize, ":", gasUsed);
             batchSize += 1000;
