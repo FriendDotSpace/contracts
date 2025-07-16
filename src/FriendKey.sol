@@ -161,7 +161,7 @@ contract FriendKey is
         string memory tokenUri = uri(id);
 
         address cloneAddress = Clones.clone(friendStake);
-        FriendStake(cloneAddress).initialize(address(this), address(this), address(bondingToken), id);
+        FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
 
         stakingPoolByTokenId[id] = cloneAddress;
         buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares

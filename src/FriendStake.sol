@@ -21,6 +21,8 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     uint256 public rewardAmount;
 
     // Array to track users who have claimed rewards
+    // We use array instead of mapping for ability to reset to empty
+    // after reward distribution
     bool[] public claimed;
 
     uint256 public totalStaked;
@@ -29,9 +31,9 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
 
     IterableMapping.Map private stakedBalances;
 
-    event Staked(address indexed user, uint256 amount, uint256 tokenId);
-    event Unstaked(address indexed user, uint256 amount, uint256 tokenId);
-    event Claimed(address indexed user, uint256 amount);
+    event KeyStaked(address indexed user, uint256 tokenId, uint256 amount);
+    event KeyUnstaked(address indexed user, uint256 tokenId, uint256 amount);
+    event RewardClaimed(address indexed user, uint256 tokenId, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -77,7 +79,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 balance = stakedBalances.get(from);
         stakedBalances.set(from, balance + value);
         totalStaked += value;
-        emit Staked(from, value, id);
+        emit KeyStaked(from, id, value);
         return this.onERC1155Received.selector;
     }
     // function to receive erc1155 tokens in batch
@@ -93,14 +95,14 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         require(ids.length == values.length, "FriendStake: IDs and values length mismatch");
         require(_msgSender() == address(friendKeyToken), "FriendStake: Only FriendKey tokens can be staked");
 
+        uint256 balance = stakedBalances.get(from);
         for (uint256 i = 0; i < ids.length; i++) {
             require(ids[i] == tokenId, "FriendStake: Invalid token ID");
             require(values[i] > 0, "FriendStake: Cannot stake zero tokens");
 
-            uint256 balance = stakedBalances.get(from);
             stakedBalances.set(from, balance + values[i]);
             totalStaked += values[i];
-            emit Staked(from, values[i], ids[i]);
+            emit KeyStaked(from, ids[i], values[i]);
         }
         return this.onERC1155BatchReceived.selector;
     }
@@ -116,7 +118,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         }
         totalStaked -= amount;
         friendKeyToken.safeTransferFrom(address(this), user, tokenId, amount, "");
-        emit Unstaked(user, amount, tokenId);
+        emit KeyUnstaked(user, tokenId, amount);
     }
 
     function claimRewards(address user) internal {
@@ -130,14 +132,14 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 userClaim = userReward > remainingAmount ? remainingAmount : userReward;
 
         require(userClaim > 0, "FriendStake: No reward for user");
-        uint256 userIndex = stakedBalances.indexOf[user];
+        uint256 userIndex = stakedBalances.getIndexOfKey(user);
         require(!claimed[userIndex], "FriendStake: User has already claimed rewards");
 
         claimed[userIndex] = true; // Mark user as having claimed rewards
 
         rewardToken.safeTransfer(user, userClaim);
 
-        emit Claimed(user, userClaim);
+        emit RewardClaimed(user, tokenId, userClaim);
     }
 
     function claim() external {
@@ -155,8 +157,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         unstake(userBalance, _msgSender());
     }
 
-    // TODO access control
-    function lockStaking() external {
+    function lockStaking() public onlyOwner {
         require(isOpenForStaking, "FriendStake: Staking is already closed");
         isOpenForStaking = false;
         rewardAmount = rewardToken.balanceOf(address(this));
@@ -175,8 +176,6 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             address user = stakedBalances.getKeyAtIndex(rewardDistributionIndex);
             uint256 userStake = stakedBalances.get(user);
             if (userStake > 0 && !claimed[rewardDistributionIndex]) {
-                uint256 userReward = (rewardAmount * userStake) / totalStaked;
-                require(userReward > 0, "FriendStake: No reward for user");
                 claimRewards(user);
             }
         }
