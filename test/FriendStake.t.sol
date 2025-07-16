@@ -26,6 +26,8 @@ contract FriendStakeTest is Test {
     uint256 public constant DEV_FEE_PERCENT = 100;
     uint256 public constant CREATOR_FEE_PERCENT = 100;
     uint256 public constant TRADING_POOL_FEE_PERCENT = 100;
+    uint256 public constant DEV_PERFORMANCE_FEE_PERCENT = 500;
+    uint256 public constant CREATOR_PERFORMANCE_FEE_PERCENT = 1500;
     uint256 public CREATOR_TOKEN_ID = 1;
 
     function setUp() public {
@@ -51,6 +53,8 @@ contract FriendStakeTest is Test {
                 CREATOR_FEE_PERCENT,
                 tradingPoolFeeDestination,
                 TRADING_POOL_FEE_PERCENT,
+                DEV_PERFORMANCE_FEE_PERCENT,
+                CREATOR_PERFORMANCE_FEE_PERCENT,
                 address(mockUsdc),
                 address(friendStake)
             )
@@ -155,6 +159,9 @@ contract FriendStakeTest is Test {
         stake.distributeRewards(10);
 
         // Both stakers should have received rewards
+        uint256 platformShare = (rewardAmount * friendKey.devPerformanceFeePercent()) / friendKey.BPS_SCALE();
+        uint256 creatorShare = (rewardAmount * friendKey.creatorPerformanceFeePercent()) / friendKey.BPS_SCALE();
+        rewardAmount -= platformShare + creatorShare;
         uint256 staker1Reward = (rewardAmount * 2) / 6;
         uint256 staker2Reward = (rewardAmount * 3) / 6;
         assertEq(mockUsdc.balanceOf(staker1), staker1InitialBalance + staker1Reward);

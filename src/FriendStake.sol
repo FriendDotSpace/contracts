@@ -9,11 +9,12 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IterableMapping} from "./lib/IterableMapping.sol";
+import {IFriendKey} from "./interfaces/IFriendKey.sol";
 
 contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradeable {
     using SafeERC20 for IERC20;
 
-    IERC1155 public friendKeyToken;
+    IFriendKey public friendKeyToken;
     IERC20 public rewardToken;
     uint256 public tokenId;
     bool public isOpenForStaking;
@@ -50,10 +51,10 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         require(_rewardToken != address(0), "Reward token address cannot be zero");
         rewardToken = IERC20(_rewardToken);
         require(
-            IERC1155(_friendKeyAddress).supportsInterface(type(IERC1155).interfaceId),
+            IFriendKey(_friendKeyAddress).supportsInterface(type(IERC1155).interfaceId),
             "FriendKey address must be an ERC1155 contract"
         );
-        friendKeyToken = IERC1155(_friendKeyAddress);
+        friendKeyToken = IFriendKey(_friendKeyAddress);
         tokenId = _tokenId;
         totalStaked = 0;
         isOpenForStaking = true;
@@ -161,6 +162,19 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         require(isOpenForStaking, "FriendStake: Staking is already closed");
         isOpenForStaking = false;
         rewardAmount = rewardToken.balanceOf(address(this));
+
+        uint256 platformShare = (rewardAmount * friendKeyToken.devPerformanceFeePercent()) / friendKeyToken.BPS_SCALE();
+        uint256 creatorShare =
+            (rewardAmount * friendKeyToken.creatorPerformanceFeePercent()) / friendKeyToken.BPS_SCALE();
+
+        rewardAmount -= platformShare;
+        rewardToken.safeTransfer(friendKeyToken.devFeeDestination(), platformShare);
+        emit RewardClaimed(friendKeyToken.devFeeDestination(), tokenId, platformShare);
+
+        rewardAmount -= creatorShare;
+        rewardToken.safeTransfer(friendKeyToken.creatorByTokenId(tokenId), creatorShare);
+        emit RewardClaimed(friendKeyToken.creatorByTokenId(tokenId), tokenId, creatorShare);
+
         rewardDistributionIndex = 0;
 
         claimed = new bool[](stakedBalances.size()); // Reset claimed array

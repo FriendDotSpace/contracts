@@ -44,6 +44,8 @@ contract FriendKey is
     uint256 public creatorFeePercent;
     address public tradingPoolFeeDestination;
     uint256 public tradingPoolFeePercent;
+    uint256 public devPerformanceFeePercent;
+    uint256 public creatorPerformanceFeePercent;
     address public friendStake; // Address of the FriendStake contract to clone for staking pools
 
     IERC20Metadata public bondingToken;
@@ -93,6 +95,8 @@ contract FriendKey is
         uint256 _creatorFeePercent,
         address _tradingPoolFeeDestination,
         uint256 _tradingPoolFeePercent,
+        uint256 _devPerformanceFeePercent,
+        uint256 _creatorPerformanceFeePercent,
         address _bondingTokenAddress,
         address _friendStake
     ) public initializer {
@@ -112,6 +116,8 @@ contract FriendKey is
         creatorFeePercent = _creatorFeePercent;
         tradingPoolFeeDestination = _tradingPoolFeeDestination;
         tradingPoolFeePercent = _tradingPoolFeePercent;
+        devPerformanceFeePercent = _devPerformanceFeePercent;
+        creatorPerformanceFeePercent = _creatorPerformanceFeePercent;
         bondingToken = IERC20Metadata(_bondingTokenAddress);
         friendStake = _friendStake;
 
@@ -151,6 +157,16 @@ contract FriendKey is
         require(_feePercent <= BPS_SCALE, "Trading pool fee percent too high");
         require(devFeePercent + creatorFeePercent + _feePercent <= BPS_SCALE, "Total fee percent too high");
         tradingPoolFeePercent = _feePercent;
+    }
+
+    function setDevPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
+        require(creatorPerformanceFeePercent + _feePercent <= BPS_SCALE, "Dev performance fee percent too high");
+        devPerformanceFeePercent = _feePercent;
+    }
+
+    function setCreatorPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
+        require(devPerformanceFeePercent + _feePercent <= BPS_SCALE, "Creator performance fee percent too high");
+        creatorPerformanceFeePercent = _feePercent;
     }
 
     function registerCreator(RoomTier tier, uint256 additionalKeys) public returns (uint256) {

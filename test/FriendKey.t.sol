@@ -98,6 +98,8 @@ contract FriendKeyTest is Test {
     uint256 public constant BPS_SCALE = 10_000; // Basis points scale for fee calculations
     uint256 public CREATOR_TOKEN_ID = 1;
 
+    FriendStake public friendStake;
+
     function setUp() public {
         owner = vm.addr(1);
         devFeeDestination = vm.addr(2);
@@ -111,6 +113,7 @@ contract FriendKeyTest is Test {
         MockPool pool = new MockPool(address(mockUsdc));
         tradingPoolFeeDestination = address(pool); //vm.addr(4);
         FriendStake friendStake = new FriendStake();
+        FriendStake friendStakeInstance = new FriendStake();
 
         vm.startPrank(owner);
         bytes memory initializeData = abi.encodeCall(
@@ -122,8 +125,10 @@ contract FriendKeyTest is Test {
                 CREATOR_FEE_PERCENT,
                 tradingPoolFeeDestination,
                 TRADING_POOL_FEE_PERCENT,
+                0, // performance fee percent is not used in this test
+                0,
                 address(mockUsdc),
-                address(friendStake)
+                address(friendStakeInstance)
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
@@ -133,6 +138,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(creatorAccount);
         // Register creator
         instance.registerCreator();
+        friendStake = FriendStake(instance.stakingPoolByTokenId(CREATOR_TOKEN_ID));
         assertEq(instance.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();
 
@@ -156,6 +162,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(creatorAccount);
         mockUsdc.approve(address(instance), price);
         instance.buyShares(CREATOR_TOKEN_ID, 1);
+        friendStake.unstakeAll();
         vm.stopPrank();
 
         uint256 creatorFee = (basePrice * CREATOR_FEE_PERCENT) / instance.BPS_SCALE();
@@ -185,6 +192,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), price);
         instance.buyShares(CREATOR_TOKEN_ID, shareAmount);
+        friendStake.unstakeAll();
         vm.stopPrank();
 
         assertBalances(buyerAccount, initialBuyerBalance - price, shareAmount);
@@ -210,6 +218,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), buyerPrice);
         instance.buyShares(CREATOR_TOKEN_ID, buyerShareAmount);
+        friendStake.unstakeAll();
         vm.stopPrank();
 
         uint256 anotherBuyerPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, anotherBuyerShareAmount);
@@ -217,10 +226,11 @@ contract FriendKeyTest is Test {
         vm.startPrank(anotherBuyerAccount);
         mockUsdc.approve(address(instance), anotherBuyerPrice);
         instance.buyShares(CREATOR_TOKEN_ID, anotherBuyerShareAmount);
+        friendStake.unstakeAll();
         vm.stopPrank();
 
         // Verify balances
-        assertEq(instance.balanceOf(creatorAccount, CREATOR_TOKEN_ID), 1);
+        assertEq(instance.balanceOf(creatorAccount, CREATOR_TOKEN_ID), 0); // Creator has 1 share staked
         assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyerShareAmount);
         assertEq(instance.balanceOf(anotherBuyerAccount, CREATOR_TOKEN_ID), anotherBuyerShareAmount);
 
@@ -237,6 +247,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), buyPrice);
         instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        friendStake.unstakeAll();
 
         // Buyer sells 1 share
         uint256 sellAmount = 1;
@@ -275,6 +286,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), buyPrice);
         instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        friendStake.unstakeAll();
 
         // Buyer sells multiple shares
         uint256 sellAmount = 3;
@@ -305,6 +317,7 @@ contract FriendKeyTest is Test {
 
     function testCannotSellAllRemainingShares() public {
         vm.startPrank(creatorAccount);
+        friendStake.unstakeAll();
         // Creator attempts to sell all shares
         vm.expectRevert("Cannot sell shares if it makes supply zero or less through this method");
         instance.sellShares(CREATOR_TOKEN_ID, 1);
