@@ -242,19 +242,7 @@ contract FriendKey is
             bondingToken.transfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
-            // Check if the destination has code (is a contract)
-            if (tradingPoolFeeDestination.code.length > 0) {
-                // try to approve and pull from the trading pool otherwise transfer
-                bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee);
-                try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
-                    // If the pull succeeds, we don't need to do anything else
-                } catch {
-                    bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
-                }
-            } else {
-                // If it's an EOA, just transfer the tokens
-                bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
-            }
+            _transferToPool(tokenId, tradingPoolFee);
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
@@ -290,22 +278,26 @@ contract FriendKey is
             bondingToken.transfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
-            // Check if the destination has code (is a contract)
-            if (tradingPoolFeeDestination.code.length > 0) {
-                // try to approve and pull from the trading pool otherwise transfer
-                bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee);
-                try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
-                    // If the pull succeeds, we don't need to do anything else
-                } catch {
-                    bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
-                }
-            } else {
-                // If it's an EOA, just transfer the tokens
-                bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
-            }
+            _transferToPool(tokenId, tradingPoolFee);
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
+    }
+
+    function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal {
+        // Check if the destination has code (is a contract)
+        if (tradingPoolFeeDestination.code.length > 0) {
+            // try to approve and pull from the trading pool otherwise transfer
+            bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee);
+            try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
+                // If the pull succeeds, we don't need to do anything else
+            } catch {
+                bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+            }
+        } else {
+            // If it's an EOA, just transfer the tokens
+            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+        }
     }
 
     // TODO: full withdraw when?
