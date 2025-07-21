@@ -18,11 +18,8 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     // from tokenId to amount of reserves
     mapping(uint256 => uint256) public poolReserves;
-    // from tokenId to arbitrum address dispatch addresses
-    mapping(uint256 => address) public dispatchAddresses;
 
     event FundsPulled(uint256 indexed tokenId, uint256 amount, uint256 totalReserves);
-    event DispatchAllowed(uint256 indexed tokenId, address indexed recipient);
     event FundsDispatched(uint256 indexed tokenId, address indexed recipient, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
