@@ -6,6 +6,7 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {IFriendPool} from "src/interfaces/IFriendPool.sol";
 
 // Simple Mock ERC20 for testing purposes
 contract MockERC20 is IERC20Metadata {
@@ -62,6 +63,20 @@ contract MockERC20 is IERC20Metadata {
     }
 }
 
+contract MockPool {
+    MockERC20 public bondingToken;
+
+    constructor(address _bondingToken) {
+        bondingToken = MockERC20(_bondingToken);
+    }
+
+    function pull(uint256 tokenId, uint256 amount) external returns (bool) {
+        bool success = bondingToken.transferFrom(msg.sender, address(this), amount);
+        console.log("Pull called with tokenId:", tokenId, "and amount:", amount);
+        return success;
+    }
+}
+
 contract FriendKeyTest is Test {
     FriendKey public instance;
     MockERC20 public mockUsdc;
@@ -84,12 +99,15 @@ contract FriendKeyTest is Test {
     function setUp() public {
         owner = vm.addr(1);
         devFeeDestination = vm.addr(2);
-        tradingPoolFeeDestination = vm.addr(4);
+
         creatorAccount = vm.addr(5);
         buyerAccount = vm.addr(6);
         anotherBuyerAccount = vm.addr(7);
 
         mockUsdc = new MockERC20("Mock USDC", "mUSDC", 6);
+
+        MockPool pool = new MockPool(address(mockUsdc));
+        tradingPoolFeeDestination = address(pool); //vm.addr(4);
 
         vm.startPrank(owner);
         bytes memory initializeData = abi.encodeCall(

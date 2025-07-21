@@ -13,6 +13,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {IFriendPool} from "./interfaces/IFriendPool.sol";
 
 contract FriendKey is
     Initializable,
@@ -241,7 +242,7 @@ contract FriendKey is
             bondingToken.transfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
-            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+            _transferToPool(tokenId, tradingPoolFee);
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
@@ -277,10 +278,26 @@ contract FriendKey is
             bondingToken.transfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
-            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+            _transferToPool(tokenId, tradingPoolFee);
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
+    }
+
+    function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal {
+        // Check if the destination has code (is a contract)
+        if (tradingPoolFeeDestination.code.length > 0) {
+            // try to approve and pull from the trading pool otherwise transfer
+            bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee);
+            try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
+                // If the pull succeeds, we don't need to do anything else
+            } catch {
+                bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+            }
+        } else {
+            // If it's an EOA, just transfer the tokens
+            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+        }
     }
 
     // TODO: full withdraw when?
