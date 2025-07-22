@@ -112,7 +112,6 @@ contract FriendKeyTest is Test {
 
         MockPool pool = new MockPool(address(mockUsdc));
         tradingPoolFeeDestination = address(pool); //vm.addr(4);
-        FriendStake friendStake = new FriendStake();
         FriendStake friendStakeInstance = new FriendStake();
 
         vm.startPrank(owner);

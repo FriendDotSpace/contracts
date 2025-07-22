@@ -5,6 +5,7 @@ import {Test, console2} from "forge-std/Test.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendPool} from "src/FriendPool.sol";
+import {FriendStake} from "src/FriendStake.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import "../src/libraries/DlnOrderLib.sol";
@@ -105,6 +106,8 @@ contract FriendPoolTest is Test {
     uint256 public constant DEV_FEE_PERCENT = 100;
     uint256 public constant CREATOR_FEE_PERCENT = 100;
     uint256 public constant TRADING_POOL_FEE_PERCENT = 100;
+    uint256 public constant DEV_PERFORMANCE_FEE_PERCENT = 500;
+    uint256 public constant CREATOR_PERFORMANCE_FEE_PERCENT = 1500;
     uint256 public CREATOR_TOKEN_ID = 1;
 
     function setUp() public {
@@ -118,6 +121,7 @@ contract FriendPoolTest is Test {
         mockUsdc = new MockERC20("Mock USDC", "mUSDC", 6);
         revertingMock = new RevertingMock();
         dlnSourceMock = new DlnSourceMock();
+        FriendStake friendStake = new FriendStake();
 
         vm.startPrank(owner);
 
@@ -131,7 +135,10 @@ contract FriendPoolTest is Test {
                 CREATOR_FEE_PERCENT,
                 address(0), // We'll set this after FriendPool is deployed
                 TRADING_POOL_FEE_PERCENT,
-                address(mockUsdc)
+                DEV_PERFORMANCE_FEE_PERCENT,
+                CREATOR_PERFORMANCE_FEE_PERCENT,
+                address(mockUsdc),
+                address(friendStake)
             )
         );
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitializeData);
