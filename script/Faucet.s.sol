@@ -8,7 +8,7 @@ import {FriendKey} from "src/FriendKey.sol";
 import {FriendUSD} from "src/FriendUSD.sol";
 
 contract FaucetScript is Script {
-    address constant USDC = 0x7CC500472aA79548742f4330A4120F4C0fC5F3a1;
+    address constant USDC = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
 
     uint256 constant TIMES = 32;
     uint256 constant AMOUNT = 100e6;
