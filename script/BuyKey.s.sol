@@ -10,7 +10,7 @@ import {FriendUSD} from "src/FriendUSD.sol";
 contract BuyKeyScript is Script {
     address constant IMPLEMENTATION = 0xB9efc37B877D69FFc7b116b62648C8892C29e53c;
     address constant PROXY = 0x0270f6b4A017750925B8a880b04d64ad0aaE91Ea;
-    address constant USDC = 0x7CC500472aA79548742f4330A4120F4C0fC5F3a1;
+    address constant USDC = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
 
     uint256 constant TOKEN_ID = 1;
     uint256 constant AMOUNT = 10;
