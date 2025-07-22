@@ -19,7 +19,7 @@ contract FriendKeyScript is Script {
         uint256 TRADING_POOL_FEE_PERCENT = 600;
         address tradingPoolFeeDestination = initialOwner;
         address devFeeDestination = initialOwner;
-        address usdc = 0x7CC500472aA79548742f4330A4120F4C0fC5F3a1;
+        address usdc = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
 
         bytes memory initializeData = abi.encodeCall(
             FriendKey.initialize,
