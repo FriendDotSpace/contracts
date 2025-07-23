@@ -155,10 +155,6 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
 
-<<<<<<< HEAD
-=======
-
->>>>>>> e5f5be9 (:test_tube: creator does not pay premium to themself)
         uint256 creatorFee = (basePrice * CREATOR_FEE_PERCENT) / instance.BPS_SCALE();
         assertBalances(creatorAccount, initialBalance - price + creatorFee, 2);
 
