@@ -378,7 +378,7 @@ contract FriendKeyTest is Test {
         uint256 expectedCost = 0;
         uint256 creatorFee = 0;
         if (additionalKeys > 0) {
-            uint256 divisor = instance.getDivisor();
+            uint256 divisor = 40;
             uint256 price = instance.getPrice(0, 1 + additionalKeys, divisor); // tokenId 2 since this is the second creator
             uint256 devFee = (price * DEV_FEE_PERCENT) / BPS_SCALE;
             creatorFee = (price * CREATOR_FEE_PERCENT) / BPS_SCALE;
