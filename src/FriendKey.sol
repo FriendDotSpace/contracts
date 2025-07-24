@@ -142,20 +142,20 @@ contract FriendKey is
         tradingPoolFeePercent = _feePercent;
     }
 
-    function registerCreator(RoomTier tier) public returns (uint256) {
+    function registerCreator(RoomTier tier, uint256 additionalKeys) public returns (uint256) {
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
-        buyShares(id, 1); // Mint 1 share to the creator
+        buyShares(id, 1 + additionalKeys) ; // Mint 1 + additional shares 
         string memory tokenUri = uri(id);
-        emit KeyCreated(id, creator, tokenUri, 1, tier);
+        emit KeyCreated(id, creator, tokenUri, 1 + additionalKeys, tier);
         return id;
     }
 
     // Add a backward-compatible version that defaults to Casual tier
     function registerCreator() public returns (uint256) {
-        return registerCreator(RoomTier.Casual);
+        return registerCreator(RoomTier.Casual, 0);
     }
 
     function uri(uint256 tokenId) public view override returns (string memory) {
@@ -175,9 +175,14 @@ contract FriendKey is
         uint256 sum1 = supply == 0 ? 0 : ((supply - 1) * (supply) * (2 * (supply - 1) + 1)) / 6;
         uint256 sum2 = supply == 0 && amount == 1
             ? 0
-            : ((supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1)) / 6;
+            : ((supply + amount - 1) * (supply + amount) * (2 * (supply + amount - 1) + 1)) / 6;
         uint256 summation = sum2 - sum1;
         return (summation * bondingTokenPriceUnit) / divisor;
+    }
+
+    function getDivisor(uint256 id) public view returns (uint256) {
+        RoomTier tier = roomTiers[id];
+        return bondingCurveDivisors[uint8(tier)];
     }
 
     function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
