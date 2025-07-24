@@ -408,8 +408,8 @@ contract FriendKeyTest is Test {
 
         // Verify the creator's USDC balance decreased by the expected cost
         uint256 expectedBalance = 1_000_000 * (10 ** 6) - expectedCost + creatorFee;
-        // Add back the creator fee to the expected balance because the creator receives a portion of the 
-        // transaction as a fee. This ensures the calculation reflects the net balance after accounting 
+        // Add back the creator fee to the expected balance because the creator receives a portion of the
+        // transaction as a fee. This ensures the calculation reflects the net balance after accounting
         // for both the cost of the transaction and the fee received by the creator.
         assertEq(mockUsdc.balanceOf(newCreator), expectedBalance, "Creator USDC balance not correct");
 
