@@ -91,9 +91,10 @@ contract FriendKeyTest is Test {
     address public buyerAccount;
     address public anotherBuyerAccount;
 
-    uint256 public constant DEV_FEE_PERCENT = 100;
-    uint256 public constant CREATOR_FEE_PERCENT = 100;
-    uint256 public constant TRADING_POOL_FEE_PERCENT = 100;
+    uint256 public constant DEV_FEE_PERCENT = 200;
+    uint256 public constant CREATOR_FEE_PERCENT = 200;
+    uint256 public constant TRADING_POOL_FEE_PERCENT = 600;
+    uint256 public constant BPS_SCALE = 10_000; // Basis points scale for fee calculations
     uint256 public CREATOR_TOKEN_ID = 1;
 
     function setUp() public {
@@ -352,5 +353,78 @@ contract FriendKeyTest is Test {
             expectedReserve,
             "Reserve not accumulated correctly"
         );
+    }
+
+    function testDivisor() public {
+        FriendKey.RoomTier tier = FriendKey.RoomTier.Club;
+        vm.startPrank(creatorAccount);
+        uint256 tokenId = instance.registerCreator(tier, 0);
+        vm.stopPrank();
+        uint256 divisor = instance.getDivisor(tokenId);
+        assertEq(divisor, 40, "Divisor for Club tier should be 40");
+    }
+
+
+    function testRegisterCreatorWithAdditionalParameters() public {
+        address newCreator = vm.addr(10);
+        mockUsdc.mint(newCreator, 1_000_000 * (10 ** 6));
+
+        // Test registering creator with Club tier and 5 additional keys
+        FriendKey.RoomTier tier = FriendKey.RoomTier.Club;
+        uint256 additionalKeys = 5;
+        uint256 expectedTotalSupply = 1 + additionalKeys; // 1 initial + 5 additional
+
+        // Calculate expected cost for the additional keys
+        // First key is free (minted during registration), then we need to buy additionalKeys
+        uint256 expectedCost = 0;
+        uint256 creatorFee = 0;
+        if (additionalKeys > 0) {
+            uint256 price = instance.getPrice(0, 1 + additionalKeys, 40); // tokenId 2 since this is the second creator
+            uint256 devFee = (price * DEV_FEE_PERCENT) / BPS_SCALE;
+            creatorFee = (price * CREATOR_FEE_PERCENT) / BPS_SCALE;
+            uint256 tradingPoolFee = (price * TRADING_POOL_FEE_PERCENT) / BPS_SCALE;
+            expectedCost = price + devFee + creatorFee + tradingPoolFee;
+        }
+
+        vm.startPrank(newCreator);
+        mockUsdc.approve(address(instance), expectedCost);
+        uint256 tokenId = instance.registerCreator(tier, additionalKeys);
+        vm.stopPrank();
+
+        // Verify the token ID is correct (should be 2 since CREATOR_TOKEN_ID = 1 was already taken)
+        assertEq(tokenId, 2, "Token ID should be 2");
+
+        // Verify creator is properly registered
+        assertEq(instance.creatorByTokenId(tokenId), newCreator, "Creator not registered correctly");
+
+        // Verify room tier is set correctly
+        assertEq(uint256(instance.roomTiers(tokenId)), uint256(tier), "Room tier not set correctly");
+
+        // Verify total supply matches expected (1 initial + additionalKeys)
+        assertEq(instance.totalSupply(tokenId), expectedTotalSupply, "Total supply not correct");
+
+        // Verify creator owns all the tokens
+        assertEq(instance.balanceOf(newCreator, tokenId), expectedTotalSupply, "Creator balance not correct");
+
+        // Verify the creator's USDC balance decreased by the expected cost
+        uint256 expectedBalance = 1_000_000 * (10 ** 6) - expectedCost + creatorFee;
+        // Add back any creator fees they received
+        
+        assertEq(mockUsdc.balanceOf(newCreator), expectedBalance, "Creator USDC balance not correct");
+
+        // Test with Exclusive tier and no additional keys
+        address anotherCreator = vm.addr(11);
+        mockUsdc.mint(anotherCreator, 1_000_000 * (10 ** 6));
+
+        vm.startPrank(anotherCreator);
+        uint256 anotherTokenId = instance.registerCreator(FriendKey.RoomTier.Exclusive, 0);
+        vm.stopPrank();
+
+        // Verify the exclusive tier creator
+        assertEq(anotherTokenId, 3, "Token ID should be 3");
+        assertEq(instance.creatorByTokenId(anotherTokenId), anotherCreator, "Another creator not registered correctly");
+        assertEq(uint256(instance.roomTiers(anotherTokenId)), uint256(FriendKey.RoomTier.Exclusive), "Exclusive tier not set correctly");
+        assertEq(instance.totalSupply(anotherTokenId), 1, "Total supply should be 1 for no additional keys");
+        assertEq(instance.balanceOf(anotherCreator, anotherTokenId), 1, "Creator should own 1 token");
     }
 }
