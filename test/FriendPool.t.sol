@@ -64,23 +64,6 @@ contract MockERC20 is IERC20Metadata {
     }
 }
 
-contract DispatchTargetMock {
-    uint256 public receivedAmount;
-    address public receivedFrom;
-    bytes public receivedData;
-
-    receive() external payable {
-        receivedAmount = msg.value;
-        receivedFrom = msg.sender;
-    }
-
-    function handleDispatch(bytes calldata data) external {
-        receivedData = data;
-        receivedFrom = msg.sender;
-        console2.log("Dispatch handled with data:", string(data));
-    }
-}
-
 contract RevertingMock {
     function alwaysRevert() external pure {
         revert("Always reverts");
@@ -91,7 +74,7 @@ contract RevertingMock {
 contract DlnSourceMock {
     function createSaltedOrder(
         DlnOrderLib.OrderCreation calldata orderCreation,
-        uint32,
+        uint64, // salt
         bytes calldata,
         uint32,
         bytes calldata,
@@ -106,7 +89,6 @@ contract FriendPoolTest is Test {
     FriendKey public friendKey;
     FriendPool public friendPool;
     MockERC20 public mockUsdc;
-    DispatchTargetMock public dispatchTarget;
     RevertingMock public revertingMock;
     DlnSourceMock public dlnSourceMock;
 
@@ -134,7 +116,6 @@ contract FriendPoolTest is Test {
         anotherBuyerAccount = vm.addr(7);
 
         mockUsdc = new MockERC20("Mock USDC", "mUSDC", 6);
-        dispatchTarget = new DispatchTargetMock();
         revertingMock = new RevertingMock();
         dlnSourceMock = new DlnSourceMock();
 
@@ -302,7 +283,7 @@ contract FriendPoolTest is Test {
         assertEq(dispatchedAmount, poolBalance, "Dispatched amount should equal pool balance");
         assertEq(friendPool.poolReserves(CREATOR_TOKEN_ID), 0, "Pool reserves should be zero after dispatch");
         assertEq(
-            mockUsdc.allowance(address(friendPool), address(dispatchTarget)),
+            mockUsdc.allowance(address(friendPool), address(dlnSourceMock)),
             poolBalance,
             "Target should have allowance for dispatched amount"
         );
@@ -330,7 +311,7 @@ contract FriendPoolTest is Test {
         assertEq(dispatchedAmount, poolBalance, "Dispatched amount should equal pool balance");
         assertEq(friendPool.poolReserves(CREATOR_TOKEN_ID), 0, "Pool reserves should be zero after dispatch");
         assertEq(
-            mockUsdc.allowance(address(friendPool), address(dispatchTarget)),
+            mockUsdc.allowance(address(friendPool), address(dlnSourceMock)),
             poolBalance,
             "Target should have allowance for dispatched amount"
         );
@@ -372,21 +353,6 @@ contract FriendPoolTest is Test {
         vm.stopPrank();
     }
 
-    function testDispatchFailsWithBadCalldata() public {
-        // Setup: Generate some fees in the pool
-        _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
-
-        // Use dummy order creation struct (simulate revert in dlnSource if needed)
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
-
-        vm.startPrank(owner);
-        // If you want to simulate revert, you can extend DlnSourceMock to revert here
-        // For now, just expect revert from FriendPool if dlnSource fails
-        // vm.expectRevert("FriendPool: Dispatch failed");
-        friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
-        vm.stopPrank();
-    }
-
     function testDispatchCreatesCorrectApproval() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 4);
@@ -396,9 +362,7 @@ contract FriendPoolTest is Test {
         DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
 
         // Check initial allowance
-        assertEq(
-            mockUsdc.allowance(address(friendPool), address(dispatchTarget)), 0, "Initial allowance should be zero"
-        );
+        assertEq(mockUsdc.allowance(address(friendPool), address(dlnSourceMock)), 0, "Initial allowance should be zero");
 
         // Owner dispatches funds
         vm.startPrank(owner);
@@ -407,7 +371,7 @@ contract FriendPoolTest is Test {
 
         // Check final allowance
         assertEq(
-            mockUsdc.allowance(address(friendPool), address(dispatchTarget)),
+            mockUsdc.allowance(address(friendPool), address(dlnSourceMock)),
             poolBalance,
             "Final allowance should equal dispatched amount"
         );

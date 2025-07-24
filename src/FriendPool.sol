@@ -61,7 +61,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _dispatcher = dispatcher;
     }
 
-    function dispatchAs(uint256 tokenId, DlnOrderLib.OrderCreation calldata data, uint32 _salt)
+    function dispatchAs(uint256 tokenId, DlnOrderLib.OrderCreation calldata data, uint64 _salt)
         external
         payable
         returns (uint256)
@@ -71,7 +71,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return amount;
     }
 
-    function _dispatch(uint256 tokenId, DlnOrderLib.OrderCreation calldata _orderCreation, uint32 _salt)
+    function _dispatch(uint256 tokenId, DlnOrderLib.OrderCreation calldata _orderCreation, uint64 _salt)
         internal
         returns (uint256)
     {
