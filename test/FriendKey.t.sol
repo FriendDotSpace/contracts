@@ -364,7 +364,6 @@ contract FriendKeyTest is Test {
         assertEq(divisor, 40, "Divisor for Club tier should be 40");
     }
 
-
     function testRegisterCreatorWithAdditionalParameters() public {
         address newCreator = vm.addr(10);
         mockUsdc.mint(newCreator, 1_000_000 * (10 ** 6));
@@ -409,7 +408,7 @@ contract FriendKeyTest is Test {
         // Verify the creator's USDC balance decreased by the expected cost
         uint256 expectedBalance = 1_000_000 * (10 ** 6) - expectedCost + creatorFee;
         // Add back any creator fees they received
-        
+
         assertEq(mockUsdc.balanceOf(newCreator), expectedBalance, "Creator USDC balance not correct");
 
         // Test with Exclusive tier and no additional keys
@@ -423,7 +422,11 @@ contract FriendKeyTest is Test {
         // Verify the exclusive tier creator
         assertEq(anotherTokenId, 3, "Token ID should be 3");
         assertEq(instance.creatorByTokenId(anotherTokenId), anotherCreator, "Another creator not registered correctly");
-        assertEq(uint256(instance.roomTiers(anotherTokenId)), uint256(FriendKey.RoomTier.Exclusive), "Exclusive tier not set correctly");
+        assertEq(
+            uint256(instance.roomTiers(anotherTokenId)),
+            uint256(FriendKey.RoomTier.Exclusive),
+            "Exclusive tier not set correctly"
+        );
         assertEq(instance.totalSupply(anotherTokenId), 1, "Total supply should be 1 for no additional keys");
         assertEq(instance.balanceOf(anotherCreator, anotherTokenId), 1, "Creator should own 1 token");
     }

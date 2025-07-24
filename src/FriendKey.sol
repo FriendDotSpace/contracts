@@ -147,7 +147,7 @@ contract FriendKey is
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
-        buyShares(id, 1 + additionalKeys) ; // Mint 1 + additional shares 
+        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
         string memory tokenUri = uri(id);
         emit KeyCreated(id, creator, tokenUri, 1 + additionalKeys, tier);
         return id;
