@@ -378,7 +378,8 @@ contract FriendKeyTest is Test {
         uint256 expectedCost = 0;
         uint256 creatorFee = 0;
         if (additionalKeys > 0) {
-            uint256 price = instance.getPrice(0, 1 + additionalKeys, 40); // tokenId 2 since this is the second creator
+            uint256 divisor = instance.getDivisor();
+            uint256 price = instance.getPrice(0, 1 + additionalKeys, divisor); // tokenId 2 since this is the second creator
             uint256 devFee = (price * DEV_FEE_PERCENT) / BPS_SCALE;
             creatorFee = (price * CREATOR_FEE_PERCENT) / BPS_SCALE;
             uint256 tradingPoolFee = (price * TRADING_POOL_FEE_PERCENT) / BPS_SCALE;
@@ -407,8 +408,9 @@ contract FriendKeyTest is Test {
 
         // Verify the creator's USDC balance decreased by the expected cost
         uint256 expectedBalance = 1_000_000 * (10 ** 6) - expectedCost + creatorFee;
-        // Add back any creator fees they received
-
+        // Add back the creator fee to the expected balance because the creator receives a portion of the 
+        // transaction as a fee. This ensures the calculation reflects the net balance after accounting 
+        // for both the cost of the transaction and the fee received by the creator.
         assertEq(mockUsdc.balanceOf(newCreator), expectedBalance, "Creator USDC balance not correct");
 
         // Test with Exclusive tier and no additional keys
