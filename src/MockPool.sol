@@ -13,8 +13,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IDlnSource} from "./interfaces/IDlnSource.sol";
 import "./libraries/DlnOrderLib.sol";
 
-import {console} from "forge-std/console.sol";
-
 contract MockPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20Metadata;
 
@@ -68,13 +66,8 @@ contract MockPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         internal
         returns (uint256)
     {
-        console.log("Dispatching funds from MockPool");
-        console.log(_orderCreation.giveTokenAddress);
-
         uint256 amount = bondingToken.balanceOf(address(this));
         require(amount > 0, "FriendPool: No funds available for dispatch");
-
-        require(bondingToken.balanceOf(address(this)) >= amount, "FriendPool: Insufficient pool reserves");
 
         // approve funds to recipient
         bondingToken.approve(address(dlnSource), amount);

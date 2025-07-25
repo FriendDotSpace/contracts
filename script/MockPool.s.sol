@@ -12,11 +12,10 @@ contract MockPoolScript is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        // address old = 0xcd64A82D1A13417728d0dfa41A2fDaD97Cc5290e;
-        // MockPool oldInstance = MockPool(old);
-        // oldInstance.withdraw();
 
         address initialOwner = vm.addr(deployerPrivateKey);
+
+        // Base mainnet addresses
         address usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
         address dlnSource = 0xeF4fB24aD0916217251F553c0596F8Edc630EB66;
 
