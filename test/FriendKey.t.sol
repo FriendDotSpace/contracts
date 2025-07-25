@@ -404,6 +404,8 @@ contract FriendKeyTest is Test {
         vm.startPrank(newCreator);
         mockUsdc.approve(address(instance), expectedCost);
         uint256 tokenId = instance.registerCreator(tier, additionalKeys);
+        FriendStake friendStake = FriendStake(instance.stakingPoolByTokenId(tokenId));
+        friendStake.unstakeAll();
         vm.stopPrank();
 
         // Verify the token ID is correct (should be 2 since CREATOR_TOKEN_ID = 1 was already taken)
@@ -434,6 +436,8 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(anotherCreator);
         uint256 anotherTokenId = instance.registerCreator(FriendKey.RoomTier.Exclusive, 0);
+        FriendStake anotherFriendStake = FriendStake(instance.stakingPoolByTokenId(anotherTokenId));
+        anotherFriendStake.unstakeAll();
         vm.stopPrank();
 
         // Verify the exclusive tier creator

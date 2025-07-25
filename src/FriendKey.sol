@@ -77,7 +77,7 @@ contract FriendKey is
     event KeyCreated(
         uint256 indexed tokenId,
         address indexed creator,
-        address stakingPool,
+        address indexed stakingPool,
         string tokenURI,
         uint256 initialSupply,
         RoomTier tier
