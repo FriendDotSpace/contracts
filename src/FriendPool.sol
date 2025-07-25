@@ -9,30 +9,37 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IFriendKey} from "./interfaces/IFriendKey.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IDlnSource} from "./interfaces/IDlnSource.sol";
+import "./libraries/DlnOrderLib.sol";
 
 contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20Metadata;
 
     IFriendKey public friendKey;
     address private _dispatcher;
+    IDlnSource public dlnSource;
 
     // from tokenId to amount of reserves
     mapping(uint256 => uint256) public poolReserves;
 
     event FundsPulled(uint256 indexed tokenId, uint256 amount, uint256 totalReserves);
-    event FundsDispatched(uint256 indexed tokenId, address indexed recipient, uint256 amount);
+    event DispatchAllowed(uint256 indexed tokenId, address indexed recipient);
+    event FundsDispatched(uint256 indexed tokenId, uint256 amount, bytes32 orderId);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(address initialOwner, address _friendKey) public initializer {
+    function initialize(address initialOwner, address _friendKey, address _dlnSource) public initializer {
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
 
         require(_friendKey != address(0), "FriendPool: FriendKey address cannot be zero");
         friendKey = IFriendKey(_friendKey);
+
+        require(_dlnSource != address(0), "FriendPool: DLN Source address cannot be zero");
+        dlnSource = IDlnSource(_dlnSource);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -54,15 +61,20 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _dispatcher = dispatcher;
     }
 
-    function dispatchAs(uint256 tokenId, address recipient, bytes calldata data) external returns (uint256) {
+    function dispatchAs(uint256 tokenId, DlnOrderLib.OrderCreation calldata data, uint64 _salt)
+        external
+        payable
+        returns (uint256)
+    {
         require(msg.sender == _dispatcher || msg.sender == owner(), "FriendPool: Caller is not the dispatcher");
-        uint256 amount = _dispatch(tokenId, recipient, data);
+        uint256 amount = _dispatch(tokenId, data, _salt);
         return amount;
     }
 
-    function _dispatch(uint256 tokenId, address recipient, bytes calldata data) internal returns (uint256) {
-        require(recipient != address(0), "FriendPool: Recipient address cannot be zero");
-
+    function _dispatch(uint256 tokenId, DlnOrderLib.OrderCreation calldata _orderCreation, uint64 _salt)
+        internal
+        returns (uint256)
+    {
         uint256 amount = poolReserves[tokenId];
         require(amount > 0, "FriendPool: No funds available for dispatch");
 
@@ -73,23 +85,22 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         poolReserves[tokenId] -= amount;
 
         // approve funds to recipient
-        bondingToken.approve(recipient, amount);
+        bondingToken.approve(address(dlnSource), amount);
 
         // dispatch funds to recipient
-        (bool success,) = recipient.call(data);
-        require(success, "FriendPool: Dispatch failed");
+        bytes32 orderId = dlnSource.createSaltedOrder{value: msg.value}(_orderCreation, _salt, "", 0, "", "");
 
-        emit FundsDispatched(tokenId, recipient, amount);
+        emit FundsDispatched(tokenId, amount, orderId);
         return amount;
     }
 
     // DEV: up to discussion with the client
-    // function dispatch(uint256 tokenId, address recipient, bytes calldata data)
+    // function dispatch(uint256 tokenId, DlnOrderLib.OrderCreation calldata data, uint32 _salt)
     //     external
     //     onlyKeyCreator(tokenId)
     //     returns (uint256)
     // {
-    //     uint256 amount = _dispatch(tokenId, recipient, data);
+    //     uint256 amount = _dispatch(tokenId, data, _salt);
     //     return amount;
     // }
 
