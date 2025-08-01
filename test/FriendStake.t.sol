@@ -146,6 +146,8 @@ contract FriendStakeTest is Test {
 
         // Owner closes staking
         vm.prank(owner);
+        vm.warp(block.timestamp + 1 days); // Ensure enough time has passed for rewards to be eligible
+
         stake.lockStaking();
         assertEq(stake.isOpenForStaking(), false);
         assertEq(stake.totalStaked(), 6); // 2 from staker1 + 3 from staker2 + 1 initial
@@ -156,6 +158,8 @@ contract FriendStakeTest is Test {
         uint256 staker2InitialBalance = mockUsdc.balanceOf(staker2);
 
         // Distribute rewards
+        stake.calculateTotalEligible();
+        assertEq(stake.totalStaked(), stake.totalEligible());
         stake.distributeRewards(10);
 
         // Both stakers should have received rewards
