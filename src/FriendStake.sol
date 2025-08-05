@@ -92,7 +92,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     // function to receive erc1155 tokens in batch
 
     function onERC1155BatchReceived(
-        address /* operator */,
+        address, /* operator */
         address from,
         uint256[] memory ids,
         uint256[] memory values,
