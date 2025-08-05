@@ -404,7 +404,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(newCreator);
         mockUsdc.approve(address(instance), expectedCost);
         uint256 tokenId = instance.registerCreator(tier, additionalKeys);
-        FriendStake friendStake = FriendStake(instance.stakingPoolByTokenId(tokenId));
+        friendStake = FriendStake(instance.stakingPoolByTokenId(tokenId));
         friendStake.unstakeAll();
         vm.stopPrank();
 
