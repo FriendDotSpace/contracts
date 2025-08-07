@@ -83,6 +83,9 @@ contract FriendKey is
         RoomTier tier
     );
 
+    event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -270,6 +273,8 @@ contract FriendKey is
             require(ok, "Transfer failed");
         }
 
+        // _mint(msg.sender, tokenId, amount, "");
+
         FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
         if (stakingPool.isOpenForStaking() == false) {
             _mint(msg.sender, tokenId, amount, "");
@@ -325,6 +330,41 @@ contract FriendKey is
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
+    }
+
+    function stake(uint256 tokenId, uint256 amount) public {
+        require(amount > 0, "Amount must be greater than zero");
+        require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
+        address stakingPoolAddress = stakingPoolByTokenId[tokenId];
+        require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
+
+        FriendStake stakingPool = FriendStake(stakingPoolAddress);
+        require(stakingPool.isOpenForStaking(), "Staking pool is not open for staking");
+
+        _safeTransferFrom(msg.sender, stakingPoolAddress, tokenId, amount, "");
+
+        // Update key holding timestamp
+        keyHoldingSince[tokenId][msg.sender] = block.timestamp;
+
+        emit KeyStaked(tokenId, msg.sender, amount);
+    }
+
+    function unstake(uint256 tokenId, uint256 amount) public {
+        require(amount > 0, "Amount must be greater than zero");
+        address stakingPoolAddress = stakingPoolByTokenId[tokenId];
+        require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
+
+        FriendStake stakingPool = FriendStake(stakingPoolAddress);
+        require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
+
+        stakingPool.unstake(amount, msg.sender);
+
+        // Reset key holding timestamp if no shares left
+        if (balanceOf(msg.sender, tokenId) == 0) {
+            keyHoldingSince[tokenId][msg.sender] = 0;
+        }
+
+        emit KeyUnstaked(tokenId, msg.sender, amount);
     }
 
     function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal {
