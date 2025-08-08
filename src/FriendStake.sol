@@ -73,7 +73,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     }
 
     // function to receive erc1155 tokens
-    function onERC1155Received(address /* operator */, address from, uint256 id, uint256 value, bytes memory data)
+    function onERC1155Received(address, /* operator */ address from, uint256 id, uint256 value, bytes memory data)
         public
         virtual
         override
