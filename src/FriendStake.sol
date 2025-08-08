@@ -67,8 +67,13 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
 
     // function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
+    modifier onlyFriendKey() {
+        require(_msgSender() == address(friendKeyToken), "FriendStake: Caller is not FriendKey contract");
+        _;
+    }
+
     // function to receive erc1155 tokens
-    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes memory data)
+    function onERC1155Received(address /* operator */, address from, uint256 id, uint256 value, bytes memory data)
         public
         virtual
         override
@@ -115,7 +120,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         return this.onERC1155BatchReceived.selector;
     }
 
-    function unstake(uint256 amount, address user) internal {
+    function _unstake(uint256 amount, address user) internal {
         require(isOpenForStaking, "FriendStake: Reward distribution in progress");
         IterableMapping.Stake[] storage stakes = stakedBalances.get(msg.sender);
         uint256 remaining = amount;
@@ -174,13 +179,17 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         claimRewards(_msgSender());
     }
 
+    function unstake(uint256 amount, address user) external onlyFriendKey {
+        _unstake(amount, user);
+    }
+
     function unstake(uint256 amount) external {
-        unstake(amount, _msgSender());
+        _unstake(amount, _msgSender());
     }
 
     function unstakeAll() external {
         uint256 userBalance = stakedBalances.getTotalStake(_msgSender());
-        unstake(userBalance, _msgSender());
+        _unstake(userBalance, _msgSender());
     }
 
     function lockStaking() public onlyOwner {
