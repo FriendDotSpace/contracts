@@ -273,15 +273,15 @@ contract FriendKey is
             require(ok, "Transfer failed");
         }
 
-        // _mint(msg.sender, tokenId, amount, "");
+        _mint(msg.sender, tokenId, amount, "");
 
-        FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
-        if (stakingPool.isOpenForStaking() == false) {
-            _mint(msg.sender, tokenId, amount, "");
-        } else {
-            bytes memory sender = abi.encode(msg.sender);
-            _mint(stakingPoolByTokenId[tokenId], tokenId, amount, sender);
-        }
+        // FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
+        // if (stakingPool.isOpenForStaking() == false) {
+        //     _mint(msg.sender, tokenId, amount, "");
+        // } else {
+        //     bytes memory sender = abi.encode(msg.sender);
+        //     _mint(stakingPoolByTokenId[tokenId], tokenId, amount, sender);
+        // }
 
         if (devFee > 0 && devFeeDestination != address(0)) {
             bondingToken.transfer(devFeeDestination, devFee);
