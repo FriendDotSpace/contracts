@@ -96,8 +96,13 @@ contract FriendStakeTest is Test {
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 3);
 
-        stake.unstake(2); // Unstake 2 share to test batch staking
-        assertEq(stake.totalStaked(), 2);
+        // First stake the shares
+        friendKey.stake(CREATOR_TOKEN_ID, 3);
+        assertEq(stake.totalStaked(), 3); // 3 shares staked
+
+        // Now unstake 2 shares to test batch staking
+        stake.unstake(2);
+        assertEq(stake.totalStaked(), 1);
 
         // Approve and stake 2 shares in batch
         friendKey.setApprovalForAll(address(stake), true);
@@ -107,7 +112,7 @@ contract FriendStakeTest is Test {
         amounts[0] = 2;
         friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
 
-        assertEq(stake.totalStaked(), 4);
+        assertEq(stake.totalStaked(), 3); // 1 remaining from previous stake + 2 new batch stake
         vm.stopPrank();
     }
 
