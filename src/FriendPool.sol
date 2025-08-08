@@ -28,7 +28,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     /// @notice The FriendKey contract that can pull funds from this pool
     IFriendKey public friendKey;
-    /// @dev Internal address authorized to dispatch funds cross-chain
+    /// @dev Private address authorized to dispatch funds cross-chain
     address private _dispatcher;
     /// @notice The DLN Source contract for cross-chain operations
     IDlnSource public dlnSource;
