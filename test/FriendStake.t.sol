@@ -82,6 +82,8 @@ contract FriendStakeTest is Test {
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 1);
 
+        friendKey.stake(CREATOR_TOKEN_ID, 2); // Stake the initial share + the one just bought
+
         // Check staked balance 1 initial + 1 bought
         assertEq(stake.totalStaked(), 2);
         vm.stopPrank();
@@ -115,14 +117,15 @@ contract FriendStakeTest is Test {
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 2);
-        assertEq(stake.totalStaked(), 3); // 1 initial + 2 staked
+        friendKey.stake(CREATOR_TOKEN_ID, 2);
+        assertEq(stake.totalStaked(), 2); // 1 initial + 2 staked
 
         // Unstake 1
         stake.unstake(1);
-        assertEq(stake.totalStaked(), 2);
+        assertEq(stake.totalStaked(), 1);
         // Unstake remaining
         stake.unstakeAll();
-        assertEq(stake.totalStaked(), 1); // 1 initial share by owner remains staked
+        assertEq(stake.totalStaked(), 0); // 1 initial share by owner remains staked
         vm.stopPrank();
     }
 
@@ -132,12 +135,14 @@ contract FriendStakeTest is Test {
         uint256 price1 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
         mockUsdc.approve(address(friendKey), price1);
         friendKey.buyShares(CREATOR_TOKEN_ID, 2);
+        friendKey.stake(CREATOR_TOKEN_ID, 2);
         vm.stopPrank();
 
         vm.startPrank(staker2);
         uint256 price2 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 3);
         mockUsdc.approve(address(friendKey), price2);
         friendKey.buyShares(CREATOR_TOKEN_ID, 3);
+        friendKey.stake(CREATOR_TOKEN_ID, 3);
         vm.stopPrank();
 
         // Fund rewards
@@ -150,7 +155,8 @@ contract FriendStakeTest is Test {
 
         stake.lockStaking();
         assertEq(stake.isOpenForStaking(), false);
-        assertEq(stake.totalStaked(), 6); // 2 from staker1 + 3 from staker2 + 1 initial
+        uint256 expectedStaked = 5;
+        assertEq(stake.totalStaked(), expectedStaked); // 2 from staker1 + 3 from staker2
         vm.stopPrank();
 
         // Check initial balances
@@ -166,12 +172,12 @@ contract FriendStakeTest is Test {
         uint256 platformShare = (rewardAmount * friendKey.devPerformanceFeePercent()) / friendKey.BPS_SCALE();
         uint256 creatorShare = (rewardAmount * friendKey.creatorPerformanceFeePercent()) / friendKey.BPS_SCALE();
         rewardAmount -= platformShare + creatorShare;
-        uint256 staker1Reward = (rewardAmount * 2) / 6;
-        uint256 staker2Reward = (rewardAmount * 3) / 6;
+        uint256 staker1Reward = (rewardAmount * 2) / expectedStaked;
+        uint256 staker2Reward = (rewardAmount * 3) / expectedStaked;
         assertEq(mockUsdc.balanceOf(staker1), staker1InitialBalance + staker1Reward);
         assertEq(mockUsdc.balanceOf(staker2), staker2InitialBalance + staker2Reward);
 
-        assertEq(stake.totalStaked(), 6);
+        assertEq(stake.totalStaked(), expectedStaked);
         assertEq(stake.isOpenForStaking(), true); // Staking should be reopened after distribution
     }
 
