@@ -11,32 +11,67 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IterableMapping} from "./lib/IterableMapping.sol";
 import {IFriendKey} from "./interfaces/IFriendKey.sol";
 
+/**
+ * @title FriendStake
+ * @author FriendDotSpace
+ * @notice A staking contract that allows users to stake FriendKey tokens to earn rewards
+ * @dev This contract manages staking pools for individual creator tokens with the following features:
+ *      - Time-locked staking with configurable lock periods
+ *      - Reward distribution based on staked amounts
+ *      - Eligibility tracking for reward claims
+ *      - Integration with FriendKey token contract
+ *      - Upgradeable contract pattern
+ */
 contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradeable {
     using SafeERC20 for IERC20;
 
+    /// @notice The FriendKey token contract that this staking pool accepts
     IFriendKey public friendKeyToken;
+    /// @notice The ERC20 token used for reward distribution
     IERC20 public rewardToken;
+    /// @notice The specific token ID this staking pool is for
     uint256 public tokenId;
+    /// @notice Whether the staking pool is currently accepting new stakes
     bool public isOpenForStaking;
+    /// @dev Internal counter for reward distribution rounds
     uint256 rewardDistributionIndex;
+    /// @notice Total amount of reward tokens available for distribution
     uint256 public rewardAmount;
+    /// @notice Time period that staked tokens are locked (in seconds)
     uint256 public lockTime;
 
-    // Array to track users who have claimed rewards
-    // We use array instead of mapping for ability to reset to empty
-    // after reward distribution
+    /// @notice Array to track which users have claimed rewards for current distribution
+    /// @dev Using array instead of mapping for gas-efficient reset after distribution
     bool[] public claimed;
 
+    /// @notice Total amount of tokens currently staked in this pool
     uint256 public totalStaked;
+    /// @notice Total amount of tokens eligible for current reward distribution
     uint256 public totalEligible;
+    /// @notice Whether the total eligible amount has been set for current distribution
     bool public isTotalEligibleSet;
 
     using IterableMapping for IterableMapping.Map;
 
+    /// @dev Internal mapping to track staked balances and timing for each user
     IterableMapping.Map private stakedBalances;
 
+    /// @notice Emitted when a user stakes tokens
+    /// @param user Address of the user staking tokens
+    /// @param tokenId ID of the token being staked
+    /// @param amount Number of tokens staked
     event KeyStaked(address indexed user, uint256 tokenId, uint256 amount);
+    
+    /// @notice Emitted when a user unstakes tokens
+    /// @param user Address of the user unstaking tokens
+    /// @param tokenId ID of the token being unstaked
+    /// @param amount Number of tokens unstaked
     event KeyUnstaked(address indexed user, uint256 tokenId, uint256 amount);
+    
+    /// @notice Emitted when a user claims rewards
+    /// @param user Address of the user claiming rewards
+    /// @param tokenId ID of the token for which rewards are claimed
+    /// @param amount Amount of reward tokens claimed
     event RewardClaimed(address indexed user, uint256 tokenId, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -44,6 +79,14 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the staking pool for a specific creator token
+     * @dev This function replaces the constructor in upgradeable contracts
+     * @param initialOwner The address that will own this staking pool
+     * @param _friendKeyAddress Address of the FriendKey token contract
+     * @param _rewardToken Address of the ERC20 token used for rewards
+     * @param _tokenId The specific token ID this pool will accept for staking
+     */
     function initialize(address initialOwner, address _friendKeyAddress, address _rewardToken, uint256 _tokenId)
         public
         initializer
@@ -65,14 +108,23 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         isOpenForStaking = true;
     }
 
-    // function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
-
+    /**
+     * @dev Modifier to ensure only the FriendKey contract can call certain functions
+     */
     modifier onlyFriendKey() {
         require(_msgSender() == address(friendKeyToken), "FriendStake: Caller is not FriendKey contract");
         _;
     }
 
-    // function to receive erc1155 tokens
+    /**
+     * @notice Handles receipt of ERC1155 tokens for staking
+     * @dev Called when tokens are transferred to this contract via safeTransferFrom
+     * @param from Address that sent the tokens
+     * @param id Token ID being staked
+     * @param value Amount of tokens being staked
+     * @param data Additional data (used to encode original sender address)
+     * @return bytes4 selector indicating successful receipt
+     */
     function onERC1155Received(address, /* operator */ address from, uint256 id, uint256 value, bytes memory data)
         public
         virtual
