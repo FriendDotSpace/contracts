@@ -41,7 +41,8 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     uint256 public lockTime;
 
     /// @notice Array to track which users have claimed rewards for current distribution
-    /// @dev Using array instead of mapping for gas-efficient reset after distribution
+    /// @dev Using array instead of mapping for gas-efficient reset after distribution.
+    ///      The array is reset for each new distribution round in the `resetClaims()` function.
     bool[] public claimed;
 
     /// @notice Total amount of tokens currently staked in this pool
