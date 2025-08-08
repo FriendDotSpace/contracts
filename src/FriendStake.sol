@@ -61,13 +61,13 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     /// @param tokenId ID of the token being staked
     /// @param amount Number of tokens staked
     event KeyStaked(address indexed user, uint256 tokenId, uint256 amount);
-    
+
     /// @notice Emitted when a user unstakes tokens
     /// @param user Address of the user unstaking tokens
     /// @param tokenId ID of the token being unstaked
     /// @param amount Number of tokens unstaked
     event KeyUnstaked(address indexed user, uint256 tokenId, uint256 amount);
-    
+
     /// @notice Emitted when a user claims rewards
     /// @param user Address of the user claiming rewards
     /// @param tokenId ID of the token for which rewards are claimed

@@ -42,12 +42,12 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @param amount Amount of tokens pulled
     /// @param totalReserves Total reserves remaining for this token ID
     event FundsPulled(uint256 indexed tokenId, uint256 amount, uint256 totalReserves);
-    
+
     /// @notice Emitted when dispatch is allowed for a token ID
     /// @param tokenId The token ID for which dispatch is authorized
     /// @param recipient The address authorized to dispatch funds
     event DispatchAllowed(uint256 indexed tokenId, address indexed recipient);
-    
+
     /// @notice Emitted when funds are dispatched cross-chain
     /// @param tokenId The token ID associated with the dispatched funds
     /// @param amount Amount of tokens dispatched

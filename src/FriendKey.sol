@@ -43,9 +43,10 @@ contract FriendKey is
     /// @notice Enum defining different room tiers with varying bonding curve parameters
     /// @dev Each tier has a different divisor that affects the pricing curve steepness
     enum RoomTier {
-        Casual,    // Most affordable tier with highest divisor (4000)
-        Club,      // Medium tier with moderate divisor (40) 
-        Exclusive  // Premium tier with lowest divisor (4) - highest prices
+        Casual, // Most affordable tier with highest divisor (4000)
+        Club, // Medium tier with moderate divisor (40)
+        Exclusive // Premium tier with lowest divisor (4) - highest prices
+
     }
 
     /// @dev Counter for generating unique token IDs
@@ -133,7 +134,7 @@ contract FriendKey is
     /// @param staker The address staking the tokens
     /// @param amount The amount of tokens staked
     event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
-    
+
     /// @notice Emitted when tokens are unstaked
     /// @param tokenId The ID of the token being unstaked
     /// @param staker The address unstaking the tokens
