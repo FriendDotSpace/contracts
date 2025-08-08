@@ -13,7 +13,10 @@ This project implements an ERC-1155 based token contract with the following key 
 
 ## Contract Architecture
 
-The `FriendKey` contract inherits from several OpenZeppelin contracts:
+The project consists of three main contracts:
+
+### FriendKey
+The main contract that inherits from several OpenZeppelin contracts:
 
 - `ERC1155Upgradeable`: Base token standard
 - `ERC1155BurnableUpgradeable`: Allows tokens to be burned
@@ -21,12 +24,41 @@ The `FriendKey` contract inherits from several OpenZeppelin contracts:
 - `OwnableUpgradeable`: Access control
 - `UUPSUpgradeable`: Upgradeable proxy pattern
 
+### FriendStake
+A staking contract that allows users to stake their FriendKey tokens to earn rewards:
+
+- **Token Staking**: Users can stake their FriendKey tokens for specific creators
+- **Reward Distribution**: Distributes rewards to stakers based on their stake
+- **Lock Mechanism**: Supports time-locked staking periods
+- **Upgradeable**: Uses OpenZeppelin's upgradeable contracts pattern
+
+### FriendPool
+A pool contract that manages reserves and cross-chain functionality:
+
+- **Reserve Management**: Manages bonding curve reserves for each creator
+- **Cross-chain Integration**: Integrates with DLN (deBridge Liquidity Network) for cross-chain operations
+- **Fund Dispatching**: Allows authorized dispatching of funds across chains
+- **Upgradeable**: Uses UUPS proxy pattern for future upgrades
+
 ## Key Functions
 
+### FriendKey Contract
 - `buyShares(address creatorAddress, uint256 amount)`: Purchase shares of a creator
 - `sellShares(address creatorAddress, uint256 amount)`: Sell shares of a creator
 - `getBuyPrice(uint256 id, uint256 amount)`: Calculate purchase price before fees
 - `getSellPrice(uint256 id, uint256 amount)`: Calculate sell price before fees
+- `registerCreator()`: Register as a creator and receive initial shares
+
+### FriendStake Contract
+- `stake(uint256 amount)`: Stake FriendKey tokens to earn rewards
+- `unstake(uint256 amount)`: Unstake tokens after lock period
+- `claimReward()`: Claim earned rewards from staking
+- `setReward(uint256 amount)`: Set reward amount for distribution (owner only)
+
+### FriendPool Contract
+- `pull(uint256 tokenId, uint256 amount)`: Pull funds from bonding curve reserves
+- `dispatch(uint256 tokenId, uint256 amount)`: Dispatch funds cross-chain using DLN
+- `allowDispatch(uint256 tokenId, address recipient)`: Authorize fund dispatching
 
 ## Installation and Setup
 
