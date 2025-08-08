@@ -14,6 +14,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IFriendPool} from "./interfaces/IFriendPool.sol";
+import {FriendStake} from "./FriendStake.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 contract FriendKey is
     Initializable,
@@ -42,12 +44,16 @@ contract FriendKey is
     uint256 public creatorFeePercent;
     address public tradingPoolFeeDestination;
     uint256 public tradingPoolFeePercent;
+    uint256 public devPerformanceFeePercent;
+    uint256 public creatorPerformanceFeePercent;
+    address public friendStake; // Address of the FriendStake contract to clone for staking pools
 
     IERC20Metadata public bondingToken;
     uint256 public bondingTokenPriceUnit; // Added bonding token price unit (e.g., 10**decimals)
 
     // Mapping from tokenId to creator's address
     mapping(uint256 => address) public creatorByTokenId;
+    mapping(uint256 => address) public stakingPoolByTokenId;
     mapping(address => uint256) public bondingCurveReserves;
 
     // Mapping to track when a user first held a token (tokenId => userAddress => timestamp)
@@ -69,8 +75,16 @@ contract FriendKey is
     );
 
     event KeyCreated(
-        uint256 indexed tokenId, address indexed creator, string tokenURI, uint256 initialSupply, RoomTier tier
+        uint256 indexed tokenId,
+        address indexed creator,
+        address indexed stakingPool,
+        string tokenURI,
+        uint256 initialSupply,
+        RoomTier tier
     );
+
+    event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -84,7 +98,10 @@ contract FriendKey is
         uint256 _creatorFeePercent,
         address _tradingPoolFeeDestination,
         uint256 _tradingPoolFeePercent,
-        address _bondingTokenAddress
+        uint256 _devPerformanceFeePercent,
+        uint256 _creatorPerformanceFeePercent,
+        address _bondingTokenAddress,
+        address _friendStake
     ) public initializer {
         __ERC1155_init("");
         __Ownable_init(initialOwner);
@@ -102,7 +119,10 @@ contract FriendKey is
         creatorFeePercent = _creatorFeePercent;
         tradingPoolFeeDestination = _tradingPoolFeeDestination;
         tradingPoolFeePercent = _tradingPoolFeePercent;
+        devPerformanceFeePercent = _devPerformanceFeePercent;
+        creatorPerformanceFeePercent = _creatorPerformanceFeePercent;
         bondingToken = IERC20Metadata(_bondingTokenAddress);
+        friendStake = _friendStake;
 
         uint8 decimals = bondingToken.decimals();
         require(decimals > 0, "Bonding token decimals must be greater than zero");
@@ -142,14 +162,29 @@ contract FriendKey is
         tradingPoolFeePercent = _feePercent;
     }
 
+    function setDevPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
+        require(creatorPerformanceFeePercent + _feePercent <= BPS_SCALE, "Dev performance fee percent too high");
+        devPerformanceFeePercent = _feePercent;
+    }
+
+    function setCreatorPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
+        require(devPerformanceFeePercent + _feePercent <= BPS_SCALE, "Creator performance fee percent too high");
+        creatorPerformanceFeePercent = _feePercent;
+    }
+
     function registerCreator(RoomTier tier, uint256 additionalKeys) public returns (uint256) {
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
-        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
         string memory tokenUri = uri(id);
-        emit KeyCreated(id, creator, tokenUri, 1 + additionalKeys, tier);
+
+        address cloneAddress = Clones.clone(friendStake);
+        FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
+
+        stakingPoolByTokenId[id] = cloneAddress;
+        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
+        emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
         return id;
     }
 
@@ -240,6 +275,14 @@ contract FriendKey is
 
         _mint(msg.sender, tokenId, amount, "");
 
+        // FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
+        // if (stakingPool.isOpenForStaking() == false) {
+        //     _mint(msg.sender, tokenId, amount, "");
+        // } else {
+        //     bytes memory sender = abi.encode(msg.sender);
+        //     _mint(stakingPoolByTokenId[tokenId], tokenId, amount, sender);
+        // }
+
         if (devFee > 0 && devFeeDestination != address(0)) {
             bondingToken.transfer(devFeeDestination, devFee);
         }
@@ -287,6 +330,41 @@ contract FriendKey is
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
+    }
+
+    function stake(uint256 tokenId, uint256 amount) public {
+        require(amount > 0, "Amount must be greater than zero");
+        require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
+        address stakingPoolAddress = stakingPoolByTokenId[tokenId];
+        require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
+
+        FriendStake stakingPool = FriendStake(stakingPoolAddress);
+        require(stakingPool.isOpenForStaking(), "Staking pool is not open for staking");
+
+        _safeTransferFrom(msg.sender, stakingPoolAddress, tokenId, amount, "");
+
+        // Update key holding timestamp
+        keyHoldingSince[tokenId][msg.sender] = block.timestamp;
+
+        emit KeyStaked(tokenId, msg.sender, amount);
+    }
+
+    function unstake(uint256 tokenId, uint256 amount) public {
+        require(amount > 0, "Amount must be greater than zero");
+        address stakingPoolAddress = stakingPoolByTokenId[tokenId];
+        require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
+
+        FriendStake stakingPool = FriendStake(stakingPoolAddress);
+        require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
+
+        stakingPool.unstake(amount, msg.sender);
+
+        // Reset key holding timestamp if no shares left
+        if (balanceOf(msg.sender, tokenId) == 0) {
+            keyHoldingSince[tokenId][msg.sender] = 0;
+        }
+
+        emit KeyUnstaked(tokenId, msg.sender, amount);
     }
 
     function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal {

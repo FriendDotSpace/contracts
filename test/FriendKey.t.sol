@@ -4,7 +4,7 @@ pragma solidity ^0.8.27;
 import {Test, console} from "forge-std/Test.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
-import {console2} from "forge-std/console2.sol";
+import {FriendStake} from "src/FriendStake.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IFriendPool} from "src/interfaces/IFriendPool.sol";
@@ -98,6 +98,8 @@ contract FriendKeyTest is Test {
     uint256 public constant BPS_SCALE = 10_000; // Basis points scale for fee calculations
     uint256 public CREATOR_TOKEN_ID = 1;
 
+    FriendStake public friendStake;
+
     function setUp() public {
         owner = vm.addr(1);
         devFeeDestination = vm.addr(2);
@@ -110,6 +112,7 @@ contract FriendKeyTest is Test {
 
         MockPool pool = new MockPool(address(mockUsdc));
         tradingPoolFeeDestination = address(pool); //vm.addr(4);
+        FriendStake friendStakeInstance = new FriendStake();
 
         vm.startPrank(owner);
         bytes memory initializeData = abi.encodeCall(
@@ -121,7 +124,10 @@ contract FriendKeyTest is Test {
                 CREATOR_FEE_PERCENT,
                 tradingPoolFeeDestination,
                 TRADING_POOL_FEE_PERCENT,
-                address(mockUsdc)
+                0, // performance fee percent is not used in this test
+                0,
+                address(mockUsdc),
+                address(friendStakeInstance)
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
@@ -131,6 +137,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(creatorAccount);
         // Register creator
         instance.registerCreator();
+        friendStake = FriendStake(instance.stakingPoolByTokenId(CREATOR_TOKEN_ID));
         assertEq(instance.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();
 
@@ -218,7 +225,7 @@ contract FriendKeyTest is Test {
         vm.stopPrank();
 
         // Verify balances
-        assertEq(instance.balanceOf(creatorAccount, CREATOR_TOKEN_ID), 1);
+        assertEq(instance.balanceOf(creatorAccount, CREATOR_TOKEN_ID), 1); // Creator has 1 share from registration
         assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyerShareAmount);
         assertEq(instance.balanceOf(anotherBuyerAccount, CREATOR_TOKEN_ID), anotherBuyerShareAmount);
 
@@ -390,6 +397,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(newCreator);
         mockUsdc.approve(address(instance), expectedCost);
         uint256 tokenId = instance.registerCreator(tier, additionalKeys);
+        friendStake = FriendStake(instance.stakingPoolByTokenId(tokenId));
         vm.stopPrank();
 
         // Verify the token ID is correct (should be 2 since CREATOR_TOKEN_ID = 1 was already taken)
