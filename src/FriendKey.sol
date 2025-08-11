@@ -85,11 +85,7 @@ contract FriendKey is
 
     event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
     event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
-    event CreatorRewarded(
-        uint256 indexed tokenId,
-        address indexed creator,
-        uint256 amount
-    );
+    event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
