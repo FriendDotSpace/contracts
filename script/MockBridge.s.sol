@@ -16,7 +16,7 @@ contract MockBridgeScript is Script {
 
         // Deploy MockBridge contract
         MockBridge mockBridge = new MockBridge(initialOwner);
-        
+
         console2.log("MockBridge deployed to %s", address(mockBridge));
         console2.log("Initial owner set to %s", initialOwner);
         console2.log("Global fixed native fee: %s wei", mockBridge.globalFixedNativeFee());
