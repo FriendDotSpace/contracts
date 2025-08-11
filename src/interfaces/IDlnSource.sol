@@ -3,6 +3,13 @@ pragma solidity ^0.8.27;
 
 import "../libraries/DlnOrderLib.sol";
 
+/**
+ * @title IDlnSource
+ * @notice Interface for the DLN (deBridge Liquidity Network) Source contract
+ * @dev This interface provides cross-chain functionality through deBridge's infrastructure
+ *      Original source: deBridge Protocol
+ *      Used for: Cross-chain fund dispatching and liquidity bridging
+ */
 interface IDlnSource {
     /**
      * @notice This function returns the global fixed fee in the native asset of the protocol.

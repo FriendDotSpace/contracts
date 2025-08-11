@@ -2,6 +2,13 @@
 
 pragma solidity ^0.8.27;
 
+/**
+ * @title DlnOrderLib
+ * @notice Library containing data structures for DLN (deBridge Liquidity Network) orders
+ * @dev This library defines the order structures used in cross-chain operations
+ *      Original source: deBridge Protocol
+ *      Used for: Defining cross-chain order parameters and structures
+ */
 library DlnOrderLib {
     /* ========== ENUMS ========== */
 

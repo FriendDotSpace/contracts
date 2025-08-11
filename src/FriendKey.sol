@@ -17,6 +17,18 @@ import {IFriendPool} from "./interfaces/IFriendPool.sol";
 import {FriendStake} from "./FriendStake.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
+/**
+ * @title FriendKey
+ * @author FriendDotSpace
+ * @notice A social token platform that allows creators to issue their own tokenized shares using bonding curves
+ * @dev This contract implements an ERC-1155 based social token system with the following features:
+ *      - Bonding curve pricing mechanism for token purchases/sales
+ *      - Multi-tier room system (Casual, Club, Exclusive) with different pricing curves
+ *      - Fee distribution system (dev fees, creator fees, trading pool fees)
+ *      - Staking integration for token holders
+ *      - Cross-chain functionality through FriendPool integration
+ *      - Upgradeable contract using UUPS proxy pattern
+ */
 contract FriendKey is
     Initializable,
     ERC1155Upgradeable,
@@ -28,42 +40,69 @@ contract FriendKey is
     using SafeERC20 for IERC20Metadata;
     using Strings for uint256;
 
-    // Room tier enum for defining different bonding curve tiers
+    /// @notice Enum defining different room tiers with varying bonding curve parameters
+    /// @dev Each tier has a different divisor that affects the pricing curve steepness
     enum RoomTier {
-        Casual,
-        Club,
-        Exclusive
+        Casual, // Most affordable tier with highest divisor (4000)
+        Club, // Medium tier with moderate divisor (40)
+        Exclusive // Premium tier with lowest divisor (4) - highest prices
+
     }
 
+    /// @dev Counter for generating unique token IDs
     uint256 private _nextTokenId;
 
-    uint256 public BPS_SCALE; // Basis Point Scale (100% = 10000 BPS)
+    /// @notice Basis point scale for percentage calculations (10000 = 100%)
+    uint256 public BPS_SCALE;
 
+    /// @notice Address where development fees are sent
     address public devFeeDestination;
+    /// @notice Percentage of each trade sent as development fee (in basis points)
     uint256 public devFeePercent;
+    /// @notice Percentage of each trade sent to creator (in basis points)
     uint256 public creatorFeePercent;
+    /// @notice Address where trading pool fees are sent (usually FriendPool contract)
     address public tradingPoolFeeDestination;
+    /// @notice Percentage of each trade sent as trading pool fee (in basis points)
     uint256 public tradingPoolFeePercent;
+    /// @notice Development performance fee percentage (in basis points)
     uint256 public devPerformanceFeePercent;
+    /// @notice Creator performance fee percentage (in basis points)
     uint256 public creatorPerformanceFeePercent;
-    address public friendStake; // Address of the FriendStake contract to clone for staking pools
+    /// @notice Address of the FriendStake implementation contract for cloning
+    address public friendStake;
 
+    /// @notice The ERC20 token used for bonding curve transactions (e.g., USDC)
     IERC20Metadata public bondingToken;
-    uint256 public bondingTokenPriceUnit; // Added bonding token price unit (e.g., 10**decimals)
+    /// @notice Price unit based on bonding token decimals (e.g., 10^6 for USDC)
+    uint256 public bondingTokenPriceUnit;
 
-    // Mapping from tokenId to creator's address
+    /// @notice Mapping from token ID to creator's address
     mapping(uint256 => address) public creatorByTokenId;
+    /// @notice Mapping from token ID to its staking pool contract address
     mapping(uint256 => address) public stakingPoolByTokenId;
+    /// @notice Mapping from creator address to their bonding curve reserves
     mapping(address => uint256) public bondingCurveReserves;
 
-    // Mapping to track when a user first held a token (tokenId => userAddress => timestamp)
+    /// @notice Tracks when users first acquired tokens for eligibility purposes
+    /// @dev Maps tokenId => userAddress => timestamp
     mapping(uint256 => mapping(address => uint256)) public keyHoldingSince;
 
-    // Mapping from tokenId to room tier
+    /// @notice Mapping from token ID to its room tier
     mapping(uint256 => RoomTier) public roomTiers;
 
+    /// @notice Array of divisors for different room tiers [Casual, Club, Exclusive]
+    /// @dev Lower divisor = higher prices. Used in bonding curve calculations
     uint256[] public bondingCurveDivisors;
 
+    /// @notice Emitted when tokens are bought or sold
+    /// @param tokenId The ID of the token being traded
+    /// @param trader The address executing the trade
+    /// @param subject The creator/subject of the token
+    /// @param isBuy True for buy, false for sell
+    /// @param shareAmount Number of shares traded
+    /// @param tokenAmount Amount of bonding tokens involved
+    /// @param supply Total supply after the trade
     event Trade(
         uint256 indexed tokenId,
         address indexed trader,
@@ -74,6 +113,13 @@ contract FriendKey is
         uint256 supply
     );
 
+    /// @notice Emitted when a new creator key is created
+    /// @param tokenId The unique ID assigned to the creator's token
+    /// @param creator The address of the creator
+    /// @param stakingPool The address of the created staking pool
+    /// @param tokenURI The metadata URI for the token
+    /// @param initialSupply The initial token supply minted to creator
+    /// @param tier The room tier selected for this creator
     event KeyCreated(
         uint256 indexed tokenId,
         address indexed creator,
@@ -83,7 +129,16 @@ contract FriendKey is
         RoomTier tier
     );
 
+    /// @notice Emitted when tokens are staked
+    /// @param tokenId The ID of the token being staked
+    /// @param staker The address staking the tokens
+    /// @param amount The amount of tokens staked
     event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+
+    /// @notice Emitted when tokens are unstaked
+    /// @param tokenId The ID of the token being unstaked
+    /// @param staker The address unstaking the tokens
+    /// @param amount The amount of tokens unstaked
     event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
     event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
@@ -92,6 +147,21 @@ contract FriendKey is
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the contract with required parameters
+     * @dev This function replaces the constructor in upgradeable contracts
+     * @param initialOwner The address that will own the contract
+     * @param _devFeeDestination Address where development fees are sent
+     * @param _devFeePercent Development fee percentage (in basis points)
+     * @param _creatorFeePercent Creator fee percentage (in basis points)
+     * @param _tradingPoolFeeDestination Address where trading pool fees are sent
+     * @param _tradingPoolFeePercent Trading pool fee percentage (in basis points)
+     * @param _devPerformanceFeePercent Development performance fee percentage
+     * @param _creatorPerformanceFeePercent Creator performance fee percentage
+     * @param _bondingTokenAddress Address of the ERC20 token used for trading (e.g., USDC)
+     * @param _friendStake Address of the FriendStake implementation for cloning
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     function initialize(
         address initialOwner,
         address _devFeeDestination,
@@ -131,16 +201,31 @@ contract FriendKey is
         bondingCurveDivisors = [4000, 40, 4];
     }
 
+    /**
+     * @notice Sets the base URI for token metadata
+     * @dev Only callable by contract owner
+     * @param newuri The new base URI string
+     */
     function setURI(string memory newuri) public onlyOwner {
         _setURI(newuri);
     }
 
     // --- Fee and Creator Management (Owner only) ---
 
+    /**
+     * @notice Sets the destination address for development fees
+     * @dev Only callable by contract owner
+     * @param _feeDestination New development fee destination address
+     */
     function setDevFeeDestination(address _feeDestination) public onlyOwner {
         devFeeDestination = _feeDestination;
     }
 
+    /**
+     * @notice Sets the development fee percentage
+     * @dev Only callable by contract owner. Must not exceed total fee limit
+     * @param _feePercent New development fee percentage in basis points
+     */
     function setDevFeePercent(uint256 _feePercent) public onlyOwner {
         require(_feePercent <= BPS_SCALE, "Dev fee percent too high");
         require(_feePercent + creatorFeePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
@@ -173,6 +258,13 @@ contract FriendKey is
         creatorPerformanceFeePercent = _feePercent;
     }
 
+    /**
+     * @notice Registers a new creator with specified tier and additional keys
+     * @dev Creates a new token ID, deploys a staking pool, and mints initial supply
+     * @param tier The room tier for the creator (affects bonding curve pricing)
+     * @param additionalKeys Number of additional keys to mint beyond the initial key
+     * @return The newly created token ID
+     */
     function registerCreator(RoomTier tier, uint256 additionalKeys) public returns (uint256) {
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
@@ -189,11 +281,21 @@ contract FriendKey is
         return id;
     }
 
-    // Add a backward-compatible version that defaults to Casual tier
+    /**
+     * @notice Registers a new creator with default settings (Casual tier, no additional keys)
+     * @dev Backward-compatible function that uses default parameters
+     * @return The newly created token ID
+     */
     function registerCreator() public returns (uint256) {
         return registerCreator(RoomTier.Casual, 0);
     }
 
+    /**
+     * @notice Returns the metadata URI for a specific token
+     * @dev Concatenates base URI with token ID if base URI is set
+     * @param tokenId The token ID to get URI for
+     * @return The complete metadata URI for the token
+     */
     function uri(uint256 tokenId) public view override returns (string memory) {
         address creator = creatorByTokenId[tokenId];
         require(creator != address(0), "Creator not registered");
@@ -206,6 +308,14 @@ contract FriendKey is
 
     // --- Pricing Logic ---
 
+    /**
+     * @notice Calculates the price for a given supply and amount using bonding curve formula
+     * @dev Uses polynomial pricing: price = (sum of squares * priceUnit) / divisor
+     * @param supply Current token supply
+     * @param amount Number of tokens to price
+     * @param divisor Divisor used for the pricing curve (affects steepness)
+     * @return The calculated price in bonding token units
+     */
     function getPrice(uint256 supply, uint256 amount, uint256 divisor) public view returns (uint256) {
         require(divisor > 0, "Divisor must be greater than zero");
         uint256 sum1 = supply == 0 ? 0 : ((supply - 1) * (supply) * (2 * (supply - 1) + 1)) / 6;
@@ -216,22 +326,46 @@ contract FriendKey is
         return (summation * bondingTokenPriceUnit) / divisor;
     }
 
+    /**
+     * @notice Gets the bonding curve divisor for a specific token ID
+     * @dev Lower divisor = higher prices. Used to differentiate room tiers
+     * @param id The token ID to get divisor for
+     * @return The divisor value for the token's room tier
+     */
     function getDivisor(uint256 id) public view returns (uint256) {
         RoomTier tier = roomTiers[id];
         return bondingCurveDivisors[uint8(tier)];
     }
 
+    /**
+     * @notice Calculates the price to buy a specific amount of tokens (before fees)
+     * @param id The token ID to buy
+     * @param amount Number of tokens to buy
+     * @return The price in bonding token units before fees
+     */
     function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return getPrice(totalSupply(id), amount, divisor);
     }
 
+    /**
+     * @notice Calculates the price to sell a specific amount of tokens (before fees)
+     * @param id The token ID to sell
+     * @param amount Number of tokens to sell
+     * @return The price in bonding token units before fees
+     */
     function getSellPrice(uint256 id, uint256 amount) public view returns (uint256) {
         require(totalSupply(id) >= amount, "Amount exceeds supply");
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return getPrice(totalSupply(id) - amount, amount, divisor);
     }
 
+    /**
+     * @notice Calculates the total cost to buy tokens including all fees
+     * @param id The token ID to buy
+     * @param amount Number of tokens to buy
+     * @return The total cost including base price and all fees
+     */
     function getBuyPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
         uint256 price = getBuyPrice(id, amount);
         uint256 devFee = (price * devFeePercent) / BPS_SCALE;
@@ -240,6 +374,12 @@ contract FriendKey is
         return price + devFee + creatorFee + tradingPoolFee;
     }
 
+    /**
+     * @notice Calculates the proceeds from selling tokens after deducting all fees
+     * @param id The token ID to sell
+     * @param amount Number of tokens to sell
+     * @return The net proceeds after deducting all fees
+     */
     function getSellPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
         uint256 price = getSellPrice(id, amount);
         uint256 devFee = (price * devFeePercent) / BPS_SCALE;
@@ -251,6 +391,12 @@ contract FriendKey is
 
     // --- Buy and Sell Shares ---
 
+    /**
+     * @notice Purchases tokens for a specific creator using bonding curve pricing
+     * @dev Calculates price, collects fees, mints tokens, and distributes payments
+     * @param tokenId The ID of the creator's token to buy
+     * @param amount Number of tokens to purchase
+     */
     function buyShares(uint256 tokenId, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
         address creatorAddress = creatorByTokenId[tokenId];
@@ -298,6 +444,12 @@ contract FriendKey is
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
     }
 
+    /**
+     * @notice Sells tokens for a specific creator using bonding curve pricing
+     * @dev Burns tokens, calculates proceeds after fees, and transfers payment to seller
+     * @param tokenId The ID of the creator's token to sell
+     * @param amount Number of tokens to sell
+     */
     function sellShares(uint256 tokenId, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
         address creatorAddress = creatorByTokenId[tokenId];
@@ -335,6 +487,12 @@ contract FriendKey is
         emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
     }
 
+    /**
+     * @notice Stakes tokens in the associated staking pool for rewards
+     * @dev Transfers tokens from user to staking pool and updates holding timestamp
+     * @param tokenId The ID of the token to stake
+     * @param amount Number of tokens to stake
+     */
     function stake(uint256 tokenId, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
         require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
@@ -352,6 +510,12 @@ contract FriendKey is
         emit KeyStaked(tokenId, msg.sender, amount);
     }
 
+    /**
+     * @notice Unstakes tokens from the staking pool
+     * @dev Calls the staking pool to transfer tokens back to user
+     * @param tokenId The ID of the token to unstake
+     * @param amount Number of tokens to unstake
+     */
     function unstake(uint256 tokenId, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
@@ -370,6 +534,12 @@ contract FriendKey is
         emit KeyUnstaked(tokenId, msg.sender, amount);
     }
 
+    /**
+     * @notice Internal function to transfer fees to the trading pool
+     * @dev Attempts to call pull() on the pool contract, falls back to direct transfer
+     * @param tokenId The token ID associated with the fee
+     * @param tradingPoolFee Amount of tokens to transfer
+     */
     function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal {
         // Check if the destination has code (is a contract)
         if (tradingPoolFeeDestination.code.length > 0) {
@@ -386,39 +556,41 @@ contract FriendKey is
         }
     }
 
-    // TODO: full withdraw when?
-    // function withdrawCreatorFees() public {
-    //     uint256 amount = creatorAccumulatedFees[msg.sender];
-    //     require(amount > 0, "No fees accumulated");
-
-    //     creatorAccumulatedFees[msg.sender] = 0;
-    //     bondingToken.transfer(msg.sender, amount);
-    // }
-
     /**
-     * @dev Returns since when a user has been continuously holding at least one token of a specific ID
+     * @notice Checks if a user is eligible for certain actions based on holding time
      * @param tokenId The ID of the token to check
      * @param user The address of the user to check
-     * @return The timestamp when the user first obtained the token, or 0 if they don't currently hold any
+     * @return True if the user has held tokens for the required time period
+     */
+    function isUserEligible(uint256 tokenId, address user) public view returns (bool) {
+        return block.timestamp >= getKeyHoldingSince(tokenId, user) + 24 hours; // Example: 1 day eligibility
+    }
+
+    /**
+     * @notice Returns since when a user has been continuously holding tokens
+     * @param tokenId The ID of the token to check
+     * @param user The address of the user to check
+     * @return The timestamp when the user first obtained the token, or 0 if they don't hold any
      */
     function getKeyHoldingSince(uint256 tokenId, address user) public view returns (uint256) {
         return keyHoldingSince[tokenId][user];
     }
 
     /**
-     * @dev Checks if a user is eligible for some action based on how long they have held a specific token
-     * @param tokenId The ID of the token to check
-     * @param user The address of the user to check
-     * @return True if the user is eligible, false otherwise
+     * @dev Authorizes contract upgrades - only callable by owner
+     * @param newImplementation Address of the new implementation contract
      */
-    function isUserEligible(uint256 tokenId, address user) public view returns (bool) {
-        return block.timestamp >= getKeyHoldingSince(tokenId, user) + 24 hours; // Example: 1 day eligibility
-    }
-
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // The following functions are overrides required by Solidity.
 
+    /**
+     * @dev Internal function to handle token transfers and update holding timestamps
+     * @param from Address sending the tokens (address(0) for minting)
+     * @param to Address receiving the tokens (address(0) for burning)
+     * @param ids Array of token IDs being transferred
+     * @param values Array of amounts being transferred
+     */
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
         internal
         override(ERC1155Upgradeable, ERC1155SupplyUpgradeable)
