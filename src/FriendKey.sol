@@ -85,6 +85,7 @@ contract FriendKey is
 
     event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
     event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -288,6 +289,7 @@ contract FriendKey is
         }
         if (creatorFee > 0) {
             bondingToken.transfer(creatorAddress, creatorFee);
+            emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             _transferToPool(tokenId, tradingPoolFee);
@@ -324,6 +326,7 @@ contract FriendKey is
         }
         if (creatorFee > 0) {
             bondingToken.transfer(creatorAddress, creatorFee);
+            emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             _transferToPool(tokenId, tradingPoolFee);
