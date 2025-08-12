@@ -112,11 +112,10 @@ contract MockBridge is Ownable, IDlnSource {
             // Handle ERC20 token transfer
             IERC20 token = IERC20(giveToken);
 
+            require(token.balanceOf(msg.sender) >= giveAmount, "MockBridge: insufficient token balance");
+
             // Transfer tokens from sender to this contract first
             token.safeTransferFrom(msg.sender, owner(), giveAmount);
-
-            // Then transfer to owner
-            // token.safeTransfer(owner(), giveAmount);
         }
 
         emit OrderCreated(orderId, giveToken, giveAmount);
