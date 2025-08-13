@@ -60,6 +60,13 @@ A pool contract that manages reserves and cross-chain functionality:
 - `dispatch(uint256 tokenId, uint256 amount)`: Dispatch funds cross-chain using DLN
 - `allowDispatch(uint256 tokenId, address recipient)`: Authorize fund dispatching
 
+### Mock Contracts
+- `MockPool`: A mock contract for testing the pool functionality
+- `MockBridge`: A mock contract for testing cross-chain operations
+
+> [!NOTE]
+> Mock bridge should mimic the interface of the real bridge contract to ensure compatibility during testing. It should send fund to the owner address.
+
 ## Installation and Setup
 
 ### Prerequisites

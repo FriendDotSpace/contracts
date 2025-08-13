@@ -4,7 +4,7 @@ pragma solidity ^0.8.27;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {MockPool} from "src/MockPool.sol";
+import {MockPool} from "src/mocks/MockPool.sol";
 
 contract MockPoolScript is Script {
     function setUp() public {}
