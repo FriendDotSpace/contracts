@@ -431,10 +431,10 @@ contract FriendKey is
         // }
 
         if (devFee > 0 && devFeeDestination != address(0)) {
-            bondingToken.transfer(devFeeDestination, devFee);
+            require(bondingToken.transfer(devFeeDestination, devFee), "Transfer to dev failed");
         }
         if (creatorFee > 0) {
-            bondingToken.transfer(creatorAddress, creatorFee);
+            require(bondingToken.transfer(creatorAddress, creatorFee), "Transfer to creator failed");
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
@@ -470,14 +470,14 @@ contract FriendKey is
         _burn(msg.sender, tokenId, amount);
 
         if (proceeds > 0) {
-            bondingToken.transfer(msg.sender, proceeds);
+            require(bondingToken.transfer(msg.sender, proceeds), "Transfer to seller failed");
             bondingCurveReserves[creatorAddress] -= price;
         }
         if (devFee > 0 && devFeeDestination != address(0)) {
-            bondingToken.transfer(devFeeDestination, devFee);
+            require(bondingToken.transfer(devFeeDestination, devFee), "Transfer to dev failed");
         }
         if (creatorFee > 0) {
-            bondingToken.transfer(creatorAddress, creatorFee);
+            require(bondingToken.transfer(creatorAddress, creatorFee), "Transfer to creator failed");
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
@@ -548,11 +548,13 @@ contract FriendKey is
             try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
                 // If the pull succeeds, we don't need to do anything else
             } catch {
-                bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+                require(
+                    bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee), "Transfer to trading pool failed"
+                );
             }
         } else {
             // If it's an EOA, just transfer the tokens
-            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+            require(bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee), "Transfer to trading pool failed");
         }
     }
 
