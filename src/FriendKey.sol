@@ -271,12 +271,12 @@ contract FriendKey is
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
         string memory tokenUri = uri(id);
+        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
 
         address cloneAddress = Clones.clone(friendStake);
         FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
 
         stakingPoolByTokenId[id] = cloneAddress;
-        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
         emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
         return id;
     }
@@ -415,12 +415,12 @@ contract FriendKey is
 
         bondingCurveReserves[creatorAddress] += price;
 
+        _mint(msg.sender, tokenId, amount, "");
+
         if (totalCost > 0) {
             bool ok = bondingToken.transferFrom(msg.sender, address(this), totalCost);
             require(ok, "Transfer failed");
         }
-
-        _mint(msg.sender, tokenId, amount, "");
 
         // FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
         // if (stakingPool.isOpenForStaking() == false) {
