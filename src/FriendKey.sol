@@ -184,11 +184,13 @@ contract FriendKey is
 
         require(_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         require(_bondingTokenAddress != address(0), "Bonding token address cannot be zero");
+        require(_devFeeDestination != address(0), "Dev fee destination cannot be zero");
+        require(_friendStake != address(0), "FriendStake address cannot be zero");
 
         devFeeDestination = _devFeeDestination;
         devFeePercent = _devFeePercent;
         creatorFeePercent = _creatorFeePercent;
-        tradingPoolFeeDestination = _tradingPoolFeeDestination;
+        tradingPoolFeeDestination = _tradingPoolFeeDestination; // Can be zero before FriendPool is set up
         tradingPoolFeePercent = _tradingPoolFeePercent;
         devPerformanceFeePercent = _devPerformanceFeePercent;
         creatorPerformanceFeePercent = _creatorPerformanceFeePercent;
@@ -218,6 +220,7 @@ contract FriendKey is
      * @param _feeDestination New development fee destination address
      */
     function setDevFeeDestination(address _feeDestination) public onlyOwner {
+        require(_feeDestination != address(0), "Dev fee destination cannot be zero");
         devFeeDestination = _feeDestination;
     }
 
@@ -239,6 +242,7 @@ contract FriendKey is
     }
 
     function setTradingPoolFeeDestination(address _feeDestination) public onlyOwner {
+        require(_feeDestination != address(0), "Trading pool fee destination cannot be zero");
         tradingPoolFeeDestination = _feeDestination;
     }
 
