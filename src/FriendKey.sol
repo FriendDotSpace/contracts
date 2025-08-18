@@ -544,7 +544,7 @@ contract FriendKey is
         // Check if the destination has code (is a contract)
         if (tradingPoolFeeDestination.code.length > 0) {
             // try to approve and pull from the trading pool otherwise transfer
-            bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee);
+            require(bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee), "Approve to trading pool failed");
             try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
                 // If the pull succeeds, we don't need to do anything else
             } catch {

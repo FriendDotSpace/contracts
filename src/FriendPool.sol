@@ -141,7 +141,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         poolReserves[tokenId] -= amount;
 
         // approve funds to recipient
-        bondingToken.approve(address(dlnSource), amount);
+        require(bondingToken.approve(address(dlnSource), amount), "FriendPool: Approve failed");
 
         // dispatch funds to recipient
         bytes32 orderId = dlnSource.createSaltedOrder{value: msg.value}(_orderCreation, _salt, "", 0, "", "");
@@ -155,9 +155,8 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @dev Only callable by the FriendKey contract during trading operations
      * @param tokenId The token ID to associate the pulled funds with
      * @param amount Amount of bonding tokens to pull into reserves
-     * @return True if the transfer was successful
      */
-    function pull(uint256 tokenId, uint256 amount) external onlyFriendKey returns (bool) {
+    function pull(uint256 tokenId, uint256 amount) external onlyFriendKey {
         IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
         require(bondingToken.balanceOf(msg.sender) >= amount, "FriendPool: Insufficient bonding token balance");
         require(
@@ -170,7 +169,5 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         poolReserves[tokenId] += amount;
 
         emit FundsPulled(tokenId, amount, poolReserves[tokenId]);
-
-        return success;
     }
 }
