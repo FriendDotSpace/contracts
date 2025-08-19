@@ -163,10 +163,11 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             bondingToken.allowance(msg.sender, address(this)) >= amount,
             "FriendPool: Insufficient allowance for bonding token"
         );
-        bool success = bondingToken.transferFrom(msg.sender, address(this), amount);
 
-        require(success, "FriendPool: Transfer failed");
         poolReserves[tokenId] += amount;
+
+        bool success = bondingToken.transferFrom(msg.sender, address(this), amount);
+        require(success, "FriendPool: Transfer failed");
 
         emit FundsPulled(tokenId, amount, poolReserves[tokenId]);
     }

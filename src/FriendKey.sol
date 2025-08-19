@@ -305,12 +305,13 @@ contract FriendKey is
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
         string memory tokenUri = uri(id);
-        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
 
         address cloneAddress = Clones.clone(friendStake);
+        stakingPoolByTokenId[id] = cloneAddress;
         FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
 
-        stakingPoolByTokenId[id] = cloneAddress;
+        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
+
         emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
         return id;
     }
@@ -501,11 +502,12 @@ contract FriendKey is
         uint256 totalFees = devFee + creatorFee + tradingPoolFee;
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
 
+        bondingCurveReserves[creatorAddress] -= price;
+
         _burn(msg.sender, tokenId, amount);
 
         if (proceeds > 0) {
             require(bondingToken.transfer(msg.sender, proceeds), "Transfer to seller failed");
-            bondingCurveReserves[creatorAddress] -= price;
         }
         if (devFee > 0 && devFeeDestination != address(0)) {
             require(bondingToken.transfer(devFeeDestination, devFee), "Transfer to dev failed");
@@ -538,9 +540,6 @@ contract FriendKey is
 
         _safeTransferFrom(msg.sender, stakingPoolAddress, tokenId, amount, "");
 
-        // Update key holding timestamp
-        keyHoldingSince[tokenId][msg.sender] = block.timestamp;
-
         emit KeyStaked(tokenId, msg.sender, amount);
     }
 
@@ -559,11 +558,6 @@ contract FriendKey is
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
 
         stakingPool.unstake(amount, msg.sender);
-
-        // Reset key holding timestamp if no shares left
-        if (balanceOf(msg.sender, tokenId) == 0) {
-            keyHoldingSince[tokenId][msg.sender] = 0;
-        }
 
         emit KeyUnstaked(tokenId, msg.sender, amount);
     }
