@@ -142,6 +142,29 @@ contract FriendKey is
     event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
     event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
+    // --- Owner management events ---
+    /// @notice Emitted when the development fee destination is changed
+    /// @param newDestination The new address for development fees
+    event DevFeeDestinationChanged(address indexed newDestination);
+    /// @notice Emitted when the development fee percentage is changed
+    /// @param newPercent The new development fee percentage in basis points
+    event DevFeePercentChanged(uint256 newPercent);
+    /// @notice Emitted when the creator fee percentage is changed
+    /// @param newPercent The new creator fee percentage in basis points
+    event CreatorFeePercentChanged(uint256 newPercent);
+    /// @notice Emitted when the trading pool fee destination is changed
+    /// @param newDestination The new address for trading pool fees
+    event TradingPoolFeeDestinationChanged(address indexed newDestination);
+    /// @notice Emitted when the trading pool fee percentage is changed
+    /// @param newPercent The new trading pool fee percentage in basis points
+    event TradingPoolFeePercentChanged(uint256 newPercent);
+    /// @notice Emitted when the development performance fee percentage is changed
+    /// @param newPercent The new development performance fee percentage in basis points
+    event DevPerformanceFeePercentChanged(uint256 newPercent);
+    /// @notice Emitted when the creator performance fee percentage is changed
+    /// @param newPercent The new creator performance fee percentage in basis points
+    event CreatorPerformanceFeePercentChanged(uint256 newPercent);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -222,6 +245,7 @@ contract FriendKey is
     function setDevFeeDestination(address _feeDestination) public onlyOwner {
         require(_feeDestination != address(0), "Dev fee destination cannot be zero");
         devFeeDestination = _feeDestination;
+        emit DevFeeDestinationChanged(_feeDestination);
     }
 
     /**
@@ -233,33 +257,39 @@ contract FriendKey is
         require(_feePercent <= BPS_SCALE, "Dev fee percent too high");
         require(_feePercent + creatorFeePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         devFeePercent = _feePercent;
+        emit DevFeePercentChanged(_feePercent);
     }
 
     function setCreatorFeePercent(uint256 _feePercent) public onlyOwner {
         require(_feePercent <= BPS_SCALE, "Creator fee percent too high");
         require(devFeePercent + _feePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         creatorFeePercent = _feePercent;
+        emit CreatorFeePercentChanged(_feePercent);
     }
 
     function setTradingPoolFeeDestination(address _feeDestination) public onlyOwner {
         require(_feeDestination != address(0), "Trading pool fee destination cannot be zero");
         tradingPoolFeeDestination = _feeDestination;
+        emit TradingPoolFeeDestinationChanged(_feeDestination);
     }
 
     function setTradingPoolFeePercent(uint256 _feePercent) public onlyOwner {
         require(_feePercent <= BPS_SCALE, "Trading pool fee percent too high");
         require(devFeePercent + creatorFeePercent + _feePercent <= BPS_SCALE, "Total fee percent too high");
         tradingPoolFeePercent = _feePercent;
+        emit TradingPoolFeePercentChanged(_feePercent);
     }
 
     function setDevPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
         require(creatorPerformanceFeePercent + _feePercent <= BPS_SCALE, "Dev performance fee percent too high");
         devPerformanceFeePercent = _feePercent;
+        emit DevPerformanceFeePercentChanged(_feePercent);
     }
 
     function setCreatorPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
         require(devPerformanceFeePercent + _feePercent <= BPS_SCALE, "Creator performance fee percent too high");
         creatorPerformanceFeePercent = _feePercent;
+        emit CreatorPerformanceFeePercentChanged(_feePercent);
     }
 
     /**
