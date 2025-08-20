@@ -308,11 +308,11 @@ contract FriendKey is
 
         address cloneAddress = Clones.clone(friendStake);
         stakingPoolByTokenId[id] = cloneAddress;
+        emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
         FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
 
         buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
 
-        emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
         return id;
     }
 
@@ -464,19 +464,18 @@ contract FriendKey is
         //     bytes memory sender = abi.encode(msg.sender);
         //     _mint(stakingPoolByTokenId[tokenId], tokenId, amount, sender);
         // }
+        emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
 
         if (devFee > 0 && devFeeDestination != address(0)) {
             require(bondingToken.transfer(devFeeDestination, devFee), "Transfer to dev failed");
         }
         if (creatorFee > 0) {
-            require(bondingToken.transfer(creatorAddress, creatorFee), "Transfer to creator failed");
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
+            require(bondingToken.transfer(creatorAddress, creatorFee), "Transfer to creator failed");
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             _transferToPool(tokenId, tradingPoolFee);
         }
-
-        emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
     }
 
     /**
@@ -503,6 +502,7 @@ contract FriendKey is
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
 
         bondingCurveReserves[creatorAddress] -= price;
+        emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
 
         _burn(msg.sender, tokenId, amount);
 
@@ -513,14 +513,12 @@ contract FriendKey is
             require(bondingToken.transfer(devFeeDestination, devFee), "Transfer to dev failed");
         }
         if (creatorFee > 0) {
-            require(bondingToken.transfer(creatorAddress, creatorFee), "Transfer to creator failed");
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
+            require(bondingToken.transfer(creatorAddress, creatorFee), "Transfer to creator failed");
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             _transferToPool(tokenId, tradingPoolFee);
         }
-
-        emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
     }
 
     /**
@@ -534,13 +532,12 @@ contract FriendKey is
         require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
         require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
+        emit KeyStaked(tokenId, msg.sender, amount);
 
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for staking");
 
         _safeTransferFrom(msg.sender, stakingPoolAddress, tokenId, amount, "");
-
-        emit KeyStaked(tokenId, msg.sender, amount);
     }
 
     /**
@@ -557,9 +554,9 @@ contract FriendKey is
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
 
-        stakingPool.unstake(amount, msg.sender);
-
         emit KeyUnstaked(tokenId, msg.sender, amount);
+
+        stakingPool.unstake(amount, msg.sender);
     }
 
     /**

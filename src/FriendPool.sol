@@ -166,9 +166,8 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         poolReserves[tokenId] += amount;
 
+        emit FundsPulled(tokenId, amount, poolReserves[tokenId]);
         bool success = bondingToken.transferFrom(msg.sender, address(this), amount);
         require(success, "FriendPool: Transfer failed");
-
-        emit FundsPulled(tokenId, amount, poolReserves[tokenId]);
     }
 }
