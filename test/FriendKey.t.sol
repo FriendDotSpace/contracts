@@ -152,6 +152,80 @@ contract FriendKeyTest is Test {
         assertEq(instance.balanceOf(account, CREATOR_TOKEN_ID), expectedTokenBalance, "Token balance mismatch");
     }
 
+    // Test management functions
+    function testSetDevFeeDestination() public {
+        vm.startPrank(owner);
+        address newDevFeeDestination = vm.addr(8);
+        instance.setDevFeeDestination(newDevFeeDestination);
+        vm.stopPrank();
+
+        assertEq(instance.devFeeDestination(), newDevFeeDestination, "Dev fee destination not updated");
+        vm.expectRevert("Dev fee destination cannot be zero");
+        vm.startPrank(owner);
+        instance.setDevFeeDestination(address(0));
+        vm.stopPrank();
+    }
+
+    function testSetDevFeePercent() public {
+        vm.startPrank(owner);
+        uint256 newDevFeePercent = 300; // 3%
+        instance.setDevFeePercent(newDevFeePercent);
+        vm.stopPrank();
+
+        assertEq(instance.devFeePercent(), newDevFeePercent, "Dev fee percent not updated");
+    }
+
+    function testSetCreatorFeePercent() public {
+        vm.startPrank(owner);
+        uint256 newCreatorFeePercent = 300; // 3%
+        instance.setCreatorFeePercent(newCreatorFeePercent);
+        vm.stopPrank();
+
+        assertEq(instance.creatorFeePercent(), newCreatorFeePercent, "Creator fee percent not updated");
+    }
+
+    function testSetTradingPoolFeeDestination() public {
+        vm.startPrank(owner);
+        address newTradingPoolFeeDestination = vm.addr(9);
+        instance.setTradingPoolFeeDestination(newTradingPoolFeeDestination);
+        vm.stopPrank();
+
+        assertEq(
+            instance.tradingPoolFeeDestination(),
+            newTradingPoolFeeDestination,
+            "Trading pool fee destination not updated"
+        );
+    }
+
+    function testSetTradingPoolFeePercent() public {
+        vm.startPrank(owner);
+        uint256 newTradingPoolFeePercent = 300; // 3%
+        instance.setTradingPoolFeePercent(newTradingPoolFeePercent);
+        vm.stopPrank();
+
+        assertEq(instance.tradingPoolFeePercent(), newTradingPoolFeePercent, "Trading pool fee percent not updated");
+    }
+
+    function testSetDevPerformanceFeePercent() public {
+        vm.startPrank(owner);
+        uint256 newPerformanceFeePercent = 500; // 5%
+        instance.setDevPerformanceFeePercent(newPerformanceFeePercent);
+        vm.stopPrank();
+
+        assertEq(instance.devPerformanceFeePercent(), newPerformanceFeePercent, "Performance fee percent not updated");
+    }
+
+    function testSetCreatorPerformanceFeePercent() public {
+        vm.startPrank(owner);
+        uint256 newPerformanceFeePercent = 500; // 5%
+        instance.setCreatorPerformanceFeePercent(newPerformanceFeePercent);
+        vm.stopPrank();
+
+        assertEq(
+            instance.creatorPerformanceFeePercent(), newPerformanceFeePercent, "Performance fee percent not updated"
+        );
+    }
+
     // Tests for buying shares
     function testBuyFirstShareAsCreator() public {
         uint256 initialBalance = mockUsdc.balanceOf(creatorAccount);
@@ -246,6 +320,9 @@ contract FriendKeyTest is Test {
         // Buyer sells 1 share
         uint256 sellAmount = 1;
         uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
+        uint256 initialBondingCurveReserves = instance.bondingCurveReserves(creatorAccount);
+        uint256 sellPriveWithFee = instance.getSellPrice(CREATOR_TOKEN_ID, sellAmount);
+        uint256 sellPrice = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
         instance.sellShares(CREATOR_TOKEN_ID, sellAmount);
         uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
         vm.stopPrank();
@@ -255,7 +332,12 @@ contract FriendKeyTest is Test {
         assertEq(instance.totalSupply(CREATOR_TOKEN_ID), 1 + buyAmount - sellAmount);
 
         // Verify USDC balance increased (received funds from sale)
-        assertTrue(balanceAfter > balanceBefore, "Balance should increase after selling");
+        assertEq(balanceAfter, balanceBefore + sellPrice, "Balance should increase by sell price");
+        assertEq(
+            instance.bondingCurveReserves(creatorAccount),
+            initialBondingCurveReserves - sellPriveWithFee,
+            "Bonding curve reserves should increase by sell price"
+        );
     }
 
     function testUri() public {
@@ -270,6 +352,73 @@ contract FriendKeyTest is Test {
         string memory retrievedUri = instance.uri(CREATOR_TOKEN_ID);
         string memory expectedUri = string.concat(myLittleUri, CREATOR_TOKEN_ID.toString());
         assertEq(retrievedUri, expectedUri, "URI does not match expected value");
+
+        // Verify the URI for a non-existent token
+        uint256 nonExistentTokenId = 9999;
+        vm.expectRevert("Creator not registered");
+        instance.uri(nonExistentTokenId);
+    }
+
+    function testIsUserEligible() public {
+        // Check if creator is eligible
+        bool isEligibleBefore = instance.isUserEligible(CREATOR_TOKEN_ID, creatorAccount);
+        assertFalse(isEligibleBefore, "Creator should not be eligible");
+        vm.warp(block.timestamp + 24 hours);
+        bool isEligible = instance.isUserEligible(CREATOR_TOKEN_ID, creatorAccount);
+        assertTrue(isEligible, "Creator should be eligible after 24 hours");
+
+        // If user does not own the key, they should not be eligible
+        uint256 buyerBalance = instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID);
+        assertEq(buyerBalance, 0, "Buyer should not own the key");
+        vm.expectRevert("User does not hold this token");
+        instance.isUserEligible(CREATOR_TOKEN_ID, buyerAccount);
+    }
+
+    function testgetKeyHoldingSince() public {
+        // Should be zero before any buy
+        uint256 buyerBalance = instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID);
+        assertEq(buyerBalance, 0, "Buyer should not own the key");
+        uint256 zeroHoldingSince = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
+        assertEq(zeroHoldingSince, 0, "Holding since should be zero before first buy");
+
+        // Should set on first buy
+        vm.startPrank(buyerAccount);
+        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+        uint256 holdingSince = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
+        assertTrue(holdingSince > 0, "Holding since should be set after first buy");
+
+        // Should not change on subsequent buys
+        vm.startPrank(buyerAccount);
+        uint256 newBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
+        mockUsdc.approve(address(instance), newBuyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, 2);
+        vm.stopPrank();
+        uint256 newHoldingSince = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
+        assertEq(newHoldingSince, holdingSince, "Holding since should not change on subsequent buys");
+
+        // Should not change on sells
+        vm.startPrank(buyerAccount);
+        instance.sellShares(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+        uint256 holdingSinceAfterSell = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
+        assertEq(holdingSinceAfterSell, holdingSince, "Holding since should not change on sells");
+
+        // Should not change on stake if the user still holds the key
+        vm.startPrank(buyerAccount);
+        instance.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+        uint256 holdingSinceAfterStake = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
+        assertEq(holdingSinceAfterStake, holdingSince, "Holding since should not change on stake");
+
+        // Should not change on unstake
+        vm.startPrank(buyerAccount);
+        instance.unstake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+        uint256 holdingSinceAfterUnstake = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
+        assertEq(holdingSinceAfterUnstake, holdingSince, "Holding since should not change on unstake");
     }
 
     function testSellMultipleShares() public {
