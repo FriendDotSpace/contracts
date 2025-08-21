@@ -71,8 +71,7 @@ library IterableMapping {
             map.values[key].push(val);
         } else {
             map.inserted[key] = true;
-            map.values[key] = new Stake[](1);
-            map.values[key][0] = val;
+            map.values[key].push(val);
             map.indexOf[key] = map.keys.length;
             map.keys.push(key);
         }
