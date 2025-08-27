@@ -143,27 +143,20 @@ contract FriendKey is
     event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
     // --- Owner management events ---
-    /// @notice Emitted when the development fee destination is changed
-    /// @param newDestination The new address for development fees
-    event DevFeeDestinationChanged(address indexed newDestination);
-    /// @notice Emitted when the development fee percentage is changed
-    /// @param newPercent The new development fee percentage in basis points
-    event DevFeePercentChanged(uint256 newPercent);
-    /// @notice Emitted when the creator fee percentage is changed
-    /// @param newPercent The new creator fee percentage in basis points
-    event CreatorFeePercentChanged(uint256 newPercent);
-    /// @notice Emitted when the trading pool fee destination is changed
-    /// @param newDestination The new address for trading pool fees
-    event TradingPoolFeeDestinationChanged(address indexed newDestination);
-    /// @notice Emitted when the trading pool fee percentage is changed
-    /// @param newPercent The new trading pool fee percentage in basis points
-    event TradingPoolFeePercentChanged(uint256 newPercent);
-    /// @notice Emitted when the development performance fee percentage is changed
-    /// @param newPercent The new development performance fee percentage in basis points
-    event DevPerformanceFeePercentChanged(uint256 newPercent);
-    /// @notice Emitted when the creator performance fee percentage is changed
-    /// @param newPercent The new creator performance fee percentage in basis points
-    event CreatorPerformanceFeePercentChanged(uint256 newPercent);
+    enum Target {
+        DevFee,
+        CreatorFee,
+        TradingPoolFee,
+        DevPerformanceFee,
+        CreatorPerformanceFee
+    }
+
+    /// @notice Emitted when the target fee destination is changed
+    /// @param newDestination The new address for target fees
+    event FeeDestinationChanged(address indexed newDestination, Target target);
+    /// @notice Emitted when the target fee percentage is changed
+    /// @param newPercent The new target fee percentage in basis points
+    event FeePercentChanged(uint256 newPercent, Target target);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -245,7 +238,7 @@ contract FriendKey is
     function setDevFeeDestination(address _feeDestination) public onlyOwner {
         require(_feeDestination != address(0), "Dev fee destination cannot be zero");
         devFeeDestination = _feeDestination;
-        emit DevFeeDestinationChanged(_feeDestination);
+        emit FeeDestinationChanged(_feeDestination, Target.DevFee);
     }
 
     /**
@@ -257,39 +250,39 @@ contract FriendKey is
         require(_feePercent <= BPS_SCALE, "Dev fee percent too high");
         require(_feePercent + creatorFeePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         devFeePercent = _feePercent;
-        emit DevFeePercentChanged(_feePercent);
+        emit FeePercentChanged(_feePercent, Target.DevFee);
     }
 
     function setCreatorFeePercent(uint256 _feePercent) public onlyOwner {
         require(_feePercent <= BPS_SCALE, "Creator fee percent too high");
         require(devFeePercent + _feePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         creatorFeePercent = _feePercent;
-        emit CreatorFeePercentChanged(_feePercent);
+        emit FeePercentChanged(_feePercent, Target.CreatorFee);
     }
 
     function setTradingPoolFeeDestination(address _feeDestination) public onlyOwner {
         require(_feeDestination != address(0), "Trading pool fee destination cannot be zero");
         tradingPoolFeeDestination = _feeDestination;
-        emit TradingPoolFeeDestinationChanged(_feeDestination);
+        emit FeeDestinationChanged(_feeDestination, Target.TradingPoolFee);
     }
 
     function setTradingPoolFeePercent(uint256 _feePercent) public onlyOwner {
         require(_feePercent <= BPS_SCALE, "Trading pool fee percent too high");
         require(devFeePercent + creatorFeePercent + _feePercent <= BPS_SCALE, "Total fee percent too high");
         tradingPoolFeePercent = _feePercent;
-        emit TradingPoolFeePercentChanged(_feePercent);
+        emit FeePercentChanged(_feePercent, Target.TradingPoolFee);
     }
 
     function setDevPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
         require(creatorPerformanceFeePercent + _feePercent <= BPS_SCALE, "Dev performance fee percent too high");
         devPerformanceFeePercent = _feePercent;
-        emit DevPerformanceFeePercentChanged(_feePercent);
+        emit FeePercentChanged(_feePercent, Target.DevPerformanceFee);
     }
 
     function setCreatorPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
         require(devPerformanceFeePercent + _feePercent <= BPS_SCALE, "Creator performance fee percent too high");
         creatorPerformanceFeePercent = _feePercent;
-        emit CreatorPerformanceFeePercentChanged(_feePercent);
+        emit FeePercentChanged(_feePercent, Target.CreatorPerformanceFee);
     }
 
     /**
@@ -308,10 +301,10 @@ contract FriendKey is
 
         address cloneAddress = Clones.clone(friendStake);
         stakingPoolByTokenId[id] = cloneAddress;
-        emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
         FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
 
         buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
+        emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
 
         return id;
     }
@@ -467,11 +460,11 @@ contract FriendKey is
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
 
         if (devFee > 0 && devFeeDestination != address(0)) {
-            require(bondingToken.transfer(devFeeDestination, devFee), "Transfer to dev failed");
+            bondingToken.safeTransfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
-            require(bondingToken.transfer(creatorAddress, creatorFee), "Transfer to creator failed");
+            bondingToken.safeTransfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             _transferToPool(tokenId, tradingPoolFee);
@@ -507,14 +500,14 @@ contract FriendKey is
         _burn(msg.sender, tokenId, amount);
 
         if (proceeds > 0) {
-            require(bondingToken.transfer(msg.sender, proceeds), "Transfer to seller failed");
+            bondingToken.safeTransfer(msg.sender, proceeds);
         }
         if (devFee > 0 && devFeeDestination != address(0)) {
-            require(bondingToken.transfer(devFeeDestination, devFee), "Transfer to dev failed");
+            bondingToken.safeTransfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
-            require(bondingToken.transfer(creatorAddress, creatorFee), "Transfer to creator failed");
+            bondingToken.safeTransfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             _transferToPool(tokenId, tradingPoolFee);
@@ -573,13 +566,11 @@ contract FriendKey is
             try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
                 // If the pull succeeds, we don't need to do anything else
             } catch {
-                require(
-                    bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee), "Transfer to trading pool failed"
-                );
+                bondingToken.safeTransfer(tradingPoolFeeDestination, tradingPoolFee);
             }
         } else {
             // If it's an EOA, just transfer the tokens
-            require(bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee), "Transfer to trading pool failed");
+            bondingToken.safeTransfer(tradingPoolFeeDestination, tradingPoolFee);
         }
     }
 
