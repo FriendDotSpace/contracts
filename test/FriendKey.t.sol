@@ -590,4 +590,43 @@ contract FriendKeyTest is Test {
         assertEq(instance.totalSupply(anotherTokenId), 1, "Total supply should be 1 for no additional keys");
         assertEq(instance.balanceOf(anotherCreator, anotherTokenId), 1, "Creator should own 1 token");
     }
+
+    function testBatchTransfer() public {
+        // Buyer buys shares
+        uint256 buyAmount = 10;
+        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        vm.stopPrank();
+
+        // Verify buyer owns the shares
+        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyAmount);
+
+        // Batch transfer shares to another account
+        address recipient = vm.addr(12);
+        uint256[] memory ids = new uint256[](2);
+        uint256[] memory amounts = new uint256[](2);
+        ids[0] = CREATOR_TOKEN_ID;
+        amounts[0] = 2; // Transfer 2 shares
+        ids[1] = CREATOR_TOKEN_ID;
+        amounts[1] = 3; // Transfer 2 shares
+
+        vm.prank(buyerAccount);
+        instance.safeBatchTransferFrom(buyerAccount, recipient, ids, amounts, "");
+
+        // Verify balances after batch transfer
+        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), 5);
+        assertEq(instance.balanceOf(recipient, CREATOR_TOKEN_ID), 5);
+        // Verify keyHoldingSince is updated for the recipient
+        uint256 holdingSince = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, recipient);
+        assertTrue(holdingSince > 0, "Recipient should have holding since set after batch transfer");
+
+        vm.prank(recipient);
+        // Verify batch transfer resets keyHoldingSince for the recipient
+        instance.safeBatchTransferFrom(recipient, buyerAccount, ids, amounts, "");
+        uint256 holdingSinceAfterReturn = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, recipient);
+        assertEq(holdingSinceAfterReturn, 0, "Holding since should be reset after returning shares");
+    }
 }

@@ -95,6 +95,10 @@ contract FriendKey is
     /// @dev Lower divisor = higher prices. Used in bonding curve calculations
     uint256[] public bondingCurveDivisors;
 
+    /// @notice Temporary mapping to track sold amounts for each token ID during batch transfers
+    /// @dev Used internally in _update to determine if a user's balance reaches zero after a transfer
+    mapping(uint256 => uint256) private _sold;
+
     /// @notice Emitted when tokens are bought or sold
     /// @param tokenId The ID of the token being traded
     /// @param trader The address executing the trade
@@ -621,22 +625,26 @@ contract FriendKey is
         internal
         override(ERC1155Upgradeable, ERC1155SupplyUpgradeable)
     {
-        // Call super first to get the updated balances when checking in the later conditions
-        super._update(from, to, ids, values);
-
-        // For each token ID in the batch
         for (uint256 i = 0; i < ids.length; i++) {
             uint256 tokenId = ids[i];
+            _sold[tokenId] += values[i];
 
             // Handle recipient (to) - for mint and transfer operations
-            if (to != address(0) && balanceOf(to, tokenId) == values[i]) {
+            if (to != address(0) && values[i] > 0 && balanceOf(to, tokenId) == 0) {
                 keyHoldingSince[tokenId][to] = block.timestamp;
             }
 
             // Handle sender (from) - reset timestamp if they no longer hold the token
-            if (from != address(0) && balanceOf(from, tokenId) == 0) {
+            if (from != address(0) && balanceOf(from, tokenId) == _sold[tokenId]) {
                 keyHoldingSince[tokenId][from] = 0;
             }
         }
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            delete _sold[ids[i]];
+        }
+
+        // Call super last to ensure all state changes are applied
+        super._update(from, to, ids, values);
     }
 }
