@@ -101,15 +101,17 @@ contract FriendStakeTest is Test {
         assertEq(stake.totalStaked(), 3); // 3 shares staked
 
         // Now unstake 2 shares to test batch staking
-        stake.unstake(2);
+        friendKey.unstake(CREATOR_TOKEN_ID, 2);
         assertEq(stake.totalStaked(), 1);
 
         // Approve and stake 2 shares in batch
         friendKey.setApprovalForAll(address(stake), true);
-        uint256[] memory ids = new uint256[](1);
-        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory ids = new uint256[](2);
+        uint256[] memory amounts = new uint256[](2);
         ids[0] = CREATOR_TOKEN_ID;
-        amounts[0] = 2;
+        amounts[0] = 1;
+        ids[1] = CREATOR_TOKEN_ID;
+        amounts[1] = 1;
         friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
 
         assertEq(stake.totalStaked(), 3); // 1 remaining from previous stake + 2 new batch stake
@@ -131,6 +133,38 @@ contract FriendStakeTest is Test {
         // Unstake remaining
         stake.unstakeAll();
         assertEq(stake.totalStaked(), 0); // 1 initial share by owner remains staked
+        vm.stopPrank();
+    }
+
+    function testClaimRewards() public {
+        // Staker1 buys and stakes
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 2);
+        friendKey.stake(CREATOR_TOKEN_ID, 2);
+        vm.stopPrank();
+        assertEq(stake.totalStaked(), 2); // 2 shares staked
+
+        // Simulate rewards by minting USDC to the stake contract
+        uint256 rewardAmount = 1_000 * (10 ** 6);
+        mockUsdc.mint(address(stake), rewardAmount);
+
+        // Owner closes staking
+        vm.warp(block.timestamp + 1 days); // Ensure enough time has passed for rewards to be eligible
+        vm.prank(owner);
+        stake.lockStaking();
+        stake.calculateTotalEligible();
+        assertEq(stake.isOpenForStaking(), false);
+
+        // Claim rewards
+        uint256 initialBalance = mockUsdc.balanceOf(staker1);
+        vm.prank(staker1);
+        stake.claim();
+        uint256 finalBalance = mockUsdc.balanceOf(staker1);
+
+        // Check if rewards were claimed correctly
+        assertTrue(finalBalance > initialBalance, "Staker should have received rewards");
         vm.stopPrank();
     }
 

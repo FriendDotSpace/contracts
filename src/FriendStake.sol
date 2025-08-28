@@ -175,7 +175,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
 
     function _unstake(uint256 amount, address user) internal {
         require(isOpenForStaking, "FriendStake: Reward distribution in progress");
-        IterableMapping.Stake[] storage stakes = stakedBalances.get(msg.sender);
+        IterableMapping.Stake[] storage stakes = stakedBalances.get(user);
         uint256 remaining = amount;
         uint256 i = stakes.length;
 
@@ -192,13 +192,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             }
         }
         require(remaining == 0, "Not enough staked balance");
-        // require(stakedBalances.get(user) >= amount, "FriendStake: Insufficient staked balance");
-        // uint256 balance = stakedBalances.get(user);
-        // if (balance - amount == 0) {
-        //     stakedBalances.remove(user);
-        // } else {
-        //     stakedBalances.set(user, balance - amount);
-        // }
+
         totalStaked -= amount;
         emit KeyUnstaked(user, tokenId, amount);
         friendKeyToken.safeTransferFrom(address(this), user, tokenId, amount, "");

@@ -450,6 +450,12 @@ contract FriendKey is
         _mint(msg.sender, tokenId, amount, "");
 
         if (totalCost > 0) {
+            // Check the allowance and balance first
+            uint256 allowance = bondingToken.allowance(msg.sender, address(this));
+            require(allowance >= totalCost, "Insufficient allowance for bonding token transfer");
+            uint256 balance = bondingToken.balanceOf(msg.sender);
+            require(balance >= totalCost, "Insufficient bonding token balance");
+            // Transfer the bonding token from the user to this contract
             bool ok = bondingToken.transferFrom(msg.sender, address(this), totalCost);
             require(ok, "Transfer failed");
         }
@@ -585,7 +591,9 @@ contract FriendKey is
      * @return True if the user has held tokens for the required time period
      */
     function isUserEligible(uint256 tokenId, address user) public view returns (bool) {
-        return block.timestamp >= getKeyHoldingSince(tokenId, user) + 24 hours; // Example: 1 day eligibility
+        uint256 holdingSince = getKeyHoldingSince(tokenId, user);
+        require(holdingSince > 0, "User does not hold this token");
+        return block.timestamp >= holdingSince + 24 hours; // Example: 1 day eligibility
     }
 
     /**
