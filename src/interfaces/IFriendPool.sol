@@ -10,5 +10,5 @@ interface IFriendPool {
     /**
      * @dev pulls the funds from the FriendKey contract.
      */
-    function pull(uint256 tokenId, uint256 amount) external returns (bool);
+    function pull(uint256 tokenId, uint256 amount) external;
 }

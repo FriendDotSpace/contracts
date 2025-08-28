@@ -70,7 +70,7 @@ contract MockPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         require(amount > 0, "FriendPool: No funds available for dispatch");
 
         // approve funds to recipient
-        bondingToken.approve(address(dlnSource), amount);
+        require(bondingToken.approve(address(dlnSource), amount), "FriendPool: Approve failed");
 
         // dispatch funds to recipient
 

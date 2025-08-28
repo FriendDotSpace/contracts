@@ -200,8 +200,8 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         //     stakedBalances.set(user, balance - amount);
         // }
         totalStaked -= amount;
-        friendKeyToken.safeTransferFrom(address(this), user, tokenId, amount, "");
         emit KeyUnstaked(user, tokenId, amount);
+        friendKeyToken.safeTransferFrom(address(this), user, tokenId, amount, "");
     }
 
     function claimRewards(address user) internal {

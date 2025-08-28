@@ -95,6 +95,8 @@ contract MockBridge is Ownable, IDlnSource {
         address giveToken = _orderCreation.giveTokenAddress;
         uint256 giveAmount = _orderCreation.giveAmount;
 
+        emit OrderCreated(orderId, giveToken, giveAmount);
+        emit TokensTransferredToOwner(giveToken, giveAmount);
         // Handle native token (ETH) transfer
         if (giveToken == address(0)) {
             require(msg.value >= giveAmount, "MockBridge: insufficient native token sent");
@@ -117,9 +119,6 @@ contract MockBridge is Ownable, IDlnSource {
             // Transfer tokens from sender to this contract first
             token.safeTransferFrom(msg.sender, owner(), giveAmount);
         }
-
-        emit OrderCreated(orderId, giveToken, giveAmount);
-        emit TokensTransferredToOwner(giveToken, giveAmount);
     }
 
     /**

@@ -146,6 +146,22 @@ contract FriendKey is
     event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
     event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
+    // --- Owner management events ---
+    enum Target {
+        DevFee,
+        CreatorFee,
+        TradingPoolFee,
+        DevPerformanceFee,
+        CreatorPerformanceFee
+    }
+
+    /// @notice Emitted when the target fee destination is changed
+    /// @param newDestination The new address for target fees
+    event FeeDestinationChanged(address indexed newDestination, Target target);
+    /// @notice Emitted when the target fee percentage is changed
+    /// @param newPercent The new target fee percentage in basis points
+    event FeePercentChanged(uint256 newPercent, Target target);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -188,11 +204,13 @@ contract FriendKey is
 
         require(_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         require(_bondingTokenAddress != address(0), "Bonding token address cannot be zero");
+        require(_devFeeDestination != address(0), "Dev fee destination cannot be zero");
+        require(_friendStake != address(0), "FriendStake address cannot be zero");
 
         devFeeDestination = _devFeeDestination;
         devFeePercent = _devFeePercent;
         creatorFeePercent = _creatorFeePercent;
-        tradingPoolFeeDestination = _tradingPoolFeeDestination;
+        tradingPoolFeeDestination = _tradingPoolFeeDestination; // Can be zero before FriendPool is set up
         tradingPoolFeePercent = _tradingPoolFeePercent;
         devPerformanceFeePercent = _devPerformanceFeePercent;
         creatorPerformanceFeePercent = _creatorPerformanceFeePercent;
@@ -222,7 +240,9 @@ contract FriendKey is
      * @param _feeDestination New development fee destination address
      */
     function setDevFeeDestination(address _feeDestination) public onlyOwner {
+        require(_feeDestination != address(0), "Dev fee destination cannot be zero");
         devFeeDestination = _feeDestination;
+        emit FeeDestinationChanged(_feeDestination, Target.DevFee);
     }
 
     /**
@@ -234,32 +254,39 @@ contract FriendKey is
         require(_feePercent <= BPS_SCALE, "Dev fee percent too high");
         require(_feePercent + creatorFeePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         devFeePercent = _feePercent;
+        emit FeePercentChanged(_feePercent, Target.DevFee);
     }
 
     function setCreatorFeePercent(uint256 _feePercent) public onlyOwner {
         require(_feePercent <= BPS_SCALE, "Creator fee percent too high");
         require(devFeePercent + _feePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         creatorFeePercent = _feePercent;
+        emit FeePercentChanged(_feePercent, Target.CreatorFee);
     }
 
     function setTradingPoolFeeDestination(address _feeDestination) public onlyOwner {
+        require(_feeDestination != address(0), "Trading pool fee destination cannot be zero");
         tradingPoolFeeDestination = _feeDestination;
+        emit FeeDestinationChanged(_feeDestination, Target.TradingPoolFee);
     }
 
     function setTradingPoolFeePercent(uint256 _feePercent) public onlyOwner {
         require(_feePercent <= BPS_SCALE, "Trading pool fee percent too high");
         require(devFeePercent + creatorFeePercent + _feePercent <= BPS_SCALE, "Total fee percent too high");
         tradingPoolFeePercent = _feePercent;
+        emit FeePercentChanged(_feePercent, Target.TradingPoolFee);
     }
 
     function setDevPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
         require(creatorPerformanceFeePercent + _feePercent <= BPS_SCALE, "Dev performance fee percent too high");
         devPerformanceFeePercent = _feePercent;
+        emit FeePercentChanged(_feePercent, Target.DevPerformanceFee);
     }
 
     function setCreatorPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
         require(devPerformanceFeePercent + _feePercent <= BPS_SCALE, "Creator performance fee percent too high");
         creatorPerformanceFeePercent = _feePercent;
+        emit FeePercentChanged(_feePercent, Target.CreatorPerformanceFee);
     }
 
     /**
@@ -277,11 +304,12 @@ contract FriendKey is
         string memory tokenUri = uri(id);
 
         address cloneAddress = Clones.clone(friendStake);
+        stakingPoolByTokenId[id] = cloneAddress;
         FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
 
-        stakingPoolByTokenId[id] = cloneAddress;
         buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
         emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
+
         return id;
     }
 
@@ -419,12 +447,12 @@ contract FriendKey is
 
         bondingCurveReserves[creatorAddress] += price;
 
+        _mint(msg.sender, tokenId, amount, "");
+
         if (totalCost > 0) {
             bool ok = bondingToken.transferFrom(msg.sender, address(this), totalCost);
             require(ok, "Transfer failed");
         }
-
-        _mint(msg.sender, tokenId, amount, "");
 
         // FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
         // if (stakingPool.isOpenForStaking() == false) {
@@ -433,19 +461,18 @@ contract FriendKey is
         //     bytes memory sender = abi.encode(msg.sender);
         //     _mint(stakingPoolByTokenId[tokenId], tokenId, amount, sender);
         // }
+        emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
 
         if (devFee > 0 && devFeeDestination != address(0)) {
-            bondingToken.transfer(devFeeDestination, devFee);
+            bondingToken.safeTransfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
-            bondingToken.transfer(creatorAddress, creatorFee);
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
+            bondingToken.safeTransfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             _transferToPool(tokenId, tradingPoolFee);
         }
-
-        emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
     }
 
     /**
@@ -471,24 +498,24 @@ contract FriendKey is
         uint256 totalFees = devFee + creatorFee + tradingPoolFee;
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
 
+        bondingCurveReserves[creatorAddress] -= price;
+        emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
+
         _burn(msg.sender, tokenId, amount);
 
         if (proceeds > 0) {
-            bondingToken.transfer(msg.sender, proceeds);
-            bondingCurveReserves[creatorAddress] -= price;
+            bondingToken.safeTransfer(msg.sender, proceeds);
         }
         if (devFee > 0 && devFeeDestination != address(0)) {
-            bondingToken.transfer(devFeeDestination, devFee);
+            bondingToken.safeTransfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
-            bondingToken.transfer(creatorAddress, creatorFee);
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
+            bondingToken.safeTransfer(creatorAddress, creatorFee);
         }
         if (tradingPoolFee > 0 && tradingPoolFeeDestination != address(0)) {
             _transferToPool(tokenId, tradingPoolFee);
         }
-
-        emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
     }
 
     /**
@@ -502,16 +529,12 @@ contract FriendKey is
         require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
         require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
+        emit KeyStaked(tokenId, msg.sender, amount);
 
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for staking");
 
         _safeTransferFrom(msg.sender, stakingPoolAddress, tokenId, amount, "");
-
-        // Update key holding timestamp
-        keyHoldingSince[tokenId][msg.sender] = block.timestamp;
-
-        emit KeyStaked(tokenId, msg.sender, amount);
     }
 
     /**
@@ -528,14 +551,9 @@ contract FriendKey is
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
 
-        stakingPool.unstake(amount, msg.sender);
-
-        // Reset key holding timestamp if no shares left
-        if (balanceOf(msg.sender, tokenId) == 0) {
-            keyHoldingSince[tokenId][msg.sender] = 0;
-        }
-
         emit KeyUnstaked(tokenId, msg.sender, amount);
+
+        stakingPool.unstake(amount, msg.sender);
     }
 
     /**
@@ -548,15 +566,15 @@ contract FriendKey is
         // Check if the destination has code (is a contract)
         if (tradingPoolFeeDestination.code.length > 0) {
             // try to approve and pull from the trading pool otherwise transfer
-            bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee);
+            require(bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee), "Approve to trading pool failed");
             try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
                 // If the pull succeeds, we don't need to do anything else
             } catch {
-                bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+                bondingToken.safeTransfer(tradingPoolFeeDestination, tradingPoolFee);
             }
         } else {
             // If it's an EOA, just transfer the tokens
-            bondingToken.transfer(tradingPoolFeeDestination, tradingPoolFee);
+            bondingToken.safeTransfer(tradingPoolFeeDestination, tradingPoolFee);
         }
     }
 
