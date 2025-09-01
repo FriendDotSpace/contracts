@@ -209,13 +209,14 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 userReward = (rewardAmount * userStake) / totalEligible;
         uint256 userClaim = userReward > remainingAmount ? remainingAmount : userReward;
 
-        require(userClaim > 0, "FriendStake: No reward for user");
         uint256 userIndex = stakedBalances.getIndexOfKey(user);
         require(!claimed[userIndex], "FriendStake: User has already claimed rewards");
 
         claimed[userIndex] = true; // Mark user as having claimed rewards
 
-        rewardToken.safeTransfer(user, userClaim);
+        if (userClaim > 0) {
+            rewardToken.safeTransfer(user, userClaim);
+        }
 
         emit RewardClaimed(user, tokenId, userClaim);
     }
@@ -244,6 +245,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         isOpenForStaking = false;
         lockTime = block.timestamp;
         rewardAmount = rewardToken.balanceOf(address(this));
+        require(rewardAmount > 0, "FriendStake: No rewards to distribute");
 
         uint256 platformShare = (rewardAmount * friendKeyToken.devPerformanceFeePercent()) / friendKeyToken.BPS_SCALE();
         uint256 creatorShare =
