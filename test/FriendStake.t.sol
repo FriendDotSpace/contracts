@@ -258,6 +258,10 @@ contract FriendStakeTest is Test {
 
     function testCannotStakeWhenClosed() public {
         // Owner closes staking
+        vm.expectRevert("FriendStake: No rewards to distribute");
+        vm.prank(owner);
+        stake.lockStaking();
+        mockUsdc.mint(address(stake), 10 * (10 ** 6));
         vm.prank(owner);
         stake.lockStaking();
         assertEq(stake.isOpenForStaking(), false);
