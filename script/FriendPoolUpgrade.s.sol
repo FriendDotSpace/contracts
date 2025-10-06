@@ -16,7 +16,6 @@ contract FriendPoolUpgradeScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         address initialOwner = vm.addr(deployerPrivateKey);
-        
 
         Upgrades.upgradeProxy(POOL, "FriendPoolV3.sol", "", initialOwner);
         FriendPool instance = FriendPool(POOL);

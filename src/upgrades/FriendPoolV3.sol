@@ -140,7 +140,7 @@ contract FriendPoolV3 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         // approve funds to recipient
         require(bondingToken.approve(address(to), amount), "FriendPool: Approve failed");
         // dispatch funds to recipient via raw call
-        (bool success, ) = to.call{value: msg.value}(data);
+        (bool success,) = to.call{value: msg.value}(data);
         require(success, "FriendPool: Dispatch call failed");
 
         emit FundsDispatched(tokenId, amount, orderId);
