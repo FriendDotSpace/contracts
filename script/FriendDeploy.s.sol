@@ -52,7 +52,8 @@ contract FriendDeployScript is Script {
         // 2. Deploy FriendPool
         // it's the mockBridge on sepolia and the real one on mainnet
         address dlnSource = 0xFF7D9a483d0820cc5286E37ed5184e7dBc52B6F4;
-        bytes memory poolInitializeData = abi.encodeCall(FriendPool.initialize, (initialOwner, address(friendKey), dlnSource));
+        bytes memory poolInitializeData =
+            abi.encodeCall(FriendPool.initialize, (initialOwner, address(friendKey), dlnSource));
         address poolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", poolInitializeData);
         FriendPool pool = FriendPool(poolProxy);
         console2.log("FriendPool deployed to %s", address(pool));
@@ -61,10 +62,8 @@ contract FriendDeployScript is Script {
         friendKey.setTradingPoolFeeDestination(address(pool));
         vm.assertEq(friendKey.tradingPoolFeeDestination(), address(pool));
 
-        
         // 4. Set dispatcher in FriendPool
         pool.setDispatcher(BACKEND_ACC);
-        
 
         vm.stopBroadcast();
     }

@@ -6,7 +6,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-
 /**
  * @title FriendFaucet
  * @author FriendDotSpace
@@ -15,8 +14,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  *      The owner can withdraw tokens and change the bonding token address.
  *      CONTRACT SHOULD BE USED ONLY FOR TESTNET AND ONBOARDING PURPOSES.
  */
-contract FriendFaucet is  Ownable {
+contract FriendFaucet is Ownable {
     using SafeERC20 for IERC20;
+
     IERC20 public bondingToken;
 
     event Distributed(address indexed to, uint256 amount, uint256 value);
