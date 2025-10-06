@@ -6,6 +6,15 @@ import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+
+/**
+ * @title FriendUSD
+ * @author FriendDotSpace
+ * @notice A stablecoin contract with minting and burning capabilities.
+ * @dev This contract allows the owner to mint tokens and anyone to burn their tokens.
+ *      The owner can mint up to 100 tokens at a time for non-owner addresses.
+ *      CONTRACT SHOULD BE USED ONLY FOR TESTNET AND ONBOARDING PURPOSES.
+ */
 contract FriendUSD is ERC20, ERC20Burnable, Ownable, ERC20Permit {
     constructor(address initialOwner) ERC20("FriendUSD", "FUSD") Ownable(initialOwner) ERC20Permit("FriendUSD") {}
 
