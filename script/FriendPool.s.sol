@@ -15,9 +15,12 @@ contract FriendPoolScript is Script {
 
         address initialOwner = vm.addr(deployerPrivateKey);
 
-        // Base mainnet addresses
-        address friendKey = 0x023CB1160fCEFadced0A4C21fb99ea628E807717;
+        // Base sepolia addresses
+        address friendKey = 0x4eF7037118303098bd7EbA64feB19d9d7D7e3682;
         address dlnSource = 0xFF7D9a483d0820cc5286E37ed5184e7dBc52B6F4;
+        // Base mainnet addresses
+        // address friendKey = 0x1F773125477E1DbC1b2C9ce43eAd596c648e4324;
+        // address dlnSource = 0xeF4fB24aD0916217251F553c0596F8Edc630EB66;
 
         bytes memory initializeData = abi.encodeCall(FriendPool.initialize, (initialOwner, friendKey, dlnSource));
         address proxy = Upgrades.deployUUPSProxy("FriendPool.sol", initializeData);

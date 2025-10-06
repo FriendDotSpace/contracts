@@ -6,8 +6,11 @@ import {console2} from "forge-std/console2.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendStake} from "src/FriendStake.sol";
+import {FriendPool} from "src/FriendPool.sol";
 
-contract FriendKeyScript is Script {
+contract FriendDeployScript is Script {
+    address constant BACKEND_ACC = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D;
+
     function setUp() public {}
 
     function run() public {
@@ -22,10 +25,11 @@ contract FriendKeyScript is Script {
         uint256 CREATOR_PERFORMANCE_FEE_PERCENT = 1500;
         address tradingPoolFeeDestination = initialOwner;
         address devFeeDestination = initialOwner;
-        address usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913; // 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
+        address usdc = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
 
         FriendStake friendStake = new FriendStake();
 
+        // 1. Deploy FriendKey
         bytes memory initializeData = abi.encodeCall(
             FriendKey.initialize,
             (
@@ -42,8 +46,26 @@ contract FriendKeyScript is Script {
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
-        FriendKey instance = FriendKey(proxy);
-        console2.log("Proxy deployed to %s", address(instance));
+        FriendKey friendKey = FriendKey(proxy);
+        console2.log("FriendKey deployed to %s", address(friendKey));
+
+        // 2. Deploy FriendPool
+        // it's the mockBridge on sepolia and the real one on mainnet
+        address dlnSource = 0xFF7D9a483d0820cc5286E37ed5184e7dBc52B6F4;
+        bytes memory poolInitializeData = abi.encodeCall(FriendPool.initialize, (initialOwner, address(friendKey), dlnSource));
+        address poolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", poolInitializeData);
+        FriendPool pool = FriendPool(poolProxy);
+        console2.log("FriendPool deployed to %s", address(pool));
+
+        // 3. Link FriendKey with FriendPool
+        friendKey.setTradingPoolFeeDestination(address(pool));
+        vm.assertEq(friendKey.tradingPoolFeeDestination(), address(pool));
+
+        
+        // 4. Set dispatcher in FriendPool
+        pool.setDispatcher(BACKEND_ACC);
+        
+
         vm.stopBroadcast();
     }
 }
