@@ -13,6 +13,8 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IFriendPool} from "./interfaces/IFriendPool.sol";
 import {FriendStake} from "./FriendStake.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
@@ -35,10 +37,12 @@ contract FriendKey is
     OwnableUpgradeable,
     ERC1155BurnableUpgradeable,
     ERC1155SupplyUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    EIP712Upgradeable
 {
     using SafeERC20 for IERC20Metadata;
     using Strings for uint256;
+    using ECDSA for bytes32;
 
     /// @notice Enum defining different room tiers with varying bonding curve parameters
     /// @dev Each tier has a different divisor that affects the pricing curve steepness
@@ -98,6 +102,20 @@ contract FriendKey is
     /// @notice Temporary mapping to track sold amounts for each token ID during batch transfers
     /// @dev Used internally in _update to determine if a user's balance reaches zero after a transfer
     mapping(uint256 => uint256) private _sold;
+
+    /// @notice Optional metadata mapping for each token ID
+    /// @dev Can be used to store additional information about each token
+    mapping(uint256 => string) private _metadata;
+
+    /// @notice Replay protection nonces for registerCreator authorizations
+    mapping(address => uint256) public registerCreatorNonces;
+
+    /// @dev keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
+    bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
+        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+
+    /// @dev Private address authorized to sign room creation requests
+    address private _signee;
 
     /// @notice Emitted when tokens are bought or sold
     /// @param tokenId The ID of the token being traded
@@ -199,6 +217,7 @@ contract FriendKey is
         __ERC1155Burnable_init();
         __ERC1155Supply_init();
         __UUPSUpgradeable_init();
+        __EIP712_init("FriendKey", "1");
 
         BPS_SCALE = 10000;
 
@@ -230,6 +249,11 @@ contract FriendKey is
      */
     function setURI(string memory newuri) public onlyOwner {
         _setURI(newuri);
+    }
+
+    function setSignee(address signee) public onlyOwner {
+        require(signee != address(0), "Signee cannot be zero address");
+        _signee = signee;
     }
 
     // --- Fee and Creator Management (Owner only) ---
@@ -291,16 +315,41 @@ contract FriendKey is
 
     /**
      * @notice Registers a new creator with specified tier and additional keys
-     * @dev Creates a new token ID, deploys a staking pool, and mints initial supply
+     * @dev Requires an off-chain EIP-712 signature from the contract owner authorizing the registration.
+     *      Creates a new token ID, deploys a staking pool, and mints initial supply
      * @param tier The room tier for the creator (affects bonding curve pricing)
      * @param additionalKeys Number of additional keys to mint beyond the initial key
+     * @param metadata Arbitrary metadata string (e.g., IPFS hash or identifier)
+     * @param signature Owner signature authorizing the registration parameters
      * @return The newly created token ID
      */
-    function registerCreator(RoomTier tier, uint256 additionalKeys) public returns (uint256) {
+    function registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature)
+        public
+        returns (uint256)
+    {
+        _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
+        return _registerCreator(tier, additionalKeys, metadata);
+    }
+
+    /**
+     * @notice Registers a new creator with default settings (Casual tier, no additional keys)
+     * @dev Requires an owner signature authorizing the caller
+     * @param metadata Arbitrary metadata string (e.g., IPFS hash or identifier)
+     * @param signature Owner signature authorizing the registration parameters
+     * @return The newly created token ID
+     */
+    function registerCreator(string calldata metadata, bytes calldata signature) public returns (uint256) {
+        return registerCreator(RoomTier.Casual, 0, metadata, signature);
+    }
+
+    function _registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata) internal returns (uint256) {
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
+        if (bytes(metadata).length > 0) {
+            _metadata[id] = metadata;
+        }
         string memory tokenUri = uri(id);
 
         address cloneAddress = Clones.clone(friendStake);
@@ -313,13 +362,21 @@ contract FriendKey is
         return id;
     }
 
-    /**
-     * @notice Registers a new creator with default settings (Casual tier, no additional keys)
-     * @dev Backward-compatible function that uses default parameters
-     * @return The newly created token ID
-     */
-    function registerCreator() public returns (uint256) {
-        return registerCreator(RoomTier.Casual, 0);
+    function _verifyRegisterCreatorSignature(
+        address account,
+        RoomTier tier,
+        uint256 additionalKeys,
+        string calldata metadata,
+        bytes calldata signature
+    ) internal {
+        uint256 nonce = registerCreatorNonces[account];
+        bytes32 metadataHash = keccak256(bytes(metadata));
+        bytes32 structHash =
+            keccak256(abi.encode(_REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address recoveredSigner = digest.recover(signature);
+        require(recoveredSigner == owner() || recoveredSigner == _signee, "Unauthorized register signature");
+        registerCreatorNonces[account] = nonce + 1;
     }
 
     /**
@@ -333,6 +390,11 @@ contract FriendKey is
         require(creator != address(0), "Creator not registered");
         string memory tokenURI = tokenId.toString();
         string memory base = super.uri(tokenId);
+
+        // string memory storedMetadata = _metadata[tokenId];
+        // if (bytes(storedMetadata).length > 0) {
+        //     return storedMetadata;
+        // }
 
         // If token URI is set, concatenate base URI and tokenURI (via string.concat).
         return bytes(base).length > 0 ? string.concat(base, tokenURI) : base;
@@ -566,7 +628,7 @@ contract FriendKey is
      * @notice Internal function to transfer fees to the trading pool
      * @dev Attempts to call pull() on the pool contract, falls back to direct transfer
      * @param tokenId The token ID associated with the fee
-     * @param tradingPoolFee Amount of tokens to transfer
+     * @param tradingPoolFee Amount of tokens to transfer 
      */
     function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal {
         // Check if the destination has code (is a contract)
