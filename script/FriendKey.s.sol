@@ -20,7 +20,7 @@ contract FriendKeyScript is Script {
         uint256 TRADING_POOL_FEE_PERCENT = 600;
         uint256 DEV_PERFORMANCE_FEE_PERCENT = 500;
         uint256 CREATOR_PERFORMANCE_FEE_PERCENT = 1500;
-        address tradingPoolFeeDestination = initialOwner;
+        address tradingPoolFeeDestination = 0x035150F7A00479b29Df75fEb9B07892251c4E5e7;
         address devFeeDestination = initialOwner;
         address usdc = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
 

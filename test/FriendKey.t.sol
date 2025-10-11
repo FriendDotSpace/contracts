@@ -100,6 +100,59 @@ contract FriendKeyTest is Test {
 
     FriendStake public friendStake;
 
+    uint256 private constant OWNER_PRIVATE_KEY = 1;
+    bytes32 private constant REGISTER_CREATOR_TYPEHASH =
+        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 private constant NAME_HASH = keccak256(bytes("FriendKey"));
+    bytes32 private constant VERSION_HASH = keccak256(bytes("1"));
+
+    function _domainSeparator() internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                NAME_HASH,
+                VERSION_HASH,
+                block.chainid,
+                address(instance)
+            )
+        );
+    }
+
+    function _getRegisterCreatorSignature(
+        address account,
+        FriendKey.RoomTier tier,
+        uint256 additionalKeys,
+        string memory metadata
+    ) internal view returns (bytes memory) {
+        uint256 nonce = instance.registerCreatorNonces(account);
+        bytes32 metadataHash = keccak256(bytes(metadata));
+        bytes32 structHash =
+            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PRIVATE_KEY, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _registerCreator(
+        address account,
+        FriendKey.RoomTier tier,
+        uint256 additionalKeys,
+        string memory metadata
+    ) internal returns (uint256) {
+        bytes memory signature = _getRegisterCreatorSignature(account, tier, additionalKeys, metadata);
+        vm.prank(account);
+        return instance.registerCreator(tier, additionalKeys, metadata, signature);
+    }
+
+    function _registerCreator(address account) internal returns (uint256) {
+        bytes memory signature =
+            _getRegisterCreatorSignature(account, FriendKey.RoomTier.Casual, 0, "");
+        vm.prank(account);
+        return instance.registerCreator("", signature);
+    }
+
     function setUp() public {
         owner = vm.addr(1);
         devFeeDestination = vm.addr(2);
@@ -135,8 +188,10 @@ contract FriendKeyTest is Test {
         vm.stopPrank();
 
         vm.startPrank(creatorAccount);
-        // Register creator
-        instance.registerCreator();
+        string memory metadata = "";
+        bytes memory signature =
+            _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        instance.registerCreator(metadata, signature);
         friendStake = FriendStake(instance.stakingPoolByTokenId(CREATOR_TOKEN_ID));
         assertEq(instance.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();
@@ -514,11 +569,28 @@ contract FriendKeyTest is Test {
 
     function testDivisor() public {
         FriendKey.RoomTier tier = FriendKey.RoomTier.Club;
-        vm.startPrank(creatorAccount);
-        uint256 tokenId = instance.registerCreator(tier, 0);
-        vm.stopPrank();
+        uint256 tokenId = _registerCreator(creatorAccount, tier, 0, "DIVISOR_META");
         uint256 divisor = instance.getDivisor(tokenId);
         assertEq(divisor, 40, "Divisor for Club tier should be 40");
+    }
+
+    function testMetadataUriUsesStringPayload() public {
+        address metadataCreator = vm.addr(20);
+        string memory metadata = "CREATOR_META_HASH";
+        uint256 tokenId = _registerCreator(metadataCreator, FriendKey.RoomTier.Casual, 0, metadata);
+        string memory tokenUri = instance.uri(tokenId);
+        assertEq(tokenUri, metadata, "Metadata URI should match provided payload");
+    }
+
+    function testRegisterCreatorRevertsOnMetadataMismatch() public {
+        address creator = vm.addr(21);
+        string memory authorizedMetadata = "AUTHORIZED_HASH";
+        bytes memory signature =
+            _getRegisterCreatorSignature(creator, FriendKey.RoomTier.Casual, 0, authorizedMetadata);
+
+        vm.expectRevert("Unauthorized register signature");
+        vm.prank(creator);
+        instance.registerCreator("OTHER_HASH", signature);
     }
 
     function testRegisterCreatorWithAdditionalParameters() public {
@@ -545,7 +617,9 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(newCreator);
         mockUsdc.approve(address(instance), expectedCost);
-        uint256 tokenId = instance.registerCreator(tier, additionalKeys);
+        string memory metadata = "CLUB_CREATOR";
+        bytes memory signature = _getRegisterCreatorSignature(newCreator, tier, additionalKeys, metadata);
+        uint256 tokenId = instance.registerCreator(tier, additionalKeys, metadata, signature);
         friendStake = FriendStake(instance.stakingPoolByTokenId(tokenId));
         vm.stopPrank();
 
@@ -576,7 +650,10 @@ contract FriendKeyTest is Test {
         mockUsdc.mint(anotherCreator, 1_000_000 * (10 ** 6));
 
         vm.startPrank(anotherCreator);
-        uint256 anotherTokenId = instance.registerCreator(FriendKey.RoomTier.Exclusive, 0);
+        metadata = "EXCLUSIVE_CREATOR";
+        signature =
+            _getRegisterCreatorSignature(anotherCreator, FriendKey.RoomTier.Exclusive, 0, metadata);
+        uint256 anotherTokenId = instance.registerCreator(FriendKey.RoomTier.Exclusive, 0, metadata, signature);
         vm.stopPrank();
 
         // Verify the exclusive tier creator
