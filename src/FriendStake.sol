@@ -37,6 +37,8 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     bool public isOpenForStaking;
     /// @dev Internal counter for reward distribution rounds
     uint256 rewardDistributionIndex;
+    /// @dev Internal counter for reward eligibility calculation rounds
+    uint256 calculateEligibleIndex;
     /// @notice Total amount of reward tokens available for distribution
     uint256 public rewardAmount;
     /// @notice Time period that staked tokens are locked (in seconds)
@@ -273,28 +275,34 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         rewardToken.safeTransfer(friendKeyToken.creatorByTokenId(tokenId), creatorShare);
         emit RewardClaimed(friendKeyToken.creatorByTokenId(tokenId), tokenId, creatorShare);
 
+        calculateEligibleIndex = 0;
         rewardDistributionIndex = 0;
 
         claimed = new bool[](stakedBalances.size()); // Reset claimed array
     }
 
-    function calculateTotalEligible() public {
+    function calculateTotalEligible(uint256 batchSize) public {
         require(!isOpenForStaking, "FriendStake: Staking is still open");
         require(!isTotalEligibleSet, "FriendStake: Total staked amount is already set");
         totalEligible = 0;
-        // TODO: make it possible to split loop into batches
-        for (uint256 i = 0; i < stakedBalances.size(); i++) {
-            address user = stakedBalances.getKeyAtIndex(i);
+
+        uint256 endIndex = calculateEligibleIndex + batchSize > stakedBalances.size()
+            ? stakedBalances.size()
+            : calculateEligibleIndex + batchSize;
+        for (; calculateEligibleIndex < endIndex; calculateEligibleIndex++) {
+            address user = stakedBalances.getKeyAtIndex(calculateEligibleIndex);
             uint256 userStake = stakedBalances.getEligibleStake(user, lockTime);
             totalEligible += userStake;
         }
-        isTotalEligibleSet = true;
+        if (calculateEligibleIndex == stakedBalances.size()) {
+            isTotalEligibleSet = true;
+        }
     }
 
     function distributeRewards(uint256 batchSize) public {
         require(!isOpenForStaking, "FriendStake: Staking is still open");
         if (!isTotalEligibleSet) {
-            calculateTotalEligible();
+            calculateTotalEligible(batchSize);
         }
         require(isTotalEligibleSet, "FriendStake: Total staked amount is not set");
         uint256 endIndex = rewardDistributionIndex + batchSize > stakedBalances.size()
