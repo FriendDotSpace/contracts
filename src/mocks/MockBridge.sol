@@ -51,7 +51,12 @@ contract MockBridge is Ownable, IDlnSource {
         bytes calldata, /* _affiliateFee */
         uint32, /* _referralCode */
         bytes calldata /* _permitEnvelope */
-    ) external payable override returns (bytes32) {
+    )
+        external
+        payable
+        override
+        returns (bytes32)
+    {
         // Generate pseudo-random order ID
         bytes32 orderId = keccak256(abi.encodePacked(block.timestamp, block.prevrandao, msg.sender, _orderNonce++));
 
