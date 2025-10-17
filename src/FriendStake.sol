@@ -277,6 +277,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
 
         calculateEligibleIndex = 0;
         rewardDistributionIndex = 0;
+        totalEligible = 0;
 
         claimed = new bool[](stakedBalances.size()); // Reset claimed array
     }
@@ -284,7 +285,6 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     function calculateTotalEligible(uint256 batchSize) public {
         require(!isOpenForStaking, "FriendStake: Staking is still open");
         require(!isTotalEligibleSet, "FriendStake: Total staked amount is already set");
-        totalEligible = 0;
 
         uint256 endIndex = calculateEligibleIndex + batchSize > stakedBalances.size()
             ? stakedBalances.size()
