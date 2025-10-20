@@ -25,7 +25,7 @@ contract FriendKeyScript is Script {
         address usdc = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
 
         // Deploy FriendStake beacon
-        address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", owner);
+        address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", initialOwner);
 
         bytes memory initializeData = abi.encodeCall(
             FriendKey.initialize,

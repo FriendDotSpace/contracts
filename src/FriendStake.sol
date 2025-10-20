@@ -315,7 +315,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
 
     /**
      * @dev Authorizes contract upgrades - only callable by owner
-     * @param newImplementation Address of the new implementation contract
+     * @param _newImplementation Address of the new implementation contract
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address _newImplementation) internal override onlyOwner {}
 }
