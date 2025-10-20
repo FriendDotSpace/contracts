@@ -119,9 +119,7 @@ contract FriendPoolTest is Test {
     bytes32 private constant VERSION_HASH = keccak256(bytes("1"));
 
     function _domainSeparator() internal view returns (bytes32) {
-        return keccak256(
-            abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(friendKey))
-        );
+        return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(friendKey)));
     }
 
     function _getRegisterCreatorSignature(
@@ -132,9 +130,8 @@ contract FriendPoolTest is Test {
     ) internal view returns (bytes memory) {
         uint256 nonce = friendKey.registerCreatorNonces(account);
         bytes32 metadataHash = keccak256(bytes(metadata));
-        bytes32 structHash = keccak256(
-            abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash)
-        );
+        bytes32 structHash =
+            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PRIVATE_KEY, digest);
         return abi.encodePacked(r, s, v);
@@ -188,8 +185,7 @@ contract FriendPoolTest is Test {
         vm.startPrank(creatorAccount);
         // Register creator
         string memory metadata = "POOL_CREATOR";
-        bytes memory signature =
-            _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Casual, 0, metadata);
         friendKey.registerCreator(metadata, signature);
         assertEq(friendKey.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();

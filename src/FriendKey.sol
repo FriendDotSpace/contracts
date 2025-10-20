@@ -3,12 +3,10 @@
 pragma solidity ^0.8.27;
 
 import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
-import {
-    ERC1155BurnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155BurnableUpgradeable.sol";
-import {
-    ERC1155SupplyUpgradeable
-} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
+import {ERC1155BurnableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155BurnableUpgradeable.sol";
+import {ERC1155SupplyUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -52,6 +50,7 @@ contract FriendKey is
         Casual, // Most affordable tier with highest divisor (4000)
         Club, // Medium tier with moderate divisor (40)
         Exclusive // Premium tier with lowest divisor (4) - highest prices
+
     }
 
     /// @dev Counter for generating unique token IDs
@@ -343,7 +342,10 @@ contract FriendKey is
         return registerCreator(RoomTier.Casual, 0, metadata, signature);
     }
 
-    function _registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata) internal returns (uint256) {
+    function _registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata)
+        internal
+        returns (uint256)
+    {
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
@@ -629,7 +631,7 @@ contract FriendKey is
      * @notice Internal function to transfer fees to the trading pool
      * @dev Attempts to call pull() on the pool contract, falls back to direct transfer
      * @param tokenId The token ID associated with the fee
-     * @param tradingPoolFee Amount of tokens to transfer 
+     * @param tradingPoolFee Amount of tokens to transfer
      */
     function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal {
         // Check if the destination has code (is a contract)
@@ -637,9 +639,8 @@ contract FriendKey is
             // try to approve and pull from the trading pool otherwise transfer
             require(bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee), "Approve to trading pool failed");
             try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
-            // If the pull succeeds, we don't need to do anything else
-            }
-            catch {
+                // If the pull succeeds, we don't need to do anything else
+            } catch {
                 bondingToken.safeTransfer(tradingPoolFeeDestination, tradingPoolFee);
             }
         } else {
