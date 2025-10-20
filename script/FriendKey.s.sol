@@ -24,7 +24,8 @@ contract FriendKeyScript is Script {
         address devFeeDestination = initialOwner;
         address usdc = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
 
-        FriendStake friendStake = new FriendStake();
+        // Deploy FriendStake beacon
+        address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", initialOwner);
 
         bytes memory initializeData = abi.encodeCall(
             FriendKey.initialize,
@@ -38,7 +39,7 @@ contract FriendKeyScript is Script {
                 DEV_PERFORMANCE_FEE_PERCENT,
                 CREATOR_PERFORMANCE_FEE_PERCENT,
                 address(usdc),
-                address(friendStake)
+                friendStakeBeacon
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);

@@ -98,8 +98,6 @@ contract FriendKeyTest is Test {
     uint256 public constant BPS_SCALE = 10_000; // Basis points scale for fee calculations
     uint256 public CREATOR_TOKEN_ID = 1;
 
-    FriendStake public friendStake;
-
     function setUp() public {
         owner = vm.addr(1);
         devFeeDestination = vm.addr(2);
@@ -112,7 +110,8 @@ contract FriendKeyTest is Test {
 
         MockPool pool = new MockPool(address(mockUsdc));
         tradingPoolFeeDestination = address(pool); //vm.addr(4);
-        FriendStake friendStakeInstance = new FriendStake();
+        // Deploy FriendStake beacon
+        address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", owner);
 
         vm.startPrank(owner);
         bytes memory initializeData = abi.encodeCall(
@@ -127,7 +126,7 @@ contract FriendKeyTest is Test {
                 0, // performance fee percent is not used in this test
                 0,
                 address(mockUsdc),
-                address(friendStakeInstance)
+                friendStakeBeacon
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
@@ -137,7 +136,6 @@ contract FriendKeyTest is Test {
         vm.startPrank(creatorAccount);
         // Register creator
         instance.registerCreator();
-        friendStake = FriendStake(instance.stakingPoolByTokenId(CREATOR_TOKEN_ID));
         assertEq(instance.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();
 
@@ -546,7 +544,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(newCreator);
         mockUsdc.approve(address(instance), expectedCost);
         uint256 tokenId = instance.registerCreator(tier, additionalKeys);
-        friendStake = FriendStake(instance.stakingPoolByTokenId(tokenId));
+        FriendStake friendStake = FriendStake(instance.stakingPoolByTokenId(tokenId));
         vm.stopPrank();
 
         // Verify the token ID is correct (should be 2 since CREATOR_TOKEN_ID = 1 was already taken)
