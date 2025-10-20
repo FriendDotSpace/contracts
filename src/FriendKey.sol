@@ -396,10 +396,10 @@ contract FriendKey is
         string memory tokenURI = tokenId.toString();
         string memory base = super.uri(tokenId);
 
-        // string memory storedMetadata = _metadata[tokenId];
-        // if (bytes(storedMetadata).length > 0) {
-        //     return storedMetadata;
-        // }
+        string memory storedMetadata = _metadata[tokenId];
+        if (bytes(storedMetadata).length > 0) {
+            return storedMetadata;
+        }
 
         // If token URI is set, concatenate base URI and tokenURI (via string.concat).
         return bytes(base).length > 0 ? string.concat(base, tokenURI) : base;
