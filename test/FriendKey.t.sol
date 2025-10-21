@@ -154,7 +154,8 @@ contract FriendKeyTest is Test {
 
         MockPool pool = new MockPool(address(mockUsdc));
         tradingPoolFeeDestination = address(pool); //vm.addr(4);
-        FriendStake friendStakeInstance = new FriendStake();
+        // Deploy FriendStake beacon
+        address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", owner);
 
         vm.startPrank(owner);
         bytes memory initializeData = abi.encodeCall(
@@ -169,7 +170,7 @@ contract FriendKeyTest is Test {
                 0, // performance fee percent is not used in this test
                 0,
                 address(mockUsdc),
-                address(friendStakeInstance)
+                friendStakeBeacon
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);

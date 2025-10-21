@@ -148,7 +148,8 @@ contract FriendPoolTest is Test {
         mockUsdc = new MockERC20("Mock USDC", "mUSDC", 6);
         revertingMock = new RevertingMock();
         dlnSourceMock = new DlnSourceMock();
-        FriendStake friendStake = new FriendStake();
+        // Deploy FriendStake beacon
+        address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", owner);
 
         vm.startPrank(owner);
 
@@ -165,7 +166,7 @@ contract FriendPoolTest is Test {
                 DEV_PERFORMANCE_FEE_PERCENT,
                 CREATOR_PERFORMANCE_FEE_PERCENT,
                 address(mockUsdc),
-                address(friendStake)
+                friendStakeBeacon
             )
         );
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitializeData);

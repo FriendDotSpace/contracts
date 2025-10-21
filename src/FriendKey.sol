@@ -19,7 +19,7 @@ import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/crypt
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IFriendPool} from "./interfaces/IFriendPool.sol";
 import {FriendStake} from "./FriendStake.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 
 /**
  * @title FriendKey
@@ -74,8 +74,8 @@ contract FriendKey is
     uint256 public devPerformanceFeePercent;
     /// @notice Creator performance fee percentage (in basis points)
     uint256 public creatorPerformanceFeePercent;
-    /// @notice Address of the FriendStake implementation contract for cloning
-    address public friendStake;
+    /// @notice Address of the FriendStake beacon contract for beacon proxy cloning
+    address public friendStakeBeacon;
 
     /// @notice The ERC20 token used for bonding curve transactions (e.g., USDC)
     IERC20Metadata public bondingToken;
@@ -156,13 +156,13 @@ contract FriendKey is
     /// @param tokenId The ID of the token being staked
     /// @param staker The address staking the tokens
     /// @param amount The amount of tokens staked
-    event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event KeyStaked(uint256 indexed tokenId, address indexed staker, address indexed stakingPool, uint256 amount);
 
     /// @notice Emitted when tokens are unstaked
     /// @param tokenId The ID of the token being unstaked
     /// @param staker The address unstaking the tokens
     /// @param amount The amount of tokens unstaked
-    event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event KeyUnstaked(uint256 indexed tokenId, address indexed staker, address indexed stakingPool, uint256 amount);
     event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
     // --- Owner management events ---
@@ -198,7 +198,7 @@ contract FriendKey is
      * @param _devPerformanceFeePercent Development performance fee percentage
      * @param _creatorPerformanceFeePercent Creator performance fee percentage
      * @param _bondingTokenAddress Address of the ERC20 token used for trading (e.g., USDC)
-     * @param _friendStake Address of the FriendStake implementation for cloning
+     * @param _friendStakeBeacon Address of the FriendStake beacon for beacon proxy cloning
      * @custom:oz-upgrades-unsafe-allow constructor
      */
     function initialize(
@@ -211,7 +211,7 @@ contract FriendKey is
         uint256 _devPerformanceFeePercent,
         uint256 _creatorPerformanceFeePercent,
         address _bondingTokenAddress,
-        address _friendStake
+        address _friendStakeBeacon
     ) public initializer {
         __ERC1155_init("");
         __Ownable_init(initialOwner);
@@ -225,7 +225,7 @@ contract FriendKey is
         require(_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         require(_bondingTokenAddress != address(0), "Bonding token address cannot be zero");
         require(_devFeeDestination != address(0), "Dev fee destination cannot be zero");
-        require(_friendStake != address(0), "FriendStake address cannot be zero");
+        require(_friendStakeBeacon != address(0), "FriendStake beacon address cannot be zero");
 
         devFeeDestination = _devFeeDestination;
         devFeePercent = _devFeePercent;
@@ -235,7 +235,7 @@ contract FriendKey is
         devPerformanceFeePercent = _devPerformanceFeePercent;
         creatorPerformanceFeePercent = _creatorPerformanceFeePercent;
         bondingToken = IERC20Metadata(_bondingTokenAddress);
-        friendStake = _friendStake;
+        friendStakeBeacon = _friendStakeBeacon;
 
         uint8 decimals = bondingToken.decimals();
         require(decimals > 0, "Bonding token decimals must be greater than zero");
@@ -356,12 +356,14 @@ contract FriendKey is
         }
         string memory tokenUri = uri(id);
 
-        address cloneAddress = Clones.clone(friendStake);
-        stakingPoolByTokenId[id] = cloneAddress;
-        FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
+        bytes memory parameters =
+            abi.encodeWithSelector(FriendStake.initialize.selector, owner(), address(this), address(bondingToken), id);
+        address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
+
+        stakingPoolByTokenId[id] = friendStake;
 
         buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
-        emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
+        emit KeyCreated(id, creator, friendStake, tokenUri, 1 + additionalKeys, tier);
 
         return id;
     }
@@ -527,13 +529,6 @@ contract FriendKey is
             require(ok, "Transfer failed");
         }
 
-        // FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
-        // if (stakingPool.isOpenForStaking() == false) {
-        //     _mint(msg.sender, tokenId, amount, "");
-        // } else {
-        //     bytes memory sender = abi.encode(msg.sender);
-        //     _mint(stakingPoolByTokenId[tokenId], tokenId, amount, sender);
-        // }
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
 
         if (devFee > 0 && devFeeDestination != address(0)) {
@@ -602,7 +597,7 @@ contract FriendKey is
         require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
         require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
-        emit KeyStaked(tokenId, msg.sender, amount);
+        emit KeyStaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for staking");
@@ -624,7 +619,7 @@ contract FriendKey is
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
 
-        emit KeyUnstaked(tokenId, msg.sender, amount);
+        emit KeyUnstaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         stakingPool.unstake(amount, msg.sender);
     }

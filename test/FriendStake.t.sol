@@ -40,28 +40,29 @@
 
 //         mockUsdc = new MockERC20("Mock USDC", "mUSDC", 6);
 
-//         FriendStake friendStake = new FriendStake();
+// Deploy FriendStake beacon
+// address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", owner);
 
-//         // Deploy FriendKey
-//         vm.startPrank(owner);
-//         bytes memory initializeData = abi.encodeCall(
-//             FriendKey.initialize,
-//             (
-//                 owner,
-//                 devFeeDestination,
-//                 DEV_FEE_PERCENT,
-//                 CREATOR_FEE_PERCENT,
-//                 tradingPoolFeeDestination,
-//                 TRADING_POOL_FEE_PERCENT,
-//                 DEV_PERFORMANCE_FEE_PERCENT,
-//                 CREATOR_PERFORMANCE_FEE_PERCENT,
-//                 address(mockUsdc),
-//                 address(friendStake)
-//             )
-//         );
-//         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
-//         friendKey = FriendKey(proxy);
-//         vm.stopPrank();
+// // Deploy FriendKey
+// vm.startPrank(owner);
+// bytes memory initializeData = abi.encodeCall(
+//     FriendKey.initialize,
+//     (
+//         owner,
+//         devFeeDestination,
+//         DEV_FEE_PERCENT,
+//         CREATOR_FEE_PERCENT,
+//         tradingPoolFeeDestination,
+//         TRADING_POOL_FEE_PERCENT,
+//         DEV_PERFORMANCE_FEE_PERCENT,
+//         CREATOR_PERFORMANCE_FEE_PERCENT,
+//         address(mockUsdc),
+//         address(friendStakeBeacon)
+//     )
+// );
+// address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
+// friendKey = FriendKey(proxy);
+// vm.stopPrank();
 
 //         // Register creator and mint initial share
 //         vm.startPrank(creatorAccount);

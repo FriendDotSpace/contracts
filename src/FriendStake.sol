@@ -6,6 +6,7 @@ import {
 } from "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -23,7 +24,7 @@ import {IFriendKey} from "./interfaces/IFriendKey.sol";
  *      - Integration with FriendKey token contract
  *      - Upgradeable contract pattern
  */
-contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradeable {
+contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
     /// @notice The FriendKey token contract that this staking pool accepts
@@ -311,4 +312,10 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             isTotalEligibleSet = false;
         }
     }
+
+    /**
+     * @dev Authorizes contract upgrades - only callable by owner
+     * @param _newImplementation Address of the new implementation contract
+     */
+    function _authorizeUpgrade(address _newImplementation) internal override onlyOwner {}
 }
