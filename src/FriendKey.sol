@@ -138,13 +138,13 @@ contract FriendKey is
     /// @param tokenId The ID of the token being staked
     /// @param staker The address staking the tokens
     /// @param amount The amount of tokens staked
-    event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event KeyStaked(uint256 indexed tokenId, address indexed staker, address indexed stakingPool, uint256 amount);
 
     /// @notice Emitted when tokens are unstaked
     /// @param tokenId The ID of the token being unstaked
     /// @param staker The address unstaking the tokens
     /// @param amount The amount of tokens unstaked
-    event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event KeyUnstaked(uint256 indexed tokenId, address indexed staker, address indexed stakingPool, uint256 amount);
     event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
     // --- Owner management events ---
@@ -531,7 +531,7 @@ contract FriendKey is
         require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
         require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
-        emit KeyStaked(tokenId, msg.sender, amount);
+        emit KeyStaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for staking");
@@ -553,7 +553,7 @@ contract FriendKey is
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
 
-        emit KeyUnstaked(tokenId, msg.sender, amount);
+        emit KeyUnstaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         stakingPool.unstake(amount, msg.sender);
     }
