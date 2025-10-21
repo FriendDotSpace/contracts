@@ -17,7 +17,7 @@ contract FriendKeyUpgradeScript is Script {
 
         address initialOwner = vm.addr(deployerPrivateKey);
 
-        Upgrades.upgradeProxy(KEY, "FriendKeyV2.sol", "", initialOwner);
+        Upgrades.upgradeProxy(KEY, "FriendKey.sol", "", initialOwner);
         FriendKey instance = FriendKey(KEY);
 
         console2.log("FriendKey deployed to %s", address(instance));
