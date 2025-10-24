@@ -19,14 +19,18 @@ library IterableMapping {
         return map.values[key];
     }
 
-    function getEligibleStake(Map storage map, address key, uint256 timestamp) internal view returns (uint256) {
+    function getEligibleStake(Map storage map, address key, uint256 timestamp, uint256 eligibilityDuration)
+        internal
+        view
+        returns (uint256)
+    {
         require(map.inserted[key], "Key does not exist");
         Stake[] storage stakes = map.values[key];
         require(stakes.length > 0, "No stakes for this key");
         // Sum the stakes that are eligible for withdrawal
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < stakes.length; i++) {
-            if (stakes[i].timestamp + 1 days <= timestamp) {
+            if (stakes[i].timestamp + eligibilityDuration <= timestamp) {
                 totalAmount += stakes[i].amount;
             }
         }

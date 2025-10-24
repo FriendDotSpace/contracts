@@ -39,7 +39,9 @@ contract FriendKeyScript is Script {
                 DEV_PERFORMANCE_FEE_PERCENT,
                 CREATOR_PERFORMANCE_FEE_PERCENT,
                 address(usdc),
-                friendStakeBeacon
+                friendStakeBeacon,
+                initialOwner,
+                1 days
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
