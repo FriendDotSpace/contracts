@@ -275,16 +275,13 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         rewardToken.safeTransfer(friendKeyToken.creatorByTokenId(tokenId), creatorShare);
         emit RewardClaimed(friendKeyToken.creatorByTokenId(tokenId), tokenId, creatorShare);
 
-        calculateEligibleIndex = 0;
-        rewardDistributionIndex = 0;
-        totalEligible = 0;
-
         claimed = new bool[](stakedBalances.size()); // Reset claimed array
     }
 
     function calculateTotalEligible(uint256 batchSize) public {
         require(!isOpenForStaking, "FriendStake: Staking is still open");
         require(!isTotalEligibleSet, "FriendStake: Total staked amount is already set");
+        require(batchSize > 0, "FriendStake: Batch size must be greater than zero");
 
         uint256 endIndex = calculateEligibleIndex + batchSize > stakedBalances.size()
             ? stakedBalances.size()
@@ -300,6 +297,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     }
 
     function distributeRewards(uint256 batchSize) public {
+        require(batchSize > 0, "FriendStake: Batch size must be greater than zero");
         require(!isOpenForStaking, "FriendStake: Staking is still open");
         if (!isTotalEligibleSet) {
             calculateTotalEligible(batchSize);
@@ -318,6 +316,9 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         if (rewardDistributionIndex == stakedBalances.size()) {
             isOpenForStaking = true; // Reopen staking after distribution
             isTotalEligibleSet = false;
+            calculateEligibleIndex = 0;
+            rewardDistributionIndex = 0;
+            totalEligible = 0;
         }
     }
 
