@@ -284,9 +284,8 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         require(batchSize > 0, "FriendStake: Batch size must be greater than zero");
 
         uint256 startIndex = calculateEligibleIndex;
-        uint256 endIndex = startIndex + batchSize > stakedBalances.size()
-            ? stakedBalances.size()
-            : startIndex + batchSize;
+        uint256 endIndex =
+            startIndex + batchSize > stakedBalances.size() ? stakedBalances.size() : startIndex + batchSize;
         for (uint256 i = startIndex; i < endIndex; i++) {
             address user = stakedBalances.getKeyAtIndex(i);
             uint256 userStake = stakedBalances.getEligibleStake(user, lockTime);
