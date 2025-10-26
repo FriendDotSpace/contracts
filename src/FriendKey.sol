@@ -310,6 +310,7 @@ contract FriendKey is
     }
 
     function setAuthority(address _authority) external onlyOwner {
+        require(_authority != address(0), "Authority address cannot be zero");
         authority = _authority;
     }
 

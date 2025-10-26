@@ -81,6 +81,11 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     /// @param amount Amount of reward tokens claimed
     event RewardClaimed(address indexed user, uint256 tokenId, uint256 amount);
 
+    /// @notice Emitted when the eligibility duration is set
+    /// @param tokenId ID of the token for which eligibility duration is set
+    /// @param duration Duration in seconds
+    event EligibilityDurationSet(uint256 tokenId, uint256 duration);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -145,6 +150,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     function setEligibilityDuration(uint256 duration) external onlyOwner {
         require(duration > 0, "Eligibility duration must be positive");
         eligibilityDuration = duration;
+        emit EligibilityDurationSet(tokenId, duration);
     }
 
     /**
