@@ -283,14 +283,16 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         require(!isTotalEligibleSet, "FriendStake: Total staked amount is already set");
         require(batchSize > 0, "FriendStake: Batch size must be greater than zero");
 
-        uint256 endIndex = calculateEligibleIndex + batchSize > stakedBalances.size()
+        uint256 startIndex = calculateEligibleIndex;
+        uint256 endIndex = startIndex + batchSize > stakedBalances.size()
             ? stakedBalances.size()
-            : calculateEligibleIndex + batchSize;
-        for (; calculateEligibleIndex < endIndex; calculateEligibleIndex++) {
-            address user = stakedBalances.getKeyAtIndex(calculateEligibleIndex);
+            : startIndex + batchSize;
+        for (uint256 i = startIndex; i < endIndex; i++) {
+            address user = stakedBalances.getKeyAtIndex(i);
             uint256 userStake = stakedBalances.getEligibleStake(user, lockTime);
             totalEligible += userStake;
         }
+        calculateEligibleIndex = endIndex;
         if (calculateEligibleIndex == stakedBalances.size()) {
             isTotalEligibleSet = true;
         }
