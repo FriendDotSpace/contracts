@@ -136,7 +136,10 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         _;
     }
 
-    /// @dev Modifier to ensure only the authority or owner can call certain functions
+    /**
+     * @dev Modifier that restricts access to either the authority address or the contract owner.
+     *      Functions using this modifier can only be called by the authority or the owner.
+     */
     modifier onlyAuthority() {
         require(_msgSender() == authority || _msgSender() == owner(), "FriendStake: Caller is not authority or owner");
         _;
