@@ -304,6 +304,11 @@ contract FriendKey is
         emit FeePercentChanged(_feePercent, Target.CreatorPerformanceFee);
     }
 
+    /**
+     * @notice Sets the eligibility duration for staking rewards.
+     * @dev This change only affects future stake deployments; existing stakes are not affected.
+     * @param _duration The new eligibility duration in seconds.
+     */
     function setEligibilityDuration(uint256 _duration) public onlyOwner {
         require(_duration > 0, "Eligibility duration must be greater than zero");
         eligibilityDuration = _duration;
