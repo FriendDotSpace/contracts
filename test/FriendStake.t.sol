@@ -57,7 +57,9 @@ contract FriendStakeTest is Test {
                 DEV_PERFORMANCE_FEE_PERCENT,
                 CREATOR_PERFORMANCE_FEE_PERCENT,
                 address(mockUsdc),
-                address(friendStakeBeacon)
+                address(friendStakeBeacon),
+                owner,
+                1 days
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);

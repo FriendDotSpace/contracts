@@ -55,6 +55,10 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     uint256 public totalEligible;
     /// @notice Whether the total eligible amount has been set for current distribution
     bool public isTotalEligibleSet;
+    /// @notice Duration that a stake must be held to be eligible for rewards
+    uint256 public eligibilityDuration;
+    /// @notice Address with authority to lock staking
+    address public authority;
 
     using IterableMapping for IterableMapping.Map;
 
@@ -79,6 +83,11 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     /// @param amount Amount of reward tokens claimed
     event RewardClaimed(address indexed user, uint256 tokenId, uint256 amount);
 
+    /// @notice Emitted when the eligibility duration is set
+    /// @param tokenId ID of the token for which eligibility duration is set
+    /// @param duration Duration in seconds
+    event EligibilityDurationSet(uint256 tokenId, uint256 duration);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -91,11 +100,17 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
      * @param _friendKeyAddress Address of the FriendKey token contract
      * @param _rewardToken Address of the ERC20 token used for rewards
      * @param _tokenId The specific token ID this pool will accept for staking
+     * @param _authority Address with authority to lock staking
+     * @param _eligibilityDuration Duration that a stake must be held to be eligible for rewards
      */
-    function initialize(address initialOwner, address _friendKeyAddress, address _rewardToken, uint256 _tokenId)
-        public
-        initializer
-    {
+    function initialize(
+        address initialOwner,
+        address _friendKeyAddress,
+        address _rewardToken,
+        uint256 _tokenId,
+        address _authority,
+        uint256 _eligibilityDuration
+    ) public initializer {
         __Ownable_init(initialOwner);
         // __UUPSUpgradeable_init();
         require(_friendKeyAddress != address(0), "FriendKey address cannot be zero");
@@ -109,8 +124,10 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         tokenId = _tokenId;
         totalStaked = 0;
         totalEligible = 0;
+        authority = _authority;
         isTotalEligibleSet = false;
         isOpenForStaking = true;
+        eligibilityDuration = _eligibilityDuration;
     }
 
     /**
@@ -119,6 +136,36 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     modifier onlyFriendKey() {
         require(_msgSender() == address(friendKeyToken), "FriendStake: Caller is not FriendKey contract");
         _;
+    }
+
+    /**
+     * @dev Modifier that restricts access to either the authority address or the contract owner.
+     *      Functions using this modifier can only be called by the authority or the owner.
+     */
+    modifier onlyAuthority() {
+        require(_msgSender() == authority || _msgSender() == owner(), "FriendStake: Caller is not authority or owner");
+        _;
+    }
+
+    /**
+     * @notice Sets the duration that a stake must be held to be eligible for rewards
+     * @dev Only callable by the contract owner
+     * @param duration Duration in seconds
+     */
+    function setEligibilityDuration(uint256 duration) external onlyOwner {
+        require(duration > 0, "Eligibility duration must be positive");
+        eligibilityDuration = duration;
+        emit EligibilityDurationSet(tokenId, duration);
+    }
+
+    /**
+     * @notice Sets the authority address that can lock staking
+     * @dev Only callable by the contract owner
+     * @param _authority The address to be set as authority
+     */
+    function setAuthority(address _authority) external onlyOwner {
+        require(_authority != address(0), "Authority address cannot be zero");
+        authority = _authority;
     }
 
     /**
@@ -217,7 +264,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     function claimRewards(address user) internal {
         require(!isOpenForStaking, "FriendStake: Staking is still open");
         require(isTotalEligibleSet, "FriendStake: Total staked amount is not set");
-        uint256 userStake = stakedBalances.getEligibleStake(user, lockTime);
+        uint256 userStake = stakedBalances.getEligibleStake(user, lockTime, eligibilityDuration);
         require(userStake > 0, "FriendStake: No staked tokens to claim rewards");
 
         uint256 remainingAmount = rewardToken.balanceOf(address(this));
@@ -256,7 +303,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         _unstake(userBalance, _msgSender());
     }
 
-    function lockStaking() public onlyOwner {
+    function lockStaking() public onlyAuthority {
         require(isOpenForStaking, "FriendStake: Staking is already closed");
         isOpenForStaking = false;
         lockTime = block.timestamp;
@@ -288,7 +335,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             startIndex + batchSize > stakedBalances.size() ? stakedBalances.size() : startIndex + batchSize;
         for (uint256 i = startIndex; i < endIndex; i++) {
             address user = stakedBalances.getKeyAtIndex(i);
-            uint256 userStake = stakedBalances.getEligibleStake(user, lockTime);
+            uint256 userStake = stakedBalances.getEligibleStake(user, lockTime, eligibilityDuration);
             totalEligible += userStake;
         }
         calculateEligibleIndex = endIndex;
@@ -309,7 +356,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             : rewardDistributionIndex + batchSize;
         for (; rewardDistributionIndex < endIndex; rewardDistributionIndex++) {
             address user = stakedBalances.getKeyAtIndex(rewardDistributionIndex);
-            uint256 userStake = stakedBalances.getEligibleStake(user, lockTime);
+            uint256 userStake = stakedBalances.getEligibleStake(user, lockTime, eligibilityDuration);
             if (userStake > 0 && !claimed[rewardDistributionIndex]) {
                 claimRewards(user);
             }

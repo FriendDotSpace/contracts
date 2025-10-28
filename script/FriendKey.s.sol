@@ -23,6 +23,7 @@ contract FriendKeyScript is Script {
         address tradingPoolFeeDestination = initialOwner;
         address devFeeDestination = initialOwner;
         address usdc = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
+        address AUTHORITY = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D;
 
         // Deploy FriendStake beacon
         address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", initialOwner);
@@ -39,7 +40,9 @@ contract FriendKeyScript is Script {
                 DEV_PERFORMANCE_FEE_PERCENT,
                 CREATOR_PERFORMANCE_FEE_PERCENT,
                 address(usdc),
-                friendStakeBeacon
+                friendStakeBeacon,
+                AUTHORITY,
+                1 days
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
