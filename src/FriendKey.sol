@@ -104,6 +104,12 @@ contract FriendKey is
     /// @dev Used internally in _update to determine if a user's balance reaches zero after a transfer
     mapping(uint256 => uint256) private _sold;
 
+    /// @notice Address with authority to lock staking in FriendStake contracts
+    address public authority;
+
+    /// @notice Duration that a stake must be held to be eligible for rewards
+    uint256 public eligibilityDuration;
+    
     /// @notice Optional metadata mapping for each token ID
     /// @dev Can be used to store additional information about each token
     mapping(uint256 => string) private _metadata;
@@ -199,6 +205,8 @@ contract FriendKey is
      * @param _creatorPerformanceFeePercent Creator performance fee percentage
      * @param _bondingTokenAddress Address of the ERC20 token used for trading (e.g., USDC)
      * @param _friendStakeBeacon Address of the FriendStake beacon for beacon proxy cloning
+     * @param _authority Address with authority to lock staking
+     * @param _eligibilityDuration Duration that a stake must be held to be eligible for rewards
      * @custom:oz-upgrades-unsafe-allow constructor
      */
     function initialize(
@@ -211,7 +219,9 @@ contract FriendKey is
         uint256 _devPerformanceFeePercent,
         uint256 _creatorPerformanceFeePercent,
         address _bondingTokenAddress,
-        address _friendStakeBeacon
+        address _friendStakeBeacon,
+        address _authority,
+        uint256 _eligibilityDuration
     ) public initializer {
         __ERC1155_init("");
         __Ownable_init(initialOwner);
@@ -226,6 +236,8 @@ contract FriendKey is
         require(_bondingTokenAddress != address(0), "Bonding token address cannot be zero");
         require(_devFeeDestination != address(0), "Dev fee destination cannot be zero");
         require(_friendStakeBeacon != address(0), "FriendStake beacon address cannot be zero");
+        require(_authority != address(0), "Authority address cannot be zero");
+        require(_eligibilityDuration > 0, "Eligibility duration must be greater than zero");
 
         devFeeDestination = _devFeeDestination;
         devFeePercent = _devFeePercent;
@@ -236,6 +248,8 @@ contract FriendKey is
         creatorPerformanceFeePercent = _creatorPerformanceFeePercent;
         bondingToken = IERC20Metadata(_bondingTokenAddress);
         friendStakeBeacon = _friendStakeBeacon;
+        authority = _authority;
+        eligibilityDuration = _eligibilityDuration;
 
         uint8 decimals = bondingToken.decimals();
         require(decimals > 0, "Bonding token decimals must be greater than zero");
@@ -315,6 +329,21 @@ contract FriendKey is
     }
 
     /**
+     * @notice Sets the eligibility duration for staking rewards.
+     * @dev This change only affects future stake deployments; existing stakes are not affected.
+     * @param _duration The new eligibility duration in seconds.
+     */
+    function setEligibilityDuration(uint256 _duration) public onlyOwner {
+        require(_duration > 0, "Eligibility duration must be greater than zero");
+        eligibilityDuration = _duration;
+    }
+
+    function setAuthority(address _authority) external onlyOwner {
+        require(_authority != address(0), "Authority address cannot be zero");
+        authority = _authority;
+    }
+
+    /**
      * @notice Registers a new creator with specified tier and additional keys
      * @dev Requires an off-chain EIP-712 signature from the contract owner authorizing the registration.
      *      Creates a new token ID, deploys a staking pool, and mints initial supply
@@ -356,8 +385,15 @@ contract FriendKey is
         }
         string memory tokenUri = uri(id);
 
-        bytes memory parameters =
-            abi.encodeWithSelector(FriendStake.initialize.selector, owner(), address(this), address(bondingToken), id);
+        bytes memory parameters = abi.encodeWithSelector(
+            FriendStake.initialize.selector,
+            owner(),
+            address(this),
+            address(bondingToken),
+            id,
+            authority,
+            eligibilityDuration
+        );
         address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
 
         stakingPoolByTokenId[id] = friendStake;
