@@ -47,7 +47,7 @@ A pool contract that manages reserves and cross-chain functionality:
 - `sellShares(address creatorAddress, uint256 amount)`: Sell shares of a creator
 - `getBuyPrice(uint256 id, uint256 amount)`: Calculate purchase price before fees
 - `getSellPrice(uint256 id, uint256 amount)`: Calculate sell price before fees
-- `registerCreator()`: Register as a creator and receive initial shares
+- `registerCreator(string metadata, bytes signature)`: Register as a creator (requires owner-signed authorization) and attach an off-chain metadata pointer (e.g., hash or URI)
 
 ### FriendStake Contract
 - `stake(uint256 amount)`: Stake FriendKey tokens to earn rewards

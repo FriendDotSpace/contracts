@@ -6,8 +6,8 @@ import {console2} from "forge-std/console2.sol";
 // import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 
-contract RegisterKeyScript is Script {
-    address constant PROXY = 0xe9A3ab633BA3C7071EcBE5975b9322DC1A50a347;
+contract RegisterSignedCreatorScript is Script {
+    address constant PROXY = 0x9f7cF1d1F558E57ef88a59ac3D47214eF25B6A06;
 
     bytes32 private constant REGISTER_CREATOR_TYPEHASH =
         keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
@@ -18,6 +18,7 @@ contract RegisterKeyScript is Script {
 
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        // uint256 ownerPrivateKey = vm.envUint("OWNER_PRIVATE_KEY");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -33,7 +34,7 @@ contract RegisterKeyScript is Script {
         try vm.envString("CREATOR_METADATA") returns (string memory value) {
             metadata = value;
         } catch {
-            metadata = "QmWqPGhoU7YgZdtHcWUcPShaqZVT72wzV1PKRwgY271Mrh";
+            metadata = "QmYRGqHybzVC8nBcUrzQqSsx2BNVE7LpHGXrgQUn2qkxbt";
         }
         bytes32 metadataHash = keccak256(bytes(metadata));
 

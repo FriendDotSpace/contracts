@@ -25,6 +25,9 @@ testnet = "${TEST_RPC_URL}"
 prod = "${RPC_URL}"
 local = "${LOCAL_RPC_URL}"
 
+[lint]
+exclude_lints = ["mixed-case-variable"]
+
 [etherscan]
 testnet = { key = "${ETHERSCAN_API_KEY}" }
 base = { key = "${ETHERSCAN_API_KEY}" }
