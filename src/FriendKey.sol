@@ -186,6 +186,9 @@ contract FriendKey is
     /// @notice Emitted when the target fee percentage is changed
     /// @param newPercent The new target fee percentage in basis points
     event FeePercentChanged(uint256 newPercent, Target target);
+    /// @notice Emitted when the signee address is changed
+    /// @param newSignee The new signee address
+    event SigneeChanged(address indexed newSignee);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -269,6 +272,7 @@ contract FriendKey is
     function setSignee(address signee) public onlyOwner {
         require(signee != address(0), "Signee cannot be zero address");
         _signee = signee;
+        emit SigneeChanged(signee);
     }
 
     // --- Fee and Creator Management (Owner only) ---
