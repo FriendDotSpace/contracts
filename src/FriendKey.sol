@@ -419,7 +419,7 @@ contract FriendKey is
         bytes32 digest = _hashTypedDataV4(structHash);
         address recoveredSigner = digest.recover(signature);
         require(
-            recoveredSigner == owner() || (recoveredSigner == _signee && _signee != address(0)),
+            recoveredSigner == owner() || (_signee != address(0) && recoveredSigner == _signee),
             "Unauthorized register signature"
         );
         registerCreatorNonces[account] = nonce + 1;
