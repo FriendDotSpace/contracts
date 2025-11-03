@@ -43,28 +43,28 @@
 // Deploy FriendStake beacon
 // address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", owner);
 
-        // // Deploy FriendKey
-        // vm.startPrank(owner);
-        // bytes memory initializeData = abi.encodeCall(
-        //     FriendKey.initialize,
-        //     (
-        //         owner,
-        //         devFeeDestination,
-        //         DEV_FEE_PERCENT,
-        //         CREATOR_FEE_PERCENT,
-        //         tradingPoolFeeDestination,
-        //         TRADING_POOL_FEE_PERCENT,
-        //         DEV_PERFORMANCE_FEE_PERCENT,
-        //         CREATOR_PERFORMANCE_FEE_PERCENT,
-        //         address(mockUsdc),
-        //         address(friendStakeBeacon),
-        //         owner,
-        //         1 days
-        //     )
-        // );
-        // address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
-        // friendKey = FriendKey(proxy);
-        // vm.stopPrank();
+// // Deploy FriendKey
+// vm.startPrank(owner);
+// bytes memory initializeData = abi.encodeCall(
+//     FriendKey.initialize,
+//     (
+//         owner,
+//         devFeeDestination,
+//         DEV_FEE_PERCENT,
+//         CREATOR_FEE_PERCENT,
+//         tradingPoolFeeDestination,
+//         TRADING_POOL_FEE_PERCENT,
+//         DEV_PERFORMANCE_FEE_PERCENT,
+//         CREATOR_PERFORMANCE_FEE_PERCENT,
+//         address(mockUsdc),
+//         address(friendStakeBeacon),
+//         owner,
+//         1 days
+//     )
+// );
+// address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
+// friendKey = FriendKey(proxy);
+// vm.stopPrank();
 
 //         // Register creator and mint initial share
 //         vm.startPrank(creatorAccount);
@@ -153,12 +153,12 @@
 //         uint256 rewardAmount = 1_000 * (10 ** 6);
 //         mockUsdc.mint(address(stake), rewardAmount);
 
-        // Owner closes staking
-        // vm.warp(block.timestamp + 1 days); // Ensure enough time has passed for rewards to be eligible
-        // vm.prank(owner);
-        // stake.lockStaking();
-        // stake.calculateTotalEligible(10);
-        // assertEq(stake.isOpenForStaking(), false);
+// Owner closes staking
+// vm.warp(block.timestamp + 1 days); // Ensure enough time has passed for rewards to be eligible
+// vm.prank(owner);
+// stake.lockStaking();
+// stake.calculateTotalEligible(10);
+// assertEq(stake.isOpenForStaking(), false);
 
 //         // Claim rewards
 //         uint256 initialBalance = mockUsdc.balanceOf(staker1);
@@ -206,9 +206,9 @@
 //         uint256 staker2InitialBalance = mockUsdc.balanceOf(staker2);
 
 //         // Distribute rewards
-        // stake.calculateTotalEligible(10);
-        // assertEq(stake.totalStaked(), stake.totalEligible());
-        // stake.distributeRewards(10);
+// stake.calculateTotalEligible(10);
+// assertEq(stake.totalStaked(), stake.totalEligible());
+// stake.distributeRewards(10);
 
 //         // Both stakers should have received rewards
 //         uint256 platformShare = (rewardAmount * friendKey.devPerformanceFeePercent()) / friendKey.BPS_SCALE();

@@ -109,7 +109,7 @@ contract FriendKey is
 
     /// @notice Duration that a stake must be held to be eligible for rewards
     uint256 public eligibilityDuration;
-    
+
     /// @notice Optional metadata mapping for each token ID
     /// @dev Can be used to store additional information about each token
     mapping(uint256 => string) private _metadata;
