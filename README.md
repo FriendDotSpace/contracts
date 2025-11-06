@@ -122,6 +122,13 @@ forge script script/FriendKey.s.sol --rpc-url <your_rpc_name> --broadcast --veri
 > If you get an error `Failed to get EIP-1559 fees`
 > you have to use `--legacy` flag [source](https://ethereum.stackexchange.com/questions/147942/failed-to-get-eip-1559-fees-error-when-deploying-to-zkevm-polygon-using-foundry)
 
+> [!NOTE]
+> You can use `FriendDeployScript` to setup the development
+
+```bash
+forge script FriendDeployScript --rpc-url <your_rpc_name>  -vv --legacy --broadcast --verify
+```
+
 
 FriendKey is an UUPS [upgradable smart contract](https://docs.openzeppelin.com/upgrades-plugins/).
 In order to run some checks about upgradability, previous version of contract is required and
