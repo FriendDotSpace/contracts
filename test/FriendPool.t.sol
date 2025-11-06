@@ -110,6 +110,33 @@ contract FriendPoolTest is Test {
     uint256 public constant CREATOR_PERFORMANCE_FEE_PERCENT = 1500;
     uint256 public CREATOR_TOKEN_ID = 1;
 
+    uint256 private constant OWNER_PRIVATE_KEY = 1;
+    bytes32 private constant REGISTER_CREATOR_TYPEHASH =
+        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 private constant NAME_HASH = keccak256(bytes("FriendKey"));
+    bytes32 private constant VERSION_HASH = keccak256(bytes("1"));
+
+    function _domainSeparator() internal view returns (bytes32) {
+        return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(friendKey)));
+    }
+
+    function _getRegisterCreatorSignature(
+        address account,
+        FriendKey.RoomTier tier,
+        uint256 additionalKeys,
+        string memory metadata
+    ) internal view returns (bytes memory) {
+        uint256 nonce = friendKey.registerCreatorNonces(account);
+        bytes32 metadataHash = keccak256(bytes(metadata));
+        bytes32 structHash =
+            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PRIVATE_KEY, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
     function setUp() public {
         owner = vm.addr(1);
         devFeeDestination = vm.addr(2);
@@ -121,7 +148,8 @@ contract FriendPoolTest is Test {
         mockUsdc = new MockERC20("Mock USDC", "mUSDC", 6);
         revertingMock = new RevertingMock();
         dlnSourceMock = new DlnSourceMock();
-        FriendStake friendStake = new FriendStake();
+        // Deploy FriendStake beacon
+        address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", owner);
 
         vm.startPrank(owner);
 
@@ -138,7 +166,9 @@ contract FriendPoolTest is Test {
                 DEV_PERFORMANCE_FEE_PERCENT,
                 CREATOR_PERFORMANCE_FEE_PERCENT,
                 address(mockUsdc),
-                address(friendStake)
+                friendStakeBeacon,
+                owner,
+                1 days
             )
         );
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitializeData);
@@ -157,7 +187,9 @@ contract FriendPoolTest is Test {
 
         vm.startPrank(creatorAccount);
         // Register creator
-        friendKey.registerCreator();
+        string memory metadata = "POOL_CREATOR";
+        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        friendKey.registerCreator(metadata, signature);
         assertEq(friendKey.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();
 
@@ -412,7 +444,10 @@ contract FriendPoolTest is Test {
     function testMultipleTokenIdReserves() public {
         // Register another creator
         vm.startPrank(anotherBuyerAccount);
-        uint256 secondTokenId = friendKey.registerCreator();
+        string memory metadata = "SECOND_CREATOR";
+        bytes memory signature =
+            _getRegisterCreatorSignature(anotherBuyerAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        uint256 secondTokenId = friendKey.registerCreator(metadata, signature);
         vm.stopPrank();
 
         // Generate fees for both tokens

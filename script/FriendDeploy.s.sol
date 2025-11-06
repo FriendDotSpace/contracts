@@ -9,7 +9,7 @@ import {FriendStake} from "src/FriendStake.sol";
 import {FriendPool} from "src/FriendPool.sol";
 
 contract FriendDeployScript is Script {
-    address constant BACKEND_ACC = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D;
+    address constant AUTHORITY = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D;
 
     function setUp() public {}
 
@@ -42,7 +42,9 @@ contract FriendDeployScript is Script {
                 DEV_PERFORMANCE_FEE_PERCENT,
                 CREATOR_PERFORMANCE_FEE_PERCENT,
                 address(usdc),
-                address(friendStake)
+                address(friendStake),
+                AUTHORITY,
+                1 hours
             )
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
@@ -63,7 +65,7 @@ contract FriendDeployScript is Script {
         vm.assertEq(friendKey.tradingPoolFeeDestination(), address(pool));
 
         // 4. Set dispatcher in FriendPool
-        pool.setDispatcher(BACKEND_ACC);
+        pool.setDispatcher(AUTHORITY);
 
         vm.stopBroadcast();
     }

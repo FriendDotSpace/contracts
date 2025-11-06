@@ -16,7 +16,7 @@ ffi = true
 ast = true
 build_info = true
 extra_output = ["storageLayout"]
-via_ir = false
+via_ir = true
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
@@ -24,6 +24,9 @@ via_ir = false
 testnet = "${TEST_RPC_URL}"
 prod = "${RPC_URL}"
 local = "${LOCAL_RPC_URL}"
+
+[lint]
+exclude_lints = ["mixed-case-variable"]
 
 [etherscan]
 testnet = { key = "${ETHERSCAN_API_KEY}" }

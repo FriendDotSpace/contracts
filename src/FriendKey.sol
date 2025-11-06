@@ -3,19 +3,23 @@
 pragma solidity ^0.8.27;
 
 import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
-import {ERC1155BurnableUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155BurnableUpgradeable.sol";
-import {ERC1155SupplyUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
+import {
+    ERC1155BurnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155BurnableUpgradeable.sol";
+import {
+    ERC1155SupplyUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IFriendPool} from "./interfaces/IFriendPool.sol";
 import {FriendStake} from "./FriendStake.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 
 /**
  * @title FriendKey
@@ -35,10 +39,12 @@ contract FriendKey is
     OwnableUpgradeable,
     ERC1155BurnableUpgradeable,
     ERC1155SupplyUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    EIP712Upgradeable
 {
     using SafeERC20 for IERC20Metadata;
     using Strings for uint256;
+    using ECDSA for bytes32;
 
     /// @notice Enum defining different room tiers with varying bonding curve parameters
     /// @dev Each tier has a different divisor that affects the pricing curve steepness
@@ -46,7 +52,6 @@ contract FriendKey is
         Casual, // Most affordable tier with highest divisor (4000)
         Club, // Medium tier with moderate divisor (40)
         Exclusive // Premium tier with lowest divisor (4) - highest prices
-
     }
 
     /// @dev Counter for generating unique token IDs
@@ -69,8 +74,8 @@ contract FriendKey is
     uint256 public devPerformanceFeePercent;
     /// @notice Creator performance fee percentage (in basis points)
     uint256 public creatorPerformanceFeePercent;
-    /// @notice Address of the FriendStake implementation contract for cloning
-    address public friendStake;
+    /// @notice Address of the FriendStake beacon contract for beacon proxy cloning
+    address public friendStakeBeacon;
 
     /// @notice The ERC20 token used for bonding curve transactions (e.g., USDC)
     IERC20Metadata public bondingToken;
@@ -98,6 +103,26 @@ contract FriendKey is
     /// @notice Temporary mapping to track sold amounts for each token ID during batch transfers
     /// @dev Used internally in _update to determine if a user's balance reaches zero after a transfer
     mapping(uint256 => uint256) private _sold;
+
+    /// @notice Address with authority to lock staking in FriendStake contracts
+    address public authority;
+
+    /// @notice Duration that a stake must be held to be eligible for rewards
+    uint256 public eligibilityDuration;
+
+    /// @notice Optional metadata mapping for each token ID
+    /// @dev Can be used to store additional information about each token
+    mapping(uint256 => string) private _metadata;
+
+    /// @notice Replay protection nonces for registerCreator authorizations
+    mapping(address => uint256) public registerCreatorNonces;
+
+    /// @dev keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
+    bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
+        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+
+    /// @dev Private address authorized to sign room creation requests
+    address private _signee;
 
     /// @notice Emitted when tokens are bought or sold
     /// @param tokenId The ID of the token being traded
@@ -137,13 +162,13 @@ contract FriendKey is
     /// @param tokenId The ID of the token being staked
     /// @param staker The address staking the tokens
     /// @param amount The amount of tokens staked
-    event KeyStaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event KeyStaked(uint256 indexed tokenId, address indexed staker, address indexed stakingPool, uint256 amount);
 
     /// @notice Emitted when tokens are unstaked
     /// @param tokenId The ID of the token being unstaked
     /// @param staker The address unstaking the tokens
     /// @param amount The amount of tokens unstaked
-    event KeyUnstaked(uint256 indexed tokenId, address indexed staker, uint256 amount);
+    event KeyUnstaked(uint256 indexed tokenId, address indexed staker, address indexed stakingPool, uint256 amount);
     event CreatorRewarded(uint256 indexed tokenId, address indexed creator, uint256 amount);
 
     // --- Owner management events ---
@@ -161,6 +186,9 @@ contract FriendKey is
     /// @notice Emitted when the target fee percentage is changed
     /// @param newPercent The new target fee percentage in basis points
     event FeePercentChanged(uint256 newPercent, Target target);
+    /// @notice Emitted when the signee address is changed
+    /// @param newSignee The new signee address
+    event SigneeChanged(address indexed newSignee);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -179,7 +207,9 @@ contract FriendKey is
      * @param _devPerformanceFeePercent Development performance fee percentage
      * @param _creatorPerformanceFeePercent Creator performance fee percentage
      * @param _bondingTokenAddress Address of the ERC20 token used for trading (e.g., USDC)
-     * @param _friendStake Address of the FriendStake implementation for cloning
+     * @param _friendStakeBeacon Address of the FriendStake beacon for beacon proxy cloning
+     * @param _authority Address with authority to lock staking
+     * @param _eligibilityDuration Duration that a stake must be held to be eligible for rewards
      * @custom:oz-upgrades-unsafe-allow constructor
      */
     function initialize(
@@ -192,20 +222,25 @@ contract FriendKey is
         uint256 _devPerformanceFeePercent,
         uint256 _creatorPerformanceFeePercent,
         address _bondingTokenAddress,
-        address _friendStake
+        address _friendStakeBeacon,
+        address _authority,
+        uint256 _eligibilityDuration
     ) public initializer {
         __ERC1155_init("");
         __Ownable_init(initialOwner);
         __ERC1155Burnable_init();
         __ERC1155Supply_init();
         __UUPSUpgradeable_init();
+        __EIP712_init("FriendKey", "1");
 
         BPS_SCALE = 10000;
 
         require(_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
         require(_bondingTokenAddress != address(0), "Bonding token address cannot be zero");
         require(_devFeeDestination != address(0), "Dev fee destination cannot be zero");
-        require(_friendStake != address(0), "FriendStake address cannot be zero");
+        require(_friendStakeBeacon != address(0), "FriendStake beacon address cannot be zero");
+        require(_authority != address(0), "Authority address cannot be zero");
+        require(_eligibilityDuration > 0, "Eligibility duration must be greater than zero");
 
         devFeeDestination = _devFeeDestination;
         devFeePercent = _devFeePercent;
@@ -215,7 +250,9 @@ contract FriendKey is
         devPerformanceFeePercent = _devPerformanceFeePercent;
         creatorPerformanceFeePercent = _creatorPerformanceFeePercent;
         bondingToken = IERC20Metadata(_bondingTokenAddress);
-        friendStake = _friendStake;
+        friendStakeBeacon = _friendStakeBeacon;
+        authority = _authority;
+        eligibilityDuration = _eligibilityDuration;
 
         uint8 decimals = bondingToken.decimals();
         require(decimals > 0, "Bonding token decimals must be greater than zero");
@@ -230,6 +267,12 @@ contract FriendKey is
      */
     function setURI(string memory newuri) public onlyOwner {
         _setURI(newuri);
+    }
+
+    function setSignee(address signee) public onlyOwner {
+        require(signee != address(0), "Signee cannot be zero address");
+        _signee = signee;
+        emit SigneeChanged(signee);
     }
 
     // --- Fee and Creator Management (Owner only) ---
@@ -290,36 +333,100 @@ contract FriendKey is
     }
 
     /**
+     * @notice Sets the eligibility duration for staking rewards.
+     * @dev This change only affects future stake deployments; existing stakes are not affected.
+     * @param _duration The new eligibility duration in seconds.
+     */
+    function setEligibilityDuration(uint256 _duration) public onlyOwner {
+        require(_duration > 0, "Eligibility duration must be greater than zero");
+        eligibilityDuration = _duration;
+    }
+
+    function setAuthority(address _authority) external onlyOwner {
+        require(_authority != address(0), "Authority address cannot be zero");
+        authority = _authority;
+    }
+
+    /**
      * @notice Registers a new creator with specified tier and additional keys
-     * @dev Creates a new token ID, deploys a staking pool, and mints initial supply
+     * @dev Requires an off-chain EIP-712 signature from the contract owner authorizing the registration.
+     *      Creates a new token ID, deploys a staking pool, and mints initial supply
      * @param tier The room tier for the creator (affects bonding curve pricing)
      * @param additionalKeys Number of additional keys to mint beyond the initial key
+     * @param metadata Arbitrary metadata string (e.g., IPFS hash or identifier)
+     * @param signature Owner signature authorizing the registration parameters
      * @return The newly created token ID
      */
-    function registerCreator(RoomTier tier, uint256 additionalKeys) public returns (uint256) {
-        address creator = msg.sender;
-        uint256 id = ++_nextTokenId;
-        creatorByTokenId[id] = creator;
-        roomTiers[id] = tier;
-        string memory tokenUri = uri(id);
-
-        address cloneAddress = Clones.clone(friendStake);
-        stakingPoolByTokenId[id] = cloneAddress;
-        FriendStake(cloneAddress).initialize(owner(), address(this), address(bondingToken), id);
-
-        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
-        emit KeyCreated(id, creator, cloneAddress, tokenUri, 1 + additionalKeys, tier);
-
-        return id;
+    function registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature)
+        public
+        returns (uint256)
+    {
+        _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
+        return _registerCreator(tier, additionalKeys, metadata);
     }
 
     /**
      * @notice Registers a new creator with default settings (Casual tier, no additional keys)
-     * @dev Backward-compatible function that uses default parameters
+     * @dev Requires an owner signature authorizing the caller
+     * @param metadata Arbitrary metadata string (e.g., IPFS hash or identifier)
+     * @param signature Owner signature authorizing the registration parameters
      * @return The newly created token ID
      */
-    function registerCreator() public returns (uint256) {
-        return registerCreator(RoomTier.Casual, 0);
+    function registerCreator(string calldata metadata, bytes calldata signature) public returns (uint256) {
+        return registerCreator(RoomTier.Casual, 0, metadata, signature);
+    }
+
+    function _registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata)
+        internal
+        returns (uint256)
+    {
+        address creator = msg.sender;
+        uint256 id = ++_nextTokenId;
+        creatorByTokenId[id] = creator;
+        roomTiers[id] = tier;
+        if (bytes(metadata).length > 0) {
+            _metadata[id] = metadata;
+        }
+        string memory tokenUri = uri(id);
+
+        bytes memory parameters = abi.encodeWithSelector(
+            FriendStake.initialize.selector,
+            owner(),
+            address(this),
+            address(bondingToken),
+            id,
+            authority,
+            eligibilityDuration
+        );
+        address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
+
+        stakingPoolByTokenId[id] = friendStake;
+
+        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
+        emit KeyCreated(id, creator, friendStake, tokenUri, 1 + additionalKeys, tier);
+
+        return id;
+    }
+
+    function _verifyRegisterCreatorSignature(
+        address account,
+        RoomTier tier,
+        uint256 additionalKeys,
+        string calldata metadata,
+        bytes calldata signature
+    ) internal {
+        uint256 nonce = registerCreatorNonces[account];
+        bytes32 metadataHash = keccak256(bytes(metadata));
+        bytes32 structHash = keccak256(
+            abi.encode(_REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash)
+        );
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address recoveredSigner = digest.recover(signature);
+        require(
+            recoveredSigner == owner() || (_signee != address(0) && recoveredSigner == _signee),
+            "Unauthorized register signature"
+        );
+        registerCreatorNonces[account] = nonce + 1;
     }
 
     /**
@@ -333,6 +440,11 @@ contract FriendKey is
         require(creator != address(0), "Creator not registered");
         string memory tokenURI = tokenId.toString();
         string memory base = super.uri(tokenId);
+
+        string memory storedMetadata = _metadata[tokenId];
+        if (bytes(storedMetadata).length > 0) {
+            return storedMetadata;
+        }
 
         // If token URI is set, concatenate base URI and tokenURI (via string.concat).
         return bytes(base).length > 0 ? string.concat(base, tokenURI) : base;
@@ -460,13 +572,6 @@ contract FriendKey is
             require(ok, "Transfer failed");
         }
 
-        // FriendStake stakingPool = FriendStake(stakingPoolByTokenId[tokenId]);
-        // if (stakingPool.isOpenForStaking() == false) {
-        //     _mint(msg.sender, tokenId, amount, "");
-        // } else {
-        //     bytes memory sender = abi.encode(msg.sender);
-        //     _mint(stakingPoolByTokenId[tokenId], tokenId, amount, sender);
-        // }
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
 
         if (devFee > 0 && devFeeDestination != address(0)) {
@@ -535,7 +640,7 @@ contract FriendKey is
         require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
         require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
-        emit KeyStaked(tokenId, msg.sender, amount);
+        emit KeyStaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for staking");
@@ -557,7 +662,7 @@ contract FriendKey is
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
 
-        emit KeyUnstaked(tokenId, msg.sender, amount);
+        emit KeyUnstaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         stakingPool.unstake(amount, msg.sender);
     }
@@ -574,8 +679,9 @@ contract FriendKey is
             // try to approve and pull from the trading pool otherwise transfer
             require(bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee), "Approve to trading pool failed");
             try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
-                // If the pull succeeds, we don't need to do anything else
-            } catch {
+            // If the pull succeeds, we don't need to do anything else
+            }
+            catch {
                 bondingToken.safeTransfer(tradingPoolFeeDestination, tradingPoolFee);
             }
         } else {
