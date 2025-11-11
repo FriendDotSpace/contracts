@@ -79,7 +79,7 @@ contract Deploy is Script {
         // 3. Deploy FriendKey (UUPS Proxy)
         // ============================================
         console2.log("Deploying FriendKey...");
-        
+
         // Note: We use address(0) as temporary tradingPoolFeeDestination
         // We'll update it after deploying FriendPool
         bytes memory friendKeyInitData = abi.encodeCall(
@@ -99,7 +99,7 @@ contract Deploy is Script {
                 ELIGIBILITY_DURATION
             )
         );
-        
+
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitData);
         FriendKey friendKey = FriendKey(friendKeyProxy);
         console2.log("FriendKey deployed to:", address(friendKey));
@@ -109,12 +109,10 @@ contract Deploy is Script {
         // 4. Deploy FriendPool (UUPS Proxy)
         // ============================================
         console2.log("Deploying FriendPool...");
-        
-        bytes memory friendPoolInitData = abi.encodeCall(
-            FriendPool.initialize,
-            (initialOwner, address(friendKey), dlnSourceAddress)
-        );
-        
+
+        bytes memory friendPoolInitData =
+            abi.encodeCall(FriendPool.initialize, (initialOwner, address(friendKey), dlnSourceAddress));
+
         address friendPoolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", friendPoolInitData);
         FriendPool friendPool = FriendPool(friendPoolProxy);
         console2.log("FriendPool deployed to:", address(friendPool));
@@ -144,8 +142,14 @@ contract Deploy is Script {
         console2.log("Dev Fee: %s bps (%s%%)", DEV_FEE_PERCENT, DEV_FEE_PERCENT / 100);
         console2.log("Creator Fee: %s bps (%s%%)", CREATOR_FEE_PERCENT, CREATOR_FEE_PERCENT / 100);
         console2.log("Trading Pool Fee: %s bps (%s%%)", TRADING_POOL_FEE_PERCENT, TRADING_POOL_FEE_PERCENT / 100);
-        console2.log("Dev Performance Fee: %s bps (%s%%)", DEV_PERFORMANCE_FEE_PERCENT, DEV_PERFORMANCE_FEE_PERCENT / 100);
-        console2.log("Creator Performance Fee: %s bps (%s%%)", CREATOR_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT / 100);
+        console2.log(
+            "Dev Performance Fee: %s bps (%s%%)", DEV_PERFORMANCE_FEE_PERCENT, DEV_PERFORMANCE_FEE_PERCENT / 100
+        );
+        console2.log(
+            "Creator Performance Fee: %s bps (%s%%)",
+            CREATOR_PERFORMANCE_FEE_PERCENT,
+            CREATOR_PERFORMANCE_FEE_PERCENT / 100
+        );
         console2.log("Eligibility Duration: %s days", ELIGIBILITY_DURATION / 1 days);
         console2.log("");
         console2.log("=== Deployment Complete ===");
@@ -153,4 +157,3 @@ contract Deploy is Script {
         vm.stopBroadcast();
     }
 }
-
