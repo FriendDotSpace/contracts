@@ -100,22 +100,56 @@ forge test --force
 > [!IMPORTANT]
 > Make sure to set up your environment variables (`.env`) before deploying.
 
+#### Environment Variables
+
 ```bash
+# Required
+PRIVATE_KEY=0x<PRIVATE_KEY>
+
+# Network RPC URLs
 TEST_RPC_URL=https://sepolia.base.org
 RPC_URL=https://mainnet.base.org
-PRIVATE_KEY=0x<PRIVATE_KEY>
+
+# Optional - Protocol Configuration
+USDC_ADDRESS=0x...                    # If not set or address(0), FriendUSD will be deployed
+DLN_SOURCE_ADDRESS=0x...              # Required for FriendPool deployment
+AUTHORITY_ADDRESS=0x...               # If not set, deployer address will be used
+ETHERSCAN_API_KEY=your_api_key       # For contract verification (only add if you want to verify, else skip)
 ```
 
-You can simulate a deployment by running the script:
+#### Comprehensive Deployment (Recommended)
+
+The `Deploy.s.sol` script provides a comprehensive deployment that:
+1. Deploys FriendUSD (if USDC address not provided)
+2. Deploys FriendStake beacon
+3. Deploys FriendKey proxy
+4. Deploys FriendPool proxy
+5. Configures FriendKey to use FriendPool
+
+**Using Makefile (Easiest):**
 
 ```bash
-forge script script/FriendKey.s.sol --force
+# Deploy everything to testnet
+make deploy-testnet
+
+# Deploy everything to mainnet (with 5s safety delay)
+make deploy-mainnet
+
+# Simulate deployment without broadcasting
+make simulate
 ```
 
-To deploy to a real network, add your private key and API keys to a `.env` file, then run:
+**Using Forge Script Directly:**
 
 ```bash
-forge script script/FriendKey.s.sol --rpc-url <your_rpc_name> --broadcast --verify -vvvv
+# Simulate deployment
+forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL -vvvv
+
+# Deploy to testnet
+forge script script/Deploy.s.sol:Deploy --rpc-url $TEST_RPC_URL --broadcast --verify -vvvv
+
+# Deploy to mainnet
+forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY -vvvv
 ```
 
 > [!TIP]

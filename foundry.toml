@@ -25,7 +25,7 @@ testnet = "${TEST_RPC_URL}"
 prod = "${RPC_URL}"
 local = "${LOCAL_RPC_URL}"
 
-[lint]
+[profile.lint]
 exclude_lints = ["mixed-case-variable"]
 
 [etherscan]
