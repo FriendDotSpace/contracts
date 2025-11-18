@@ -19,6 +19,6 @@ contract FriendStakeUpgradeScript is Script {
         } else {
             console2.log("FriendStake proxy is not set");
         }
-        vm.stopBroadcast();    
+        vm.stopBroadcast();
     }
 }

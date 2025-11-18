@@ -14,7 +14,7 @@ contract FriendPoolUpgradeScript is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        if(FRIEND_POOL_PROXY != address(0)) {
+        if (FRIEND_POOL_PROXY != address(0)) {
             Upgrades.upgradeProxy(FRIEND_POOL_PROXY, "FriendPool.sol", "");
             console2.log("FriendPool upgraded");
         } else {
