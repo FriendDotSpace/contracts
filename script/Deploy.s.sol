@@ -27,7 +27,7 @@ contract Deploy is Script {
     uint256 constant DEV_PERFORMANCE_FEE_PERCENT = 500; // 5%
     uint256 constant CREATOR_PERFORMANCE_FEE_PERCENT = 1500; // 15%
     uint256 constant ELIGIBILITY_DURATION = 1 days;
-
+    address constant SIGNEE = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788;
     function setUp() public {}
 
     function run() public {
@@ -103,6 +103,8 @@ contract Deploy is Script {
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitData);
         FriendKey friendKey = FriendKey(friendKeyProxy);
         console2.log("FriendKey deployed to:", address(friendKey));
+        friendKey.setSignee(SIGNEE);
+        console2.log("Signee set to:", SIGNEE);
         console2.log("");
 
         // ============================================

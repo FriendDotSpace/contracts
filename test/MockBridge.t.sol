@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {MockBridge} from "../src/mocks/MockBridge.sol";
 import {DlnOrderLib} from "../src/libraries/DlnOrderLib.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -185,7 +185,8 @@ contract MockBridgeTest is Test {
         uint256 amount = 100 * 10 ** 18;
 
         // Transfer some tokens to the bridge contract
-        token.transfer(address(bridge), amount);
+        bool success = token.transfer(address(bridge), amount);
+        assertTrue(success);
 
         vm.startPrank(owner);
 
