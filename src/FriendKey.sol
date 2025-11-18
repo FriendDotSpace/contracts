@@ -117,6 +117,10 @@ contract FriendKey is
     /// @notice Replay protection nonces for registerCreator authorizations
     mapping(address => uint256) public registerCreatorNonces;
 
+    /// @notice Tracks which room tiers a creator has already registered
+    /// @dev Maps creator address => RoomTier => bool (true if tier already used)
+    mapping(address => mapping(RoomTier => bool)) public creatorTierUsed;
+
     /// @dev keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
     bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
         keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
@@ -381,9 +385,16 @@ contract FriendKey is
         returns (uint256)
     {
         address creator = msg.sender;
+        
+        // Check if creator has already registered a room with this tier
+        require(!creatorTierUsed[creator][tier], "Creator has already registered a room with this tier");
+        
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
+        
+        // Mark this tier as used by the creator
+        creatorTierUsed[creator][tier] = true;
         if (bytes(metadata).length > 0) {
             _metadata[id] = metadata;
         }
@@ -710,6 +721,27 @@ contract FriendKey is
      */
     function getKeyHoldingSince(uint256 tokenId, address user) public view returns (uint256) {
         return keyHoldingSince[tokenId][user];
+    }
+
+    /**
+     * @notice Checks if a creator can register a room with a specific tier
+     * @param creator The address of the creator to check
+     * @param tier The room tier to check availability for
+     * @return True if the creator can still register this tier, false if already used
+     */
+    function canRegisterTier(address creator, RoomTier tier) public view returns (bool) {
+        return !creatorTierUsed[creator][tier];
+    }
+
+    /**
+     * @notice Returns which tiers are still available for a creator
+     * @param creator The address of the creator to check
+     * @return availableTiers Array of boolean values [Casual, Club, Exclusive] - true if available
+     */
+    function getAvailableTiers(address creator) public view returns (bool[3] memory availableTiers) {
+        availableTiers[0] = !creatorTierUsed[creator][RoomTier.Casual];
+        availableTiers[1] = !creatorTierUsed[creator][RoomTier.Club];
+        availableTiers[2] = !creatorTierUsed[creator][RoomTier.Exclusive];
     }
 
     /**
