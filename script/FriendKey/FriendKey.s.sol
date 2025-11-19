@@ -7,6 +7,10 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendStake} from "src/FriendStake.sol";
 
+/**
+ * @title FriendKeyScript
+ * @notice Script to deploy FriendKey
+ */
 contract FriendKeyScript is Script {
     function setUp() public {}
 
@@ -24,6 +28,8 @@ contract FriendKeyScript is Script {
         address devFeeDestination = initialOwner;
         address usdc = 0xC2d95a27116A694565eb14c14A2ae332FFF54e0A;
         address AUTHORITY = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D;
+        address SIGNEE = 0x0000000000000000000000000000000000000000; // skips setting signee
+        // address SIGNEE = 0x96b4a9c744f813a40b6a4d2b8ec0040e8ec4b788; // signee address
 
         // Deploy FriendStake beacon
         address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", initialOwner);
@@ -48,6 +54,10 @@ contract FriendKeyScript is Script {
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
         FriendKey instance = FriendKey(proxy);
         console2.log("Proxy deployed to %s", address(instance));
+        if (SIGNEE != address(0)) {
+            instance.setSignee(SIGNEE);
+            console2.log("Signee set to:", SIGNEE);
+        }
         vm.stopBroadcast();
     }
 }
