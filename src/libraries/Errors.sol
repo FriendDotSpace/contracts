@@ -13,7 +13,7 @@ library Errors {
     error InsufficientAllowance();
     error TransferFailed();
     error ApproveFailed();
-    
+
     // FriendKey specific errors
     error TotalFeePercentTooHigh();
     error InvalidDuration();
@@ -30,7 +30,7 @@ library Errors {
     error StakingPoolNotOpen();
     error UserDoesNotHoldToken();
     error UnauthorizedRegisterSignature();
-    
+
     // FriendPool specific errors
     error NotFriendKey();
     error NotDispatcher();

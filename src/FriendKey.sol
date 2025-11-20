@@ -236,7 +236,9 @@ contract FriendKey is
 
         BPS_SCALE = 10000;
 
-        if (_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        if (_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent > BPS_SCALE) {
+            revert Errors.TotalFeePercentTooHigh();
+        }
         if (_bondingTokenAddress == address(0)) revert Errors.ZeroAddress();
         if (_devFeeDestination == address(0)) revert Errors.ZeroAddress();
         if (_friendStakeBeacon == address(0)) revert Errors.ZeroAddress();
@@ -296,7 +298,9 @@ contract FriendKey is
      */
     function setDevFeePercent(uint256 _feePercent) public onlyOwner {
         if (_feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
-        if (_feePercent + creatorFeePercent + tradingPoolFeePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        if (_feePercent + creatorFeePercent + tradingPoolFeePercent > BPS_SCALE) {
+            revert Errors.TotalFeePercentTooHigh();
+        }
         devFeePercent = _feePercent;
         emit FeePercentChanged(_feePercent, Target.DevFee);
     }
