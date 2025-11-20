@@ -542,6 +542,17 @@ contract FriendKey is
      * @param amount Number of tokens to purchase
      */
     function buyShares(uint256 tokenId, uint256 amount) public {
+        buyShares(tokenId, amount, 0);
+    }
+
+    /**
+     * @notice Purchases tokens for a specific creator using bonding curve pricing with slippage protection
+     * @dev Calculates price, collects fees, mints tokens, and distributes payments
+     * @param tokenId The ID of the creator's token to buy
+     * @param amount Number of tokens to purchase
+     * @param maxSpend Maximum amount of bonding tokens to spend (0 = no limit, for backward compatibility)
+     */
+    function buyShares(uint256 tokenId, uint256 amount, uint256 maxSpend) public {
         require(amount > 0, "Amount must be greater than zero");
         address creatorAddress = creatorByTokenId[tokenId];
         require(creatorAddress != address(0), "Creator not registered or no token ID associated");
@@ -556,6 +567,11 @@ contract FriendKey is
         uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
         uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
         uint256 totalCost = price + devFee + creatorFee + tradingPoolFee;
+
+        // Slippage protection: ensure total cost doesn't exceed maxSpend
+        if (maxSpend > 0) {
+            require(totalCost <= maxSpend, "Slippage exceeded: price exceeds maxSpend");
+        }
 
         bondingCurveReserves[creatorAddress] += price;
 
@@ -593,6 +609,17 @@ contract FriendKey is
      * @param amount Number of tokens to sell
      */
     function sellShares(uint256 tokenId, uint256 amount) public {
+        sellShares(tokenId, amount, 0);
+    }
+
+    /**
+     * @notice Sells tokens for a specific creator using bonding curve pricing with slippage protection
+     * @dev Burns tokens, calculates proceeds after fees, and transfers payment to seller
+     * @param tokenId The ID of the creator's token to sell
+     * @param amount Number of tokens to sell
+     * @param minReceive Minimum amount of bonding tokens to receive (0 = no limit, for backward compatibility)
+     */
+    function sellShares(uint256 tokenId, uint256 amount, uint256 minReceive) public {
         require(amount > 0, "Amount must be greater than zero");
         address creatorAddress = creatorByTokenId[tokenId];
         require(creatorAddress != address(0), "Creator not registered or no token ID associated");
@@ -608,6 +635,11 @@ contract FriendKey is
 
         uint256 totalFees = devFee + creatorFee + tradingPoolFee;
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
+
+        // Slippage protection: ensure proceeds meet minimum requirement
+        if (minReceive > 0) {
+            require(proceeds >= minReceive, "Slippage exceeded: proceeds less than minReceive");
+        }
 
         bondingCurveReserves[creatorAddress] -= price;
         emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
