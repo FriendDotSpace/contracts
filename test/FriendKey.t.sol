@@ -856,11 +856,11 @@ contract FriendKeyTest is Test {
         // Get price before second buy
         uint256 secondBuyAmount = 2;
         uint256 priceBeforeSecondBuy = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, secondBuyAmount);
-        
+
         // Another buyer buys, increasing price
         uint256 anotherBuyAmount = 5;
         uint256 anotherBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, anotherBuyAmount);
-        
+
         vm.startPrank(anotherBuyerAccount);
         mockUsdc.approve(address(instance), anotherBuyPrice);
         instance.buyShares(CREATOR_TOKEN_ID, anotherBuyAmount);
@@ -872,7 +872,7 @@ contract FriendKeyTest is Test {
 
         // Price should have increased, so this should revert
         assertGt(priceAfterSecondBuy, priceBeforeSecondBuy, "Price should increase after buys");
-        
+
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), priceAfterSecondBuy);
         vm.expectRevert("Slippage exceeded: price exceeds maxSpend");
@@ -893,7 +893,7 @@ contract FriendKeyTest is Test {
         // Get sell price before any sells
         uint256 sellAmount = 3;
         uint256 proceedsBeforeSell = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
-        
+
         // Another buyer buys more shares (this increases supply, which affects sell price)
         uint256 anotherBuyAmount = 5;
         uint256 anotherBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, anotherBuyAmount);
