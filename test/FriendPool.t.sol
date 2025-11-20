@@ -8,6 +8,7 @@ import {FriendPool} from "src/FriendPool.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {DlnOrderLib} from "src/libraries/DlnOrderLib.sol";
+import {Errors} from "src/Errors.sol";
 
 // Simple Mock ERC20 for testing purposes
 contract MockERC20 is IERC20Metadata {
@@ -253,7 +254,7 @@ contract FriendPoolTest is Test {
         vm.startPrank(creatorAccount);
         mockUsdc.approve(address(friendPool), 1000);
 
-        vm.expectRevert("FriendPool: Caller is not the FriendKey contract");
+        vm.expectRevert(Errors.NotFriendKey.selector);
         friendPool.pull(CREATOR_TOKEN_ID, 1000);
         vm.stopPrank();
     }
@@ -272,7 +273,7 @@ contract FriendPoolTest is Test {
 
         // Cannot set zero address as dispatcher
         vm.startPrank(owner);
-        vm.expectRevert("FriendPool: Dispatcher address cannot be zero");
+        vm.expectRevert(Errors.ZeroAddress.selector);
         friendPool.setDispatcher(address(0));
         vm.stopPrank();
     }
@@ -363,7 +364,7 @@ contract FriendPoolTest is Test {
 
         // Non-dispatcher/non-owner tries to dispatch (should fail)
         vm.startPrank(buyerAccount);
-        vm.expectRevert("FriendPool: Caller is not the dispatcher");
+        vm.expectRevert(Errors.NotDispatcher.selector);
         friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
         vm.stopPrank();
     }
@@ -376,7 +377,7 @@ contract FriendPoolTest is Test {
 
         // Non-owner tries to dispatch as owner (should fail)
         vm.startPrank(buyerAccount);
-        vm.expectRevert("FriendPool: Caller is not the dispatcher");
+        vm.expectRevert(Errors.NotDispatcher.selector);
         friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
         vm.stopPrank();
     }
@@ -386,7 +387,7 @@ contract FriendPoolTest is Test {
         DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
 
         vm.startPrank(owner);
-        vm.expectRevert("FriendPool: No funds available for dispatch");
+        vm.expectRevert(Errors.NoFundsAvailable.selector);
         friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
         vm.stopPrank();
     }

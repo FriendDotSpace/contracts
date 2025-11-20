@@ -7,6 +7,7 @@ import {FriendKey} from "src/FriendKey.sol";
 import {FriendStake} from "src/FriendStake.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Errors} from "src/libraries/Errors.sol";
 
 // Simple Mock ERC20 for testing purposes
 contract MockERC20 is IERC20Metadata {
@@ -205,7 +206,7 @@ contract FriendKeyTest is Test {
         vm.stopPrank();
 
         assertEq(instance.devFeeDestination(), newDevFeeDestination, "Dev fee destination not updated");
-        vm.expectRevert("Dev fee destination cannot be zero");
+        vm.expectRevert(Errors.ZeroAddress.selector);
         vm.startPrank(owner);
         instance.setDevFeeDestination(address(0));
         vm.stopPrank();
@@ -319,7 +320,7 @@ contract FriendKeyTest is Test {
 
     function testCannotBuyZeroShares() public {
         vm.startPrank(creatorAccount);
-        vm.expectRevert("Amount must be greater than zero");
+        vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
         instance.buyShares(CREATOR_TOKEN_ID, 0);
         vm.stopPrank();
     }
@@ -400,7 +401,7 @@ contract FriendKeyTest is Test {
 
         // Verify the URI for a non-existent token
         uint256 nonExistentTokenId = 9999;
-        vm.expectRevert("Creator not registered");
+        vm.expectRevert(Errors.CreatorNotRegistered.selector);
         instance.uri(nonExistentTokenId);
     }
 
@@ -415,7 +416,7 @@ contract FriendKeyTest is Test {
         // If user does not own the key, they should not be eligible
         uint256 buyerBalance = instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID);
         assertEq(buyerBalance, 0, "Buyer should not own the key");
-        vm.expectRevert("User does not hold this token");
+        vm.expectRevert(Errors.UserDoesNotHoldToken.selector);
         instance.isUserEligible(CREATOR_TOKEN_ID, buyerAccount);
     }
 
@@ -497,7 +498,7 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
 
         // Attempt to sell more than owned
-        vm.expectRevert("Insufficient shares");
+        vm.expectRevert(Errors.InsufficientShares.selector);
         instance.sellShares(CREATOR_TOKEN_ID, buyAmount + 1);
         vm.stopPrank();
     }
@@ -505,7 +506,7 @@ contract FriendKeyTest is Test {
     function testCannotSellAllRemainingShares() public {
         vm.startPrank(creatorAccount);
         // Creator attempts to sell all shares
-        vm.expectRevert("Cannot sell shares if it makes supply zero or less through this method");
+        vm.expectRevert(Errors.CannotSellAllShares.selector);
         instance.sellShares(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
     }
@@ -577,7 +578,7 @@ contract FriendKeyTest is Test {
         string memory authorizedMetadata = "AUTHORIZED_HASH";
         bytes memory signature = _getRegisterCreatorSignature(creator, FriendKey.RoomTier.Casual, 0, authorizedMetadata);
 
-        vm.expectRevert("Unauthorized register signature");
+        vm.expectRevert(Errors.UnauthorizedRegisterSignature.selector);
         vm.prank(creator);
         instance.registerCreator("OTHER_HASH", signature);
     }
@@ -729,7 +730,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), expectedPrice);
-        vm.expectRevert("Slippage exceeded: price exceeds maxSpend");
+        vm.expectRevert(Errors.SlippageExceededMaxSpend.selector);
         instance.buyShares(CREATOR_TOKEN_ID, shareAmount, maxSpend);
         vm.stopPrank();
     }
@@ -814,7 +815,7 @@ contract FriendKeyTest is Test {
         uint256 minReceive = expectedProceeds + 1; // More than expected proceeds
 
         vm.startPrank(buyerAccount);
-        vm.expectRevert("Slippage exceeded: proceeds less than minReceive");
+        vm.expectRevert(Errors.SlippageExceededMinReceive.selector);
         instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
         vm.stopPrank();
     }
@@ -874,7 +875,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), priceAfterSecondBuy);
-        vm.expectRevert("Slippage exceeded: price exceeds maxSpend");
+        vm.expectRevert(Errors.SlippageExceededMaxSpend.selector);
         instance.buyShares(CREATOR_TOKEN_ID, secondBuyAmount, maxSpend);
         vm.stopPrank();
     }
