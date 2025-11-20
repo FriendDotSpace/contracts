@@ -29,7 +29,8 @@ contract MockBridgeTest is Test {
         token = new MockToken();
 
         // Transfer some tokens to user for testing
-        token.transfer(user, 10000 * 10 ** 18);
+        bool success = token.transfer(user, 10000 * 10 ** 18);
+        require(success, "Transfer failed");
     }
 
     function testGlobalFixedNativeFee() public view {
