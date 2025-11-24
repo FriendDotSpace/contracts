@@ -915,7 +915,7 @@ contract FriendKeyTest is Test {
         // Proceeds might have changed, but we test that if they decreased below minReceive, it reverts
         if (proceedsAfterSell < proceedsBeforeSell) {
             vm.startPrank(buyerAccount);
-            vm.expectRevert("Slippage exceeded: proceeds less than minReceive");
+            vm.expectRevert(Errors.SlippageExceededMinReceive.selector);
             instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
             vm.stopPrank();
         } else {

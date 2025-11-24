@@ -79,7 +79,7 @@ simulate-testnet:
 # Run tests
 test:
 	@echo "Running tests..."
-	forge test -vvv
+	forge test -vv
 
 # Run tests with gas reporting
 test-gas:

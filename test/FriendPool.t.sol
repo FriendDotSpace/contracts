@@ -8,7 +8,7 @@ import {FriendPool} from "src/FriendPool.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {DlnOrderLib} from "src/libraries/DlnOrderLib.sol";
-import {Errors} from "src/Errors.sol";
+import {Errors} from "src/libraries/Errors.sol";
 
 // Simple Mock ERC20 for testing purposes
 contract MockERC20 is IERC20Metadata {
