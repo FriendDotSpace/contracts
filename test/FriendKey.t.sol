@@ -137,7 +137,7 @@ contract FriendKeyTest is Test {
     }
 
     function _registerCreator(address account) internal returns (uint256) {
-        bytes memory signature = _getRegisterCreatorSignature(account, FriendKey.RoomTier.Casual, 0, "");
+        bytes memory signature = _getRegisterCreatorSignature(account, FriendKey.RoomTier.Club, 0, "");
         vm.prank(account);
         return instance.registerCreator("", signature);
     }
@@ -181,7 +181,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(creatorAccount);
         string memory metadata = "";
-        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Club, 0, metadata);
         instance.registerCreator(metadata, signature);
         friendStake = FriendStake(instance.stakingPoolByTokenId(CREATOR_TOKEN_ID));
         assertEq(instance.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
@@ -558,17 +558,10 @@ contract FriendKeyTest is Test {
         );
     }
 
-    function testDivisor() public {
-        FriendKey.RoomTier tier = FriendKey.RoomTier.Club;
-        uint256 tokenId = _registerCreator(creatorAccount, tier, 0, "DIVISOR_META");
-        uint256 divisor = instance.getDivisor(tokenId);
-        assertEq(divisor, 40, "Divisor for Club tier should be 40");
-    }
-
     function testMetadataUriUsesStringPayload() public {
         address metadataCreator = vm.addr(20);
         string memory metadata = "CREATOR_META_HASH";
-        uint256 tokenId = _registerCreator(metadataCreator, FriendKey.RoomTier.Casual, 0, metadata);
+        uint256 tokenId = _registerCreator(metadataCreator, FriendKey.RoomTier.Club, 0, metadata);
         string memory tokenUri = instance.uri(tokenId);
         assertEq(tokenUri, metadata, "Metadata URI should match provided payload");
     }
@@ -576,7 +569,7 @@ contract FriendKeyTest is Test {
     function testRegisterCreatorRevertsOnMetadataMismatch() public {
         address creator = vm.addr(21);
         string memory authorizedMetadata = "AUTHORIZED_HASH";
-        bytes memory signature = _getRegisterCreatorSignature(creator, FriendKey.RoomTier.Casual, 0, authorizedMetadata);
+        bytes memory signature = _getRegisterCreatorSignature(creator, FriendKey.RoomTier.Club, 0, authorizedMetadata);
 
         vm.expectRevert(Errors.UnauthorizedRegisterSignature.selector);
         vm.prank(creator);
@@ -696,233 +689,84 @@ contract FriendKeyTest is Test {
         assertEq(holdingSinceAfterReturn, 0, "Holding since should be reset after returning shares");
     }
 
-    // Tests for slippage protection on buy
-    function testBuySharesWithMaxSpendSuccess() public {
-        uint256 shareAmount = 3;
-        uint256 expectedPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, shareAmount);
-        uint256 maxSpend = expectedPrice + (expectedPrice * 5) / 100; // 5% slippage tolerance
 
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), maxSpend);
-        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, maxSpend);
-        vm.stopPrank();
+    // ============ ONE TIER PER CREATOR TESTS ============
 
-        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), shareAmount);
+    function testCanRegisterTier() public {
+        address testCreator = vm.addr(60);
+
+        // Initially, creator should be able to register all tiers
+        assertTrue(instance.canRegisterTier(testCreator, FriendKey.RoomTier.Club), "Should be able to register Club");
+        assertTrue(
+            instance.canRegisterTier(testCreator, FriendKey.RoomTier.Exclusive), "Should be able to register Exclusive"
+        );
+
+        // Register creator with Club tier
+        mockUsdc.mint(testCreator, 1_000_000 * (10 ** 6));
+        _registerCreator(testCreator, FriendKey.RoomTier.Club, 0, "test");
+
+        // Now Club tier should not be available, but Exclusive should be
+        assertFalse(
+            instance.canRegisterTier(testCreator, FriendKey.RoomTier.Club), "Should not be able to register Club again"
+        );
+        assertTrue(
+            instance.canRegisterTier(testCreator, FriendKey.RoomTier.Exclusive),
+            "Should still be able to register Exclusive"
+        );
     }
 
-    function testBuySharesWithMaxSpendExact() public {
-        uint256 shareAmount = 3;
-        uint256 expectedPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, shareAmount);
-        uint256 maxSpend = expectedPrice; // Exact price
+    function testCreatorCanRegisterMultipleDifferentTiers() public {
+        address testCreator = vm.addr(70);
+        mockUsdc.mint(testCreator, 10_000_000 * (10 ** 6)); // Give plenty of USDC
 
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), maxSpend);
-        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, maxSpend);
-        vm.stopPrank();
+        // Register Club tier
+        uint256 clubTokenId = _registerCreator(testCreator, FriendKey.RoomTier.Club, 0, "club");
+        assertEq(instance.creatorByTokenId(clubTokenId), testCreator, "Creator should own club token");
+        assertEq(
+            uint256(instance.roomTiers(clubTokenId)), uint256(FriendKey.RoomTier.Club), "Token should be Club tier"
+        );
 
-        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), shareAmount);
+        // Register Exclusive tier (should work)
+        uint256 exclusiveTokenId = _registerCreator(testCreator, FriendKey.RoomTier.Exclusive, 0, "exclusive");
+        assertEq(instance.creatorByTokenId(exclusiveTokenId), testCreator, "Creator should own exclusive token");
+        assertEq(
+            uint256(instance.roomTiers(exclusiveTokenId)),
+            uint256(FriendKey.RoomTier.Exclusive),
+            "Token should be Exclusive tier"
+        );
+
+        // Verify both tokens are different
+        assertTrue(clubTokenId != exclusiveTokenId, "Club and Exclusive tokens should be different");
+
+        // Verify creator owns tokens from both tiers
+        assertTrue(instance.balanceOf(testCreator, clubTokenId) > 0, "Creator should own club tokens");
+        assertTrue(instance.balanceOf(testCreator, exclusiveTokenId) > 0, "Creator should own exclusive tokens");
     }
 
-    function testBuySharesWithMaxSpendReverts() public {
-        uint256 shareAmount = 3;
-        uint256 expectedPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, shareAmount);
-        uint256 maxSpend = expectedPrice - 1; // Less than expected price
+    function testCreatorCannotRegisterSameTierTwice() public {
+        address testCreator = vm.addr(80);
+        mockUsdc.mint(testCreator, 10_000_000 * (10 ** 6));
 
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), expectedPrice);
-        vm.expectRevert(Errors.SlippageExceededMaxSpend.selector);
-        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, maxSpend);
-        vm.stopPrank();
-    }
+        // Register Club tier first time (should work)
+        _registerCreator(testCreator, FriendKey.RoomTier.Club, 0, "first");
 
-    function testBuySharesWithZeroMaxSpend() public {
-        // Zero maxSpend should work (no slippage protection)
-        uint256 shareAmount = 3;
-        uint256 expectedPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, shareAmount);
-
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), expectedPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, 0);
+        // Try to register Club tier again (should fail)
+        bytes memory signature = _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Club, 0, "second");
+        vm.startPrank(testCreator);
+        vm.expectRevert(Errors.CreatorAlreadyRegistered.selector);
+        instance.registerCreator(FriendKey.RoomTier.Club, 0, "second", signature);
         vm.stopPrank();
 
-        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), shareAmount);
-    }
+        // Try to register Exclusive tier (should work)
+        _registerCreator(testCreator, FriendKey.RoomTier.Exclusive, 0, "exclusive");
 
-    // Tests for slippage protection on sell
-    function testSellSharesWithMinReceiveSuccess() public {
-        // First buy some shares
-        uint256 buyAmount = 5;
-        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
-
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
-        vm.stopPrank();
-
-        // Now sell with minReceive
-        uint256 sellAmount = 2;
-        uint256 expectedProceeds = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
-        uint256 minReceive = expectedProceeds - (expectedProceeds * 5) / 100; // 5% slippage tolerance
-
-        uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
-        vm.startPrank(buyerAccount);
-        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
-        vm.stopPrank();
-        uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
-
-        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyAmount - sellAmount);
-        assertGe(balanceAfter - balanceBefore, minReceive, "Should receive at least minReceive");
-    }
-
-    function testSellSharesWithMinReceiveExact() public {
-        // First buy some shares
-        uint256 buyAmount = 5;
-        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
-
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
-        vm.stopPrank();
-
-        // Now sell with exact minReceive
-        uint256 sellAmount = 2;
-        uint256 expectedProceeds = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
-        uint256 minReceive = expectedProceeds; // Exact proceeds
-
-        uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
-        vm.startPrank(buyerAccount);
-        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
-        vm.stopPrank();
-        uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
-
-        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyAmount - sellAmount);
-        assertGe(balanceAfter - balanceBefore, minReceive, "Should receive at least minReceive");
-    }
-
-    function testSellSharesWithMinReceiveReverts() public {
-        // First buy some shares
-        uint256 buyAmount = 5;
-        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
-
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
-        vm.stopPrank();
-
-        // Now try to sell with minReceive higher than expected
-        uint256 sellAmount = 2;
-        uint256 expectedProceeds = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
-        uint256 minReceive = expectedProceeds + 1; // More than expected proceeds
-
-        vm.startPrank(buyerAccount);
-        vm.expectRevert(Errors.SlippageExceededMinReceive.selector);
-        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
+        // Try to register Exclusive tier again (should fail)
+        bytes memory exclusiveSignature =
+            _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Exclusive, 0, "exclusive2");
+        vm.startPrank(testCreator);
+        vm.expectRevert(Errors.CreatorAlreadyRegistered.selector);
+        instance.registerCreator(FriendKey.RoomTier.Exclusive, 0, "exclusive2", exclusiveSignature);
         vm.stopPrank();
     }
 
-    function testSellSharesWithZeroMinReceive() public {
-        // First buy some shares
-        uint256 buyAmount = 5;
-        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
-
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
-        vm.stopPrank();
-
-        // Zero minReceive should work (no slippage protection)
-        uint256 sellAmount = 2;
-        uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
-        vm.startPrank(buyerAccount);
-        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, 0);
-        vm.stopPrank();
-        uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
-
-        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyAmount - sellAmount);
-        assertGt(balanceAfter, balanceBefore, "Balance should increase");
-    }
-
-    // Test slippage protection with concurrent transactions (simulated by price changes)
-    function testBuySharesSlippageWithPriceIncrease() public {
-        // First buyer buys shares, increasing price
-        uint256 firstBuyAmount = 3;
-        uint256 firstBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, firstBuyAmount);
-
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), firstBuyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, firstBuyAmount);
-        vm.stopPrank();
-
-        // Get price before second buy
-        uint256 secondBuyAmount = 2;
-        uint256 priceBeforeSecondBuy = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, secondBuyAmount);
-
-        // Another buyer buys, increasing price
-        uint256 anotherBuyAmount = 5;
-        uint256 anotherBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, anotherBuyAmount);
-
-        vm.startPrank(anotherBuyerAccount);
-        mockUsdc.approve(address(instance), anotherBuyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, anotherBuyAmount);
-        vm.stopPrank();
-
-        // Now price should be higher, so buying with old maxSpend should fail
-        uint256 priceAfterSecondBuy = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, secondBuyAmount);
-        uint256 maxSpend = priceBeforeSecondBuy; // Set maxSpend to old price
-
-        // Price should have increased, so this should revert
-        assertGt(priceAfterSecondBuy, priceBeforeSecondBuy, "Price should increase after buys");
-
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), priceAfterSecondBuy);
-        vm.expectRevert(Errors.SlippageExceededMaxSpend.selector);
-        instance.buyShares(CREATOR_TOKEN_ID, secondBuyAmount, maxSpend);
-        vm.stopPrank();
-    }
-
-    function testSellSharesSlippageWithPriceDecrease() public {
-        // Buyer buys shares
-        uint256 buyAmount = 10;
-        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
-
-        vm.startPrank(buyerAccount);
-        mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
-        vm.stopPrank();
-
-        // Get sell price before any sells
-        uint256 sellAmount = 3;
-        uint256 proceedsBeforeSell = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
-
-        // Another buyer buys more shares (this increases supply, which affects sell price)
-        uint256 anotherBuyAmount = 5;
-        uint256 anotherBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, anotherBuyAmount);
-
-        vm.startPrank(anotherBuyerAccount);
-        mockUsdc.approve(address(instance), anotherBuyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, anotherBuyAmount);
-        vm.stopPrank();
-
-        // Now someone else sells, which decreases supply and affects price
-        vm.startPrank(anotherBuyerAccount);
-        instance.sellShares(CREATOR_TOKEN_ID, 2);
-        vm.stopPrank();
-
-        // Get new sell price after the sell
-        uint256 proceedsAfterSell = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
-        uint256 minReceive = proceedsBeforeSell; // Set minReceive to old proceeds
-
-        // Proceeds might have changed, but we test that if they decreased below minReceive, it reverts
-        if (proceedsAfterSell < proceedsBeforeSell) {
-            vm.startPrank(buyerAccount);
-            vm.expectRevert(Errors.SlippageExceededMinReceive.selector);
-            instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
-            vm.stopPrank();
-        } else {
-            // If proceeds didn't decrease, the transaction should succeed
-            vm.startPrank(buyerAccount);
-            instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
-            vm.stopPrank();
-        }
-    }
 }

@@ -365,7 +365,6 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             isOpenForStaking = true; // Reopen staking after distribution
             isTotalEligibleSet = false;
             calculateEligibleIndex = 0;
-            rewardDistributionIndex = 0;
             totalEligible = 0;
         }
     }

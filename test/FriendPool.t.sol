@@ -188,7 +188,7 @@ contract FriendPoolTest is Test {
         vm.startPrank(creatorAccount);
         // Register creator
         string memory metadata = "POOL_CREATOR";
-        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Club, 0, metadata);
         friendKey.registerCreator(metadata, signature);
         assertEq(friendKey.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();
@@ -445,8 +445,7 @@ contract FriendPoolTest is Test {
         // Register another creator
         vm.startPrank(anotherBuyerAccount);
         string memory metadata = "SECOND_CREATOR";
-        bytes memory signature =
-            _getRegisterCreatorSignature(anotherBuyerAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(anotherBuyerAccount, FriendKey.RoomTier.Club, 0, metadata);
         uint256 secondTokenId = friendKey.registerCreator(metadata, signature);
         vm.stopPrank();
 

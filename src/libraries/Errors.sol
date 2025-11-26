@@ -23,6 +23,8 @@ library Errors {
     error AmountExceedsSupply();
     error OnlyCreatorCanBuyFirstShare();
     error SlippageExceededMaxSpend();
+    error InvalidTier();
+    error CreatorAlreadyRegistered();
     error SlippageExceededMinReceive();
     error InsufficientShares();
     error CannotSellAllShares();

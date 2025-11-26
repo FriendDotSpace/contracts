@@ -28,7 +28,7 @@ import {Errors} from "./libraries/Errors.sol";
  * @notice A social token platform that allows creators to issue their own tokenized shares using bonding curves
  * @dev This contract implements an ERC-1155 based social token system with the following features:
  *      - Bonding curve pricing mechanism for token purchases/sales
- *      - Multi-tier room system (Casual, Club, Exclusive) with different pricing curves
+ *      - Multi-tier room system (Club, Exclusive) with different pricing curves
  *      - Fee distribution system (dev fees, creator fees, trading pool fees)
  *      - Staking integration for token holders
  *      - Cross-chain functionality through FriendPool integration
@@ -50,7 +50,6 @@ contract FriendKey is
     /// @notice Enum defining different room tiers with varying bonding curve parameters
     /// @dev Each tier has a different divisor that affects the pricing curve steepness
     enum RoomTier {
-        Casual, // Most affordable tier with highest divisor (4000)
         Club, // Medium tier with moderate divisor (40)
         Exclusive // Premium tier with lowest divisor (4) - highest prices
     }
@@ -97,7 +96,7 @@ contract FriendKey is
     /// @notice Mapping from token ID to its room tier
     mapping(uint256 => RoomTier) public roomTiers;
 
-    /// @notice Array of divisors for different room tiers [Casual, Club, Exclusive]
+    /// @notice Array of divisors for different room tiers [Club, Exclusive]
     /// @dev Lower divisor = higher prices. Used in bonding curve calculations
     uint256[] public bondingCurveDivisors;
 
@@ -117,6 +116,10 @@ contract FriendKey is
 
     /// @notice Replay protection nonces for registerCreator authorizations
     mapping(address => uint256) public registerCreatorNonces;
+
+    /// @notice Mapping from creator address to their tier used status
+    /// @dev Maps creatorAddress => tier => bool
+    mapping(address => mapping(RoomTier => bool)) public creatorTierUsed;
 
     /// @dev keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
     bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
@@ -260,7 +263,7 @@ contract FriendKey is
         uint8 decimals = bondingToken.decimals();
         if (decimals == 0) revert Errors.InvalidDecimals();
         bondingTokenPriceUnit = 10 ** decimals;
-        bondingCurveDivisors = [4000, 40, 4];
+        bondingCurveDivisors = [40, 4];
     }
 
     /**
@@ -371,14 +374,14 @@ contract FriendKey is
     }
 
     /**
-     * @notice Registers a new creator with default settings (Casual tier, no additional keys)
+     * @notice Registers a new creator with default settings (Club tier, no additional keys)
      * @dev Requires an owner signature authorizing the caller
      * @param metadata Arbitrary metadata string (e.g., IPFS hash or identifier)
      * @param signature Owner signature authorizing the registration parameters
      * @return The newly created token ID
      */
     function registerCreator(string calldata metadata, bytes calldata signature) public returns (uint256) {
-        return registerCreator(RoomTier.Casual, 0, metadata, signature);
+        return registerCreator(RoomTier.Club, 0, metadata, signature);
     }
 
     function _registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata)
@@ -386,9 +389,17 @@ contract FriendKey is
         returns (uint256)
     {
         address creator = msg.sender;
+
+        // Check if creator has already registered a room with this tier
+        require(!creatorTierUsed[creator][tier], Errors.CreatorAlreadyRegistered());
+
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
+
+        // Mark this tier as used by the creator
+        creatorTierUsed[creator][tier] = true;
+
         if (bytes(metadata).length > 0) {
             _metadata[id] = metadata;
         }
@@ -746,6 +757,16 @@ contract FriendKey is
      */
     function getKeyHoldingSince(uint256 tokenId, address user) public view returns (uint256) {
         return keyHoldingSince[tokenId][user];
+    }
+
+    /**
+     * @notice Checks if a creator can register a room with a specific tier
+     * @param creator The address of the creator to check
+     * @param tier The room tier to check availability for
+     * @return True if the creator can still register this tier, false if already used
+     */
+    function canRegisterTier(address creator, RoomTier tier) public view returns (bool) {
+        return !creatorTierUsed[creator][tier];
     }
 
     /**
