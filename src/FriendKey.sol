@@ -385,14 +385,14 @@ contract FriendKey is
         returns (uint256)
     {
         address creator = msg.sender;
-        
+
         // Check if creator has already registered a room with this tier
         require(!creatorTierUsed[creator][tier], "Creator has already registered a room with this tier");
-        
+
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
-        
+
         // Mark this tier as used by the creator
         creatorTierUsed[creator][tier] = true;
         if (bytes(metadata).length > 0) {

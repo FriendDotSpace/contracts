@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {ERC1155HolderUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
+import {
+    ERC1155HolderUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -183,7 +184,12 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 id,
         uint256 value,
         bytes memory data
-    ) public virtual override returns (bytes4) {
+    )
+        public
+        virtual
+        override
+        returns (bytes4)
+    {
         require(isOpenForStaking, "FriendStake: Staking is not open");
         // only FriendKey tokens are allowed
         require(_msgSender() == address(friendKeyToken), "FriendStake: Only FriendKey tokens can be staked");
@@ -207,7 +213,12 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256[] memory ids,
         uint256[] memory values,
         bytes memory /* data */
-    ) public virtual override returns (bytes4) {
+    )
+        public
+        virtual
+        override
+        returns (bytes4)
+    {
         require(isOpenForStaking, "FriendStake: Staking is not open");
         require(ids.length == values.length, "FriendStake: IDs and values length mismatch");
         require(_msgSender() == address(friendKeyToken), "FriendStake: Only FriendKey tokens can be staked");
