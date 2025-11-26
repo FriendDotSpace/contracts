@@ -689,7 +689,6 @@ contract FriendKeyTest is Test {
         assertEq(holdingSinceAfterReturn, 0, "Holding since should be reset after returning shares");
     }
 
-
     // ============ ONE TIER PER CREATOR TESTS ============
 
     function testCanRegisterTier() public {
@@ -768,5 +767,4 @@ contract FriendKeyTest is Test {
         instance.registerCreator(FriendKey.RoomTier.Exclusive, 0, "exclusive2", exclusiveSignature);
         vm.stopPrank();
     }
-
 }
