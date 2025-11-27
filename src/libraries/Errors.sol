@@ -42,7 +42,5 @@ library Errors {
     // FriendRoomManager specific errors
     error RoomManagerNotSet();
     error RoomLimitExceeded();
-    error RoomTypeNotEnabled();
-    error RoomTierNotEnabled();
 }
 

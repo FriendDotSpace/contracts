@@ -238,7 +238,7 @@ contract FriendKey is
     }
 
     /// @notice Modifier to ensure RoomManager is set before calling functions that depend on it
-    modifier requireRM() {
+    modifier roomManagerSet() {
         if (roomManager == address(0)) revert Errors.RoomManagerNotSet();
         _;
     }
@@ -266,19 +266,19 @@ contract FriendKey is
     // --- Fee and Creator Management ---
 
     // Fee helpers - simplified for size
-    function _getTradingFees() internal view requireRM returns (uint16 dev, uint16 creator, uint16 pool) {
+    function _getTradingFees() internal view roomManagerSet returns (uint16 dev, uint16 creator, uint16 pool) {
         return IFriendRoomManager(roomManager).getTradingFees();
     }
 
-    function getPerformanceFees() public view requireRM returns (uint16 dev, uint16 creator) {
+    function getPerformanceFees() public view roomManagerSet returns (uint16 dev, uint16 creator) {
         return IFriendRoomManager(roomManager).getPerformanceFees();
     }
 
-    function _getSocialFees() internal view requireRM returns (uint16 dev, uint16 creator) {
+    function _getSocialFees() internal view roomManagerSet returns (uint16 dev, uint16 creator) {
         return IFriendRoomManager(roomManager).getSocialFees();
     }
 
-    function getFeeDestinations() public view requireRM returns (address dev, address pool) {
+    function getFeeDestinations() public view roomManagerSet returns (address dev, address pool) {
         return IFriendRoomManager(roomManager).getFeeDestinations();
     }
 
@@ -337,7 +337,7 @@ contract FriendKey is
     function _registerCreator(RoomType roomType, RoomTier tier, uint256 additionalKeys, string calldata metadata)
         internal
         virtual
-        requireRM
+        roomManagerSet
         returns (uint256)
     {
         address creator = msg.sender;
@@ -443,7 +443,7 @@ contract FriendKey is
      * @param id The token ID to get divisor for
      * @return The divisor value for the token's room tier
      */
-    function getDivisor(uint256 id) public view virtual requireRM returns (uint256) {
+    function getDivisor(uint256 id) public view virtual roomManagerSet returns (uint256) {
         return IFriendRoomManager(roomManager)
             .getDivisor(IFriendKey.RoomType(uint8(roomTypes[id])), IFriendKey.RoomTier(uint8(roomTiers[id])));
     }
@@ -454,7 +454,7 @@ contract FriendKey is
      * @param amount Number of tokens to buy
      * @return The price in bonding token units before fees
      */
-    function getBuyPrice(uint256 id, uint256 amount) public view virtual requireRM returns (uint256) {
+    function getBuyPrice(uint256 id, uint256 amount) public view virtual roomManagerSet returns (uint256) {
         uint256 divisor = getDivisor(id);
         return BondingCurveLib.getBuyPrice(totalSupply(id), amount, divisor, bondingTokenPriceUnit);
     }
@@ -465,7 +465,7 @@ contract FriendKey is
      * @param amount Number of tokens to sell
      * @return The price in bonding token units before fees
      */
-    function getSellPrice(uint256 id, uint256 amount) public view virtual requireRM returns (uint256) {
+    function getSellPrice(uint256 id, uint256 amount) public view virtual roomManagerSet returns (uint256) {
         if (totalSupply(id) < amount) revert Errors.AmountExceedsSupply();
         uint256 divisor = getDivisor(id);
         return BondingCurveLib.getSellPrice(totalSupply(id), amount, divisor, bondingTokenPriceUnit);
@@ -741,7 +741,7 @@ contract FriendKey is
      * @param tier The room tier to check availability for
      * @return True if the creator can still register this tier, false if already used
      */
-    function canRegisterRoom(address creator, RoomType roomType, RoomTier tier) public view requireRM returns (bool) {
+    function canRegisterRoom(address creator, RoomType roomType, RoomTier tier) public view roomManagerSet returns (bool) {
         return IFriendRoomManager(roomManager)
             .canRegisterRoom(creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)));
     }
