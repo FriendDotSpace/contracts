@@ -85,6 +85,11 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     event RoomRegistered(
         address indexed creator, IFriendKey.RoomType indexed roomType, IFriendKey.RoomTier indexed tier, uint256 tokenId
     );
+    event BondingCurveDivisorsSet(uint256[3] indexed divisors);
+    event SocialDivisorsSet(uint256[3] indexed divisors);
+    event FeeDestinationsSet(address indexed devDest, address indexed poolDest);
+    event FriendKeySet(address indexed friendKey);
+    event AuthoritySet(address indexed authority);
 
     // ============================================
     // CONSTRUCTOR & INITIALIZER
@@ -108,6 +113,20 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     }
 
     // ============================================
+    // Custom Modifiers
+    // ============================================
+
+    modifier onlyFriendKey() {
+        if (msg.sender != address(friendKey)) revert Errors.NotFriendKey();
+        _;
+    }
+
+    modifier onlyAuthorized() {
+        if (msg.sender != authority || msg.sender != owner()) revert Errors.Unauthorized();
+        _;
+    }
+
+    // ============================================
     // EXTERNAL FUNCTIONS - CONFIGURATION
     // ============================================
 
@@ -122,19 +141,20 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     }
 
     /**
-     * @notice Sets the authority address for signature verification
+     * @notice Sets the authority address
      * @param _authority New authority address
      */
     function setAuthority(address _authority) external onlyOwner {
         if (_authority == address(0)) revert Errors.ZeroAddress();
         authority = _authority;
+        emit AuthoritySet(_authority);
     }
 
     /**
      * @notice Sets the eligibility duration for reward eligibility
      * @param _duration New eligibility duration in seconds
      */
-    function setEligibilityDuration(uint256 _duration) external onlyOwner {
+    function setEligibilityDuration(uint256 _duration) external onlyAuthorized {
         eligibilityDuration = _duration;
     }
 
@@ -153,6 +173,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
 
         devFeeDestination = _devDest;
         tradingPoolFeeDestination = _poolDest;
+        emit FeeDestinationsSet(_devDest, _poolDest);
     }
 
     /**
@@ -200,7 +221,9 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @param _divisors Array of divisors [Casual, Club, Exclusive]
      */
     function setBondingCurveDivisors(uint256[3] calldata _divisors) external onlyOwner {
+        if (_divisors[0] == 0 || _divisors[1] == 0 || _divisors[2] == 0) revert Errors.ZeroDivisor();
         bondingCurveDivisors = _divisors;
+        emit BondingCurveDivisorsSet(_divisors);
     }
 
     /**
@@ -208,7 +231,9 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @param _divisors Array of divisors [Casual, Club, Exclusive]
      */
     function setSocialDivisors(uint256[3] calldata _divisors) external onlyOwner {
+        if (_divisors[0] == 0 || _divisors[1] == 0 || _divisors[2] == 0) revert Errors.ZeroDivisor();
         socialDivisors = _divisors;
+        emit SocialDivisorsSet(_divisors);
     }
 
     // ============================================
@@ -265,7 +290,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @param roomType Type of room
      * @param tier Tier of room
      */
-    function enableRoomType(IFriendKey.RoomType roomType, IFriendKey.RoomTier tier) external onlyOwner {
+    function enableRoomType(IFriendKey.RoomType roomType, IFriendKey.RoomTier tier) external onlyAuthorized {
         maxRoomsPerTier[roomType][tier] = 1;
         emit MaxRoomsPerTierChanged(roomType, tier, 1);
     }
@@ -276,7 +301,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @param roomType Type of room
      * @param tier Tier of room
      */
-    function disableRoomType(IFriendKey.RoomType roomType, IFriendKey.RoomTier tier) external onlyOwner {
+    function disableRoomType(IFriendKey.RoomType roomType, IFriendKey.RoomTier tier) external onlyAuthorized {
         maxRoomsPerTier[roomType][tier] = 0;
         emit MaxRoomsPerTierChanged(roomType, tier, 0);
     }
@@ -427,39 +452,35 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      */
     function _setDefaultLimits() internal {
         // Trading rooms: 1 room per tier
-        maxRoomsPerTier[IFriendKey.RoomType.Trading][IFriendKey.RoomTier.Casual] = 1;
+        // Casual rooms: Disabled by default for now
         maxRoomsPerTier[IFriendKey.RoomType.Trading][IFriendKey.RoomTier.Club] = 1;
         maxRoomsPerTier[IFriendKey.RoomType.Trading][IFriendKey.RoomTier.Exclusive] = 1;
 
-        // Social rooms: Multiple allowed per tier
-        maxRoomsPerTier[IFriendKey.RoomType.Social][IFriendKey.RoomTier.Casual] = 5;
-        maxRoomsPerTier[IFriendKey.RoomType.Social][IFriendKey.RoomTier.Club] = 5;
-        maxRoomsPerTier[IFriendKey.RoomType.Social][IFriendKey.RoomTier.Exclusive] = 5;
+        // Social rooms: Disabled by default for now
     }
 
     /**
      * @notice Sets default fees and configuration for initialization
      */
     function _setDefaultFees() internal {
-        // Default trading fees (in basis points)
-        devFeePercent = 250; // 2.5%
-        creatorFeePercent = 250; // 2.5%
-        tradingPoolFeePercent = 250; // 2.5%
+        devFeePercent = 200; // 2%
+        creatorFeePercent = 200; // 2%
+        tradingPoolFeePercent = 600; // 6%
 
         // Default performance fees
         devPerformanceFeePercent = 500; // 5%
-        creatorPerformanceFeePercent = 500; // 5%
+        creatorPerformanceFeePercent = 1500; // 15%
 
         // Default social fees (lower than trading)
-        socialDevFeePercent = 125; // 1.25%
-        socialCreatorFeePercent = 250; // 2.5%
+        socialDevFeePercent = 200; // 2%
+        socialCreatorFeePercent = 200; // 2%
 
         // Default bonding curve divisors [Casual, Club, Exclusive]
         bondingCurveDivisors = [4000, 40, 4];
         socialDivisors = [8000, 80, 8]; // Higher divisors = lower prices
 
         // Default eligibility duration
-        eligibilityDuration = 24 hours;
+        eligibilityDuration = 1 days;
     }
 
     /**

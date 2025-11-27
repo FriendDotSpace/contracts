@@ -27,8 +27,13 @@ contract Deploy is Script {
     uint16 constant TRADING_POOL_FEE_PERCENT = 600; // 6%
     uint16 constant DEV_PERFORMANCE_FEE_PERCENT = 500; // 5%
     uint16 constant CREATOR_PERFORMANCE_FEE_PERCENT = 1500; // 15%
+
+    uint16 constant DEV_SOCIAL_FEE_PERCENT = 200; // 2%
+    uint16 constant CREATOR_SOCIAL_FEE_PERCENT = 200; // 2%
+
     uint256 constant ELIGIBILITY_DURATION = 1 days;
     address constant SIGNEE = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788;
+
     function setUp() public {}
 
     function run() public {
@@ -98,26 +103,38 @@ contract Deploy is Script {
         FriendKey friendKey = FriendKey(friendKeyProxy);
         console2.log("FriendKey deployed to:", address(friendKey));
         friendKey.setSignee(SIGNEE);
+        console2.log("Signee set to:", SIGNEE);
 
         // Set FriendKey address in RoomManager
         roomManager.setFriendKey(address(friendKey));
-
-        // Set fees in RoomManager
-        roomManager.setTradingFees(DEV_FEE_PERCENT, CREATOR_FEE_PERCENT, TRADING_POOL_FEE_PERCENT);
-        console2.log("Trading fees set in RoomManager");
-
-        roomManager.setPerformanceFees(DEV_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT);
-        console2.log("Performance fees set in RoomManager");
-
-        roomManager.setSocialFees(DEV_FEE_PERCENT / 2, CREATOR_FEE_PERCENT);
-        console2.log("Social fees set in RoomManager");
+        // check if fees are different than default fees that are set, if different, set them or else skip
+        (uint16 devFee, uint16 creatorFee, uint16 poolFee) = roomManager.getTradingFees();
+        if (devFee != DEV_FEE_PERCENT || creatorFee != CREATOR_FEE_PERCENT || poolFee != TRADING_POOL_FEE_PERCENT) {
+            roomManager.setTradingFees(DEV_FEE_PERCENT, CREATOR_FEE_PERCENT, TRADING_POOL_FEE_PERCENT);
+            console2.log("Trading fees set in RoomManager");
+        }
+        (uint16 devPerformanceFee, uint16 creatorPerformanceFee) = roomManager.getPerformanceFees();
+        if (
+            devPerformanceFee != DEV_PERFORMANCE_FEE_PERCENT || creatorPerformanceFee != CREATOR_PERFORMANCE_FEE_PERCENT
+        ) {
+            roomManager.setPerformanceFees(DEV_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT);
+            console2.log("Performance fees set in RoomManager");
+        }
+        (uint16 devSocialFee, uint16 creatorSocialFee) = roomManager.getSocialFees();
+        if (devSocialFee != DEV_SOCIAL_FEE_PERCENT || creatorSocialFee != CREATOR_SOCIAL_FEE_PERCENT) {
+            roomManager.setSocialFees(DEV_SOCIAL_FEE_PERCENT, CREATOR_SOCIAL_FEE_PERCENT);
+            console2.log("Social fees set in RoomManager");
+        }
 
         // Set authority and eligibility duration in RoomManager
-        roomManager.setAuthority(authorityAddress);
-        roomManager.setEligibilityDuration(ELIGIBILITY_DURATION);
-        console2.log("Authority and eligibility duration set in RoomManager");
+        uint256 eligibilityDuration = roomManager.eligibilityDuration();
+        if (eligibilityDuration != ELIGIBILITY_DURATION) {
+            roomManager.setEligibilityDuration(ELIGIBILITY_DURATION);
+            console2.log("Eligibility duration set in RoomManager");
+        }
 
-        console2.log("Signee set to:", SIGNEE);
+        roomManager.setAuthority(authorityAddress);
+        console2.log("Authority and eligibility duration set in RoomManager");
 
         // ============================================
         // 4. Deploy FriendPool (UUPS Proxy)

@@ -86,19 +86,25 @@ contract FriendRoomManagerTest is Test {
     }
 
     function testInitialLimits() public view {
-        // Trading rooms: 1 per tier
+        // Trading rooms: 1 per tier (Casual disabled by default)
+        assertEq(roomManager.maxRoomsPerTier(IFriendKey.RoomType.Trading, IFriendKey.RoomTier.Casual), 0);
         assertEq(roomManager.maxRoomsPerTier(IFriendKey.RoomType.Trading, IFriendKey.RoomTier.Club), 1);
         assertEq(roomManager.maxRoomsPerTier(IFriendKey.RoomType.Trading, IFriendKey.RoomTier.Exclusive), 1);
 
-        // Social rooms: 5 per tier
-        assertEq(roomManager.maxRoomsPerTier(IFriendKey.RoomType.Social, IFriendKey.RoomTier.Club), 5);
-        assertEq(roomManager.maxRoomsPerTier(IFriendKey.RoomType.Social, IFriendKey.RoomTier.Exclusive), 5);
+        // Social rooms: All disabled by default
+        assertEq(roomManager.maxRoomsPerTier(IFriendKey.RoomType.Social, IFriendKey.RoomTier.Casual), 0);
+        assertEq(roomManager.maxRoomsPerTier(IFriendKey.RoomType.Social, IFriendKey.RoomTier.Club), 0);
+        assertEq(roomManager.maxRoomsPerTier(IFriendKey.RoomType.Social, IFriendKey.RoomTier.Exclusive), 0);
     }
 
     function testCanRegisterRoom() public view {
-        // Creator should be able to register first room
+        // Creator should be able to register first trading room (Club and Exclusive enabled)
         assertTrue(roomManager.canRegisterRoom(creator, IFriendKey.RoomType.Trading, IFriendKey.RoomTier.Club));
-        assertTrue(roomManager.canRegisterRoom(creator, IFriendKey.RoomType.Social, IFriendKey.RoomTier.Club));
+        assertTrue(roomManager.canRegisterRoom(creator, IFriendKey.RoomType.Trading, IFriendKey.RoomTier.Exclusive));
+
+        // Social rooms should NOT be registerable (disabled by default)
+        assertFalse(roomManager.canRegisterRoom(creator, IFriendKey.RoomType.Social, IFriendKey.RoomTier.Club));
+        assertFalse(roomManager.canRegisterRoom(creator, IFriendKey.RoomType.Social, IFriendKey.RoomTier.Casual));
     }
 
     function testCheckAndUpdateRoomRegistration() public {
@@ -126,6 +132,9 @@ contract FriendRoomManagerTest is Test {
     }
 
     function testSocialRoomMultipleRegistrations() public {
+        // First, enable social rooms with limit of 5
+        roomManager.setMaxRoomsPerTier(IFriendKey.RoomType.Social, IFriendKey.RoomTier.Club, 5);
+
         vm.startPrank(address(mockFriendKey));
 
         // Register multiple social rooms (should succeed up to limit)
@@ -152,6 +161,9 @@ contract FriendRoomManagerTest is Test {
     }
 
     function testGetCreatorRooms() public {
+        // First, enable social rooms with limit of 5
+        roomManager.setMaxRoomsPerTier(IFriendKey.RoomType.Social, IFriendKey.RoomTier.Club, 5);
+
         vm.startPrank(address(mockFriendKey));
 
         // Register a few rooms
