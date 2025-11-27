@@ -48,15 +48,23 @@ contract FriendKey is
     using Strings for uint256;
     using ECDSA for bytes32;
 
+    /// @notice Enum defining different room types
+    /// @dev Determines the functionality and features available in the room
+    enum RoomType {
+        Trading, // Full trading functionality with staking pools and cross-chain features
+        Social   // Social-only functionality without staking or cross-chain features
+    }
+
     /// @notice Enum defining different room tiers with varying bonding curve parameters
     /// @dev Each tier has a different divisor that affects the pricing curve steepness
     enum RoomTier {
-        Club, // Medium tier with moderate divisor (40)
+        Casual,    // Light tier with high divisor (4000) - Social default (V2)
+        Club,     // Medium tier with moderate divisor (40)
         Exclusive // Premium tier with lowest divisor (4) - highest prices
     }
 
     /// @dev Counter for generating unique token IDs
-    uint256 private _nextTokenId;
+    uint256 internal _nextTokenId;
 
     /// @notice Basis point scale for percentage calculations (10000 = 100%)
     uint256 public BPS_SCALE;
@@ -100,6 +108,8 @@ contract FriendKey is
     /// @notice Array of divisors for different room tiers [Club, Exclusive]
     /// @dev Lower divisor = higher prices. Used in bonding curve calculations
     uint256[] public bondingCurveDivisors;
+    /// @notice Array of divisors for different social tiers [Casual, Club, Exclusive]
+    uint256[] public socialDivisors;
 
     /// @notice Temporary mapping to track sold amounts for each token ID during batch transfers
     /// @dev Used internally in _update to determine if a user's balance reaches zero after a transfer
@@ -113,14 +123,22 @@ contract FriendKey is
 
     /// @notice Optional metadata mapping for each token ID
     /// @dev Can be used to store additional information about each token
-    mapping(uint256 => string) private _metadata;
+    mapping(uint256 => string) internal _metadata;
 
     /// @notice Replay protection nonces for registerCreator authorizations
     mapping(address => uint256) public registerCreatorNonces;
 
-    /// @notice Mapping from creator address to their tier used status
-    /// @dev Maps creatorAddress => tier => bool
-    mapping(address => mapping(RoomTier => bool)) public creatorTierUsed;
+    // mapping if a tier for a room type is allowed to create a room with
+    mapping(RoomType => mapping(RoomTier => bool)) public isTierAllowed;
+
+    /// @notice Mapping from token ID to its room type (for V2 compatibility)
+    /// @dev All existing tokens are Trading type by default
+    mapping(uint256 => RoomType) public roomTypes;
+
+    /// @notice Mapping from creator address to their room type and tier combinations used, 1 room per tier per room type
+    /// @dev Maps creatorAddress => roomType => tier => bool (for V2 compatibility)
+    mapping(address => mapping(RoomType => mapping(RoomTier => bool))) public creatorRoomUsed;
+
 
     /// @dev keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
     bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
@@ -128,6 +146,9 @@ contract FriendKey is
 
     /// @dev Private address authorized to sign room creation requests
     address private _signee;
+
+    /// @dev Storage gap for future upgrades (V2 will use some of these slots)
+    uint256[50] private __gap;
 
     /// @notice Emitted when tokens are bought or sold
     /// @param tokenId The ID of the token being traded
@@ -160,7 +181,8 @@ contract FriendKey is
         address indexed stakingPool,
         string tokenURI,
         uint256 initialSupply,
-        RoomTier tier
+        RoomTier tier, 
+        RoomType roomType
     );
 
     /// @notice Emitted when tokens are staked
@@ -194,6 +216,11 @@ contract FriendKey is
     /// @notice Emitted when the signee address is changed
     /// @param newSignee The new signee address
     event SigneeChanged(address indexed newSignee);
+    /// @notice Emitted when the is tier allowed is changed
+    /// @param roomType The room type to change the allowed tier for
+    /// @param tier The tier to change the allowed status for
+    /// @param isAllowed The new allowed status
+    event IsTierAllowedChanged(RoomType indexed roomType, RoomTier indexed tier, bool isAllowed);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -264,7 +291,12 @@ contract FriendKey is
         uint8 decimals = bondingToken.decimals();
         if (decimals == 0) revert Errors.InvalidDecimals();
         bondingTokenPriceUnit = 10 ** decimals;
-        bondingCurveDivisors = [40, 4];
+        bondingCurveDivisors = [4000, 40, 4]; // [Casual, Club, Exclusive]
+        socialDivisors = [4000, 40, 4]; // [Casual, Club, Exclusive]
+
+        isTierAllowed[RoomType.Trading][RoomTier.Club] = true;
+        isTierAllowed[RoomType.Trading][RoomTier.Exclusive] = true;
+        // disabled casual tier for trading rooms and for all social rooms by default
     }
 
     /**
@@ -341,6 +373,11 @@ contract FriendKey is
         emit FeePercentChanged(_feePercent, Target.CreatorPerformanceFee);
     }
 
+    function setIsTierAllowed(RoomType roomType, RoomTier tier, bool isAllowed) public onlyOwner {
+        isTierAllowed[roomType][tier] = isAllowed;
+        emit IsTierAllowedChanged(roomType, tier, isAllowed);
+    }
+
     /**
      * @notice Sets the eligibility duration for staking rewards.
      * @dev This change only affects future stake deployments; existing stakes are not affected.
@@ -367,11 +404,12 @@ contract FriendKey is
      * @return The newly created token ID
      */
     function registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature)
-        public
+        public virtual
         returns (uint256)
     {
+        if (!isTierAllowed[RoomType.Trading][tier]) revert Errors.TierNotAllowedForRoomType();
         _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
-        return _registerCreator(tier, additionalKeys, metadata);
+        return _registerCreator(RoomType.Trading, tier, additionalKeys, metadata);
     }
 
     /**
@@ -385,43 +423,53 @@ contract FriendKey is
         return registerCreator(RoomTier.Club, 0, metadata, signature);
     }
 
-    function _registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata)
-        internal
-        returns (uint256)
-    {
-        address creator = msg.sender;
+    function registerSocialCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature) public returns (uint256) {
+        if (!isTierAllowed[RoomType.Social][tier]) revert Errors.TierNotAllowedForRoomType();
+        _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
+        return _registerCreator(RoomType.Social, tier, additionalKeys, metadata);
+    }
 
-        // Check if creator has already registered a room with this tier
-        require(!creatorTierUsed[creator][tier], Errors.CreatorAlreadyRegistered());
+    function registerSocialCreator(string calldata metadata, bytes calldata signature) public returns (uint256) {
+        return registerSocialCreator(RoomTier.Casual, 0, metadata, signature);
+    }
+
+
+    function _registerCreator(RoomType roomType, RoomTier tier, uint256 additionalKeys, string calldata metadata)
+        internal
+        virtual
+        returns (uint256)
+    {   
+        address creator = msg.sender;
+        require(!creatorRoomUsed[creator][roomType][tier], Errors.CreatorAlreadyRegistered());
 
         uint256 id = ++_nextTokenId;
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
+        roomTypes[id] = roomType;
 
-        // Mark this tier as used by the creator
-        creatorTierUsed[creator][tier] = true;
+        creatorRoomUsed[creator][roomType][tier] = true;
 
         if (bytes(metadata).length > 0) {
             _metadata[id] = metadata;
         }
         string memory tokenUri = uri(id);
 
-        bytes memory parameters = abi.encodeWithSelector(
-            FriendStake.initialize.selector,
-            owner(),
-            address(this),
-            address(bondingToken),
-            id,
-            authority,
-            eligibilityDuration
-        );
-        address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
-
-        stakingPoolByTokenId[id] = friendStake;
+        if (roomType == RoomType.Trading) {
+            bytes memory parameters = abi.encodeWithSelector(
+                FriendStake.initialize.selector,
+                owner(),
+                address(this),
+                address(bondingToken),
+                id,
+                authority,
+                eligibilityDuration
+            );
+            address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
+            stakingPoolByTokenId[id] = friendStake;
+        }
 
         buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
-        emit KeyCreated(id, creator, friendStake, tokenUri, 1 + additionalKeys, tier);
-
+        emit KeyCreated(id, creator, stakingPoolByTokenId[id], tokenUri, 1 + additionalKeys, tier, roomType);
         return id;
     }
 
@@ -486,20 +534,13 @@ contract FriendKey is
      * @param id The token ID to get divisor for
      * @return The divisor value for the token's room tier
      */
-    function getDivisor(uint256 id) public view returns (uint256) {
+    function getDivisor(uint256 id) public view virtual returns (uint256) {
         RoomTier tier = roomTiers[id];
+        RoomType roomType = roomTypes[id];
+        if (roomType == RoomType.Social) {
+            return socialDivisors[uint8(tier)];
+        }
         return bondingCurveDivisors[uint8(tier)];
-    }
-
-    /**
-     * @notice Returns the divisor for a specific room tier
-     * @dev Note: updating the divisor for a tier will affect prices of all tokens with that tier
-     * @param tier The room tier to get divisor for
-     * @param divisor The new divisor value for the room tier
-     */
-    function updateDivisorByTier(RoomTier tier, uint256 divisor) public onlyOwner {
-        if (divisor == 0) revert Errors.InvalidDivisor();
-        bondingCurveDivisors[uint256(tier)] = divisor;
     }
 
     /**
@@ -508,7 +549,7 @@ contract FriendKey is
      * @param amount Number of tokens to buy
      * @return The price in bonding token units before fees
      */
-    function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
+    function getBuyPrice(uint256 id, uint256 amount) public view virtual returns (uint256) {
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return BondingCurveLib.getBuyPrice(totalSupply(id), amount, divisor, bondingTokenPriceUnit);
     }
@@ -519,7 +560,7 @@ contract FriendKey is
      * @param amount Number of tokens to sell
      * @return The price in bonding token units before fees
      */
-    function getSellPrice(uint256 id, uint256 amount) public view returns (uint256) {
+    function getSellPrice(uint256 id, uint256 amount) public view virtual returns (uint256) {
         if (totalSupply(id) < amount) revert Errors.AmountExceedsSupply();
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return BondingCurveLib.getSellPrice(totalSupply(id), amount, divisor, bondingTokenPriceUnit);
@@ -531,7 +572,7 @@ contract FriendKey is
      * @param amount Number of tokens to buy
      * @return The total cost including base price and all fees
      */
-    function getBuyPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
+    function getBuyPriceAfterFee(uint256 id, uint256 amount) public view virtual returns (uint256) {
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return BondingCurveLib.getBuyPriceAfterFee(
             totalSupply(id),
@@ -551,7 +592,7 @@ contract FriendKey is
      * @param amount Number of tokens to sell
      * @return The net proceeds after deducting all fees
      */
-    function getSellPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
+    function getSellPriceAfterFee(uint256 id, uint256 amount) public view virtual returns (uint256) {
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return BondingCurveLib.getSellPriceAfterFee(
             totalSupply(id),
@@ -697,7 +738,8 @@ contract FriendKey is
      * @param tokenId The ID of the token to stake
      * @param amount Number of tokens to stake
      */
-    function stake(uint256 tokenId, uint256 amount) public {
+    function stake(uint256 tokenId, uint256 amount) public virtual {
+        // @dev: since by default social rooms don't have a staking pool (address(0)), we don't need to check for that
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         if (balanceOf(msg.sender, tokenId) < amount) revert Errors.InsufficientShares();
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
@@ -716,8 +758,9 @@ contract FriendKey is
      * @param tokenId The ID of the token to unstake
      * @param amount Number of tokens to unstake
      */
-    function unstake(uint256 tokenId, uint256 amount) public {
+    function unstake(uint256 tokenId, uint256 amount) public virtual {
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
+        // since by default social rooms don't have a staking pool (address(0)), we don't need to check for that
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
         if (stakingPoolAddress == address(0)) revert Errors.StakingPoolNotRegistered();
 
@@ -735,7 +778,11 @@ contract FriendKey is
      * @param tokenId The token ID associated with the fee
      * @param tradingPoolFee Amount of tokens to transfer
      */
-    function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal {
+    function _transferToPool(uint256 tokenId, uint256 tradingPoolFee) internal virtual {
+        if (roomTypes[tokenId] == RoomType.Social) {
+            bondingToken.safeTransfer(devFeeDestination, tradingPoolFee);
+            return;
+        }
         // Check if the destination has code (is a contract)
         if (tradingPoolFeeDestination.code.length > 0) {
             // try to approve and pull from the trading pool otherwise transfer
@@ -781,7 +828,7 @@ contract FriendKey is
      * @return True if the creator can still register this tier, false if already used
      */
     function canRegisterTier(address creator, RoomTier tier) public view returns (bool) {
-        return !creatorTierUsed[creator][tier];
+        return !creatorRoomUsed[creator][RoomType.Trading][tier];
     }
 
     /**

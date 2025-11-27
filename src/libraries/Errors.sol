@@ -32,6 +32,7 @@ library Errors {
     error StakingPoolNotOpen();
     error UserDoesNotHoldToken();
     error UnauthorizedRegisterSignature();
+    error TierNotAllowedForRoomType();
 
     // FriendPool specific errors
     error NotFriendKey();
