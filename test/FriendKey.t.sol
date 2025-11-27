@@ -193,8 +193,9 @@ contract FriendKeyTest is Test {
 
         assertEq(instance.devFeeDestination(), newDevFeeDestination, "Dev fee destination not updated");
         vm.startPrank(owner);
+        address currentPoolDest = instance.tradingPoolFeeDestination();
         vm.expectRevert(Errors.ZeroAddress.selector);
-        instance.setFeeDestinations(address(0), instance.tradingPoolFeeDestination());
+        instance.setFeeDestinations(address(0), currentPoolDest);
         vm.stopPrank();
     }
 

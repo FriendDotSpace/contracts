@@ -296,7 +296,8 @@ contract FriendKey is
     // --- Fee and Creator Management (Owner only) ---
 
     function setFeeDestinations(address _devDest, address _poolDest) external onlyOwner {
-        if (_devDest == address(0) || _poolDest == address(0)) revert Errors.ZeroAddress();
+        if (_devDest == address(0)) revert Errors.ZeroAddress();
+        if (_poolDest == address(0)) revert Errors.ZeroAddress();
         devFeeDestination = _devDest;
         tradingPoolFeeDestination = _poolDest;
     }
