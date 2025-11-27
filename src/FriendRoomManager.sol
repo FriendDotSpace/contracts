@@ -66,8 +66,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     mapping(IFriendKey.RoomType => mapping(IFriendKey.RoomTier => uint256)) public maxRoomsPerTier;
 
     /// @notice Nonce tracking for room creation per creator per room type per tier
-    mapping(address => mapping(IFriendKey.RoomType => mapping(IFriendKey.RoomTier => uint256))) public
-        creatorRoomNonce;
+    mapping(address => mapping(IFriendKey.RoomType => mapping(IFriendKey.RoomTier => uint256))) public creatorRoomNonce;
 
     /// @notice Track all room IDs created by a creator for a specific type/tier
     mapping(address => mapping(IFriendKey.RoomType => mapping(IFriendKey.RoomTier => uint256[]))) public

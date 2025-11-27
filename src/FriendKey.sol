@@ -741,7 +741,12 @@ contract FriendKey is
      * @param tier The room tier to check availability for
      * @return True if the creator can still register this tier, false if already used
      */
-    function canRegisterRoom(address creator, RoomType roomType, RoomTier tier) public view roomManagerSet returns (bool) {
+    function canRegisterRoom(address creator, RoomType roomType, RoomTier tier)
+        public
+        view
+        roomManagerSet
+        returns (bool)
+    {
         return IFriendRoomManager(roomManager)
             .canRegisterRoom(creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)));
     }
