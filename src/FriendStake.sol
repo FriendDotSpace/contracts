@@ -310,13 +310,15 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         rewardAmount = rewardToken.balanceOf(address(this));
         require(rewardAmount > 0, "FriendStake: No rewards to distribute");
 
-        uint256 platformShare = (rewardAmount * friendKeyToken.devPerformanceFeePercent()) / friendKeyToken.BPS_SCALE();
+        (uint16 devPerformanceFeePercent, uint16 creatorPerformanceFeePercent) = friendKeyToken.getPerformanceFees();
+        uint256 platformShare = (rewardAmount * devPerformanceFeePercent) / friendKeyToken.BPS_SCALE();
         uint256 creatorShare =
-            (rewardAmount * friendKeyToken.creatorPerformanceFeePercent()) / friendKeyToken.BPS_SCALE();
+            (rewardAmount * creatorPerformanceFeePercent) / friendKeyToken.BPS_SCALE();
 
         rewardAmount -= platformShare;
-        rewardToken.safeTransfer(friendKeyToken.devFeeDestination(), platformShare);
-        emit RewardClaimed(friendKeyToken.devFeeDestination(), tokenId, platformShare);
+        (address devFeeDestination, address poolFeeDestination) = friendKeyToken.getFeeDestinations();
+        rewardToken.safeTransfer(devFeeDestination, platformShare);
+        emit RewardClaimed(devFeeDestination, tokenId, platformShare);
 
         rewardAmount -= creatorShare;
         rewardToken.safeTransfer(friendKeyToken.creatorByTokenId(tokenId), creatorShare);

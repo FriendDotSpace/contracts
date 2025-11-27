@@ -33,11 +33,17 @@ library Errors {
     error UserDoesNotHoldToken();
     error UnauthorizedRegisterSignature();
     error TierNotAllowedForRoomType();
-
     // FriendPool specific errors
     error NotFriendKey();
     error NotDispatcher();
     error NoFundsAvailable();
     error InsufficientReserves();
+
+
+    // FriendRoomManager specific errors
+    error RoomManagerNotSet();
+    error RoomLimitExceeded();
+    error RoomTypeNotEnabled();
+    error RoomTierNotEnabled();
 }
 

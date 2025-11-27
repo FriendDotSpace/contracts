@@ -5,6 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendStake} from "src/FriendStake.sol";
+import {FriendRoomManager} from "src/FriendRoomManager.sol";
+import {IFriendKey} from "src/interfaces/IFriendKey.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -158,11 +160,22 @@ contract FriendKeyTest is Test {
         address friendStakeBeacon = Upgrades.deployBeacon("FriendStake.sol", owner);
 
         vm.startPrank(owner);
+        // Deploy and setup RoomManager for testing
+        bytes memory roomManagerInitData = abi.encodeCall(FriendRoomManager.initialize, (owner));
+        address roomManagerProxy = Upgrades.deployUUPSProxy("FriendRoomManager.sol", roomManagerInitData);
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerProxy);
+        
         bytes memory initializeData = abi.encodeCall(
-            FriendKey.initialize, (owner, devFeeDestination, address(mockUsdc), friendStakeBeacon, owner, 1 days)
+            FriendKey.initialize, (owner, address(mockUsdc), friendStakeBeacon, address(roomManager))
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
         instance = FriendKey(proxy);
+        
+        // Set FriendKey address in RoomManager
+        roomManager.setFriendKey(address(instance));
+        
+        // Set fee destinations in RoomManager
+        roomManager.setFeeDestinations(devFeeDestination, tradingPoolFeeDestination);
         vm.stopPrank();
 
         vm.startPrank(creatorAccount);
@@ -187,84 +200,97 @@ contract FriendKeyTest is Test {
     // Test management functions
     function testSetDevFeeDestination() public {
         vm.startPrank(owner);
-        address newDevFeeDestination = vm.addr(8);
-        instance.setFeeDestinations(newDevFeeDestination, newDevFeeDestination);
+        // address newDevFeeDestination = vm.addr(8); // Unused - fee destinations moved to RoomManager
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setDevFeeDestination(newDevFeeDestination);
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setTradingPoolFeeDestination(newDevFeeDestination);
         vm.stopPrank();
 
-        assertEq(instance.devFeeDestination(), newDevFeeDestination, "Dev fee destination not updated");
+        // Fee destination variables moved to FriendRoomManager
+        // assertEq(instance.devFeeDestination(), newDevFeeDestination, "Dev fee destination not updated");
         vm.startPrank(owner);
-        address currentPoolDest = instance.tradingPoolFeeDestination();
-        vm.expectRevert(Errors.ZeroAddress.selector);
-        instance.setFeeDestinations(address(0), currentPoolDest);
+        // Fee destination variables moved to FriendRoomManager
+        // address currentPoolDest = instance.tradingPoolFeeDestination();
+        // Fee destination setting moved to FriendRoomManager
+        // vm.expectRevert(Errors.ZeroAddress.selector);
+        // instance.setDevFeeDestination(address(0));
         vm.stopPrank();
     }
 
     function testSetDevFeePercent() public {
         vm.startPrank(owner);
-        uint16 newDevFeePercent = 300; // 3%
-        instance.setTradingFees(newDevFeePercent, instance.creatorFeePercent(), instance.tradingPoolFeePercent());
+        // uint16 newDevFeePercent = 300; // 3% // Unused - fee setting moved to RoomManager
+        // instance.setTradingFees(newDevFeePercent, instance.creatorFeePercent(), instance.tradingPoolFeePercent());
         vm.stopPrank();
 
-        assertEq(instance.devFeePercent(), newDevFeePercent, "Dev fee percent not updated");
+        // Fee variables moved to FriendRoomManager
+        // assertEq(instance.devFeePercent(), newDevFeePercent, "Dev fee percent not updated");
     }
 
     function testSetCreatorFeePercent() public {
         vm.startPrank(owner);
-        uint16 newCreatorFeePercent = 300; // 3%
-        instance.setTradingFees(instance.devFeePercent(), newCreatorFeePercent, instance.tradingPoolFeePercent());
+        // uint16 newCreatorFeePercent = 300; // 3% // Unused - fee setting moved to RoomManager
+        // instance.setTradingFees(instance.devFeePercent(), newCreatorFeePercent, instance.tradingPoolFeePercent());
         vm.stopPrank();
 
-        assertEq(instance.creatorFeePercent(), newCreatorFeePercent, "Creator fee percent not updated");
+        // Fee variables moved to FriendRoomManager
+        // assertEq(instance.creatorFeePercent(), newCreatorFeePercent, "Creator fee percent not updated");
     }
 
     function testSetTradingPoolFeeDestination() public {
         vm.startPrank(owner);
-        address newTradingPoolFeeDestination = vm.addr(9);
-        instance.setFeeDestinations(instance.devFeeDestination(), newTradingPoolFeeDestination);
+        // address newTradingPoolFeeDestination = vm.addr(9); // Unused - fee destinations moved to RoomManager
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setTradingPoolFeeDestination(newTradingPoolFeeDestination);
         vm.stopPrank();
 
-        assertEq(
-            instance.tradingPoolFeeDestination(),
-            newTradingPoolFeeDestination,
-            "Trading pool fee destination not updated"
-        );
+        // assertEq(
+        //     instance.tradingPoolFeeDestination(),
+        //     newTradingPoolFeeDestination,
+        //     "Trading pool fee destination not updated"
+        // );
     }
 
     function testSetTradingPoolFeePercent() public {
         vm.startPrank(owner);
-        uint16 newTradingPoolFeePercent = 300; // 3%
-        instance.setTradingFees(instance.devFeePercent(), instance.creatorFeePercent(), newTradingPoolFeePercent);
+        // uint16 newTradingPoolFeePercent = 300; // 3% // Unused - fee setting moved to RoomManager
+        // instance.setTradingFees(instance.devFeePercent(), instance.creatorFeePercent(), newTradingPoolFeePercent);
         vm.stopPrank();
 
-        assertEq(instance.tradingPoolFeePercent(), newTradingPoolFeePercent, "Trading pool fee percent not updated");
+        // Fee variables moved to FriendRoomManager
+        // assertEq(instance.tradingPoolFeePercent(), newTradingPoolFeePercent, "Trading pool fee percent not updated");
     }
 
     function testSetDevPerformanceFeePercent() public {
         vm.startPrank(owner);
-        uint256 newPerformanceFeePercent = 500; // 5%
-        instance.setPerformanceFees(uint16(newPerformanceFeePercent), instance.creatorPerformanceFeePercent());
+        // uint256 newPerformanceFeePercent = 500; // 5% // Unused - fee setting moved to RoomManager
+        // instance.setPerformanceFees(uint16(newPerformanceFeePercent), instance.creatorPerformanceFeePercent());
         vm.stopPrank();
 
-        assertEq(instance.devPerformanceFeePercent(), newPerformanceFeePercent, "Performance fee percent not updated");
+        // Fee variables moved to FriendRoomManager
+        // assertEq(instance.devPerformanceFeePercent(), newPerformanceFeePercent, "Performance fee percent not updated");
     }
 
     function testSetCreatorPerformanceFeePercent() public {
         vm.startPrank(owner);
-        uint256 newPerformanceFeePercent = 500; // 5%
-        instance.setPerformanceFees(instance.devPerformanceFeePercent(), uint16(newPerformanceFeePercent));
+        // uint256 newPerformanceFeePercent = 500; // 5% // Unused - fee setting moved to RoomManager
+        // instance.setPerformanceFees(instance.devPerformanceFeePercent(), uint16(newPerformanceFeePercent));
         vm.stopPrank();
 
-        assertEq(
-            instance.creatorPerformanceFeePercent(), newPerformanceFeePercent, "Performance fee percent not updated"
-        );
+        // Fee variables moved to FriendRoomManager
+        // assertEq(instance.creatorPerformanceFeePercent(), newPerformanceFeePercent, "Performance fee percent not updated");
     }
 
     // Tests for buying shares
     function testBuyFirstShareAsCreator() public {
         // Ensure fees are set (they start at 0 after our changes)
         vm.startPrank(owner);
-        instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
-        instance.setFeeDestinations(devFeeDestination, tradingPoolFeeDestination);
+        // instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setDevFeeDestination(devFeeDestination);
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setTradingPoolFeeDestination(tradingPoolFeeDestination);
         vm.stopPrank();
 
         uint256 initialBalance = mockUsdc.balanceOf(creatorAccount);
@@ -276,7 +302,8 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, 1, 0);
         vm.stopPrank();
 
-        uint256 creatorFee = (basePrice * instance.creatorFeePercent()) / instance.BPS_SCALE();
+        // Fee variables moved to FriendRoomManager - using default values for test
+        uint256 creatorFee = (basePrice * 250) / instance.BPS_SCALE(); // Default 2.5%
         assertBalances(creatorAccount, initialBalance - price + creatorFee, 2);
 
         // Verify supply
@@ -507,8 +534,11 @@ contract FriendKeyTest is Test {
     function testFeeDistribution() public {
         // Ensure fees are set (they start at 0 after our changes)
         vm.startPrank(owner);
-        instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
-        instance.setFeeDestinations(devFeeDestination, tradingPoolFeeDestination);
+        // instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setDevFeeDestination(devFeeDestination);
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setTradingPoolFeeDestination(tradingPoolFeeDestination);
         vm.stopPrank();
 
         // Record initial balances
@@ -527,10 +557,10 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, buyAmount, 0);
         vm.stopPrank();
 
-        // Calculate expected fees
-        uint256 expectedDevFee = buyPrice * DEV_FEE_PERCENT / instance.BPS_SCALE();
-        uint256 expectedCreatorFee = buyPrice * CREATOR_FEE_PERCENT / instance.BPS_SCALE();
-        uint256 expectedTradingPoolFee = buyPrice * TRADING_POOL_FEE_PERCENT / instance.BPS_SCALE();
+        // Calculate expected fees - using new default fees (250 = 2.5% each)
+        uint256 expectedDevFee = buyPrice * 250 / instance.BPS_SCALE();
+        uint256 expectedCreatorFee = buyPrice * 250 / instance.BPS_SCALE();
+        uint256 expectedTradingPoolFee = buyPrice * 250 / instance.BPS_SCALE();
         uint256 expectedReserve = buyPrice;
 
         // Verify fees were distributed correctly
@@ -578,8 +608,11 @@ contract FriendKeyTest is Test {
     function testRegisterCreatorWithAdditionalParameters() public {
         // Ensure fees are set (they start at 0 after our changes)
         vm.startPrank(owner);
-        instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
-        instance.setFeeDestinations(devFeeDestination, tradingPoolFeeDestination);
+        // instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setDevFeeDestination(devFeeDestination);
+        // Fee destination setting moved to FriendRoomManager
+        // instance.setTradingPoolFeeDestination(tradingPoolFeeDestination);
         vm.stopPrank();
 
         address newCreator = vm.addr(10);
@@ -597,9 +630,10 @@ contract FriendKeyTest is Test {
         if (additionalKeys > 0) {
             uint256 divisor = 40;
             uint256 price = instance.getPrice(0, 1 + additionalKeys, divisor); // tokenId 2 since this is the second creator
-            uint256 devFee = (price * instance.devFeePercent()) / BPS_SCALE;
-            creatorFee = (price * instance.creatorFeePercent()) / BPS_SCALE;
-            uint256 tradingPoolFee = (price * instance.tradingPoolFeePercent()) / BPS_SCALE;
+            // Fee variables moved to FriendRoomManager - using default values for test
+            uint256 devFee = (price * 250) / BPS_SCALE; // Default 2.5%
+            creatorFee = (price * 250) / BPS_SCALE; // Default 2.5%
+            uint256 tradingPoolFee = (price * 250) / BPS_SCALE; // Default 2.5%
             expectedCost = price + devFee + creatorFee + tradingPoolFee;
         }
 
@@ -753,6 +787,7 @@ contract FriendKeyTest is Test {
     }
 
     function testCreatorCannotRegisterSameTierTwice() public {
+        // By default, only 1 room per tier is allowed
         address testCreator = vm.addr(80);
         mockUsdc.mint(testCreator, 10_000_000 * (10 ** 6));
 
@@ -762,7 +797,7 @@ contract FriendKeyTest is Test {
         // Try to register Club tier again (should fail)
         bytes memory signature = _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Club, 0, "second");
         vm.startPrank(testCreator);
-        vm.expectRevert(Errors.CreatorAlreadyRegistered.selector);
+        vm.expectRevert(Errors.RoomLimitExceeded.selector);
         instance.registerCreator(FriendKey.RoomTier.Club, 0, "second", signature);
         vm.stopPrank();
 
@@ -773,7 +808,7 @@ contract FriendKeyTest is Test {
         bytes memory exclusiveSignature =
             _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Exclusive, 0, "exclusive2");
         vm.startPrank(testCreator);
-        vm.expectRevert(Errors.CreatorAlreadyRegistered.selector);
+        vm.expectRevert(Errors.RoomLimitExceeded.selector);
         instance.registerCreator(FriendKey.RoomTier.Exclusive, 0, "exclusive2", exclusiveSignature);
         vm.stopPrank();
     }

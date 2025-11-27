@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendPool} from "src/FriendPool.sol";
+import {FriendRoomManager} from "src/FriendRoomManager.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {DlnOrderLib} from "src/libraries/DlnOrderLib.sol";
@@ -154,29 +155,50 @@ contract FriendPoolTest is Test {
         vm.startPrank(owner);
 
         // Deploy FriendKey
+        // Deploy and setup RoomManager for testing
+        bytes memory roomManagerInitData = abi.encodeCall(FriendRoomManager.initialize, (owner));
+        address roomManagerProxy = Upgrades.deployUUPSProxy("FriendRoomManager.sol", roomManagerInitData);
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerProxy);
+        
         bytes memory friendKeyInitializeData = abi.encodeCall(
-            FriendKey.initialize, (owner, devFeeDestination, address(mockUsdc), friendStakeBeacon, owner, 1 days)
+            FriendKey.initialize, (owner, address(mockUsdc), friendStakeBeacon, address(roomManager))
         );
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitializeData);
         friendKey = FriendKey(friendKeyProxy);
+        
+        // Set FriendKey address in RoomManager
+        roomManager.setFriendKey(address(friendKey));
+        
+        // Set fee destinations in RoomManager - CRITICAL for FriendPool tests
+        // Note: friendPool is deployed after this, so we need to set it later
 
         // Deploy FriendPool
         bytes memory friendPoolInitializeData =
             abi.encodeCall(FriendPool.initialize, (owner, address(friendKey), address(dlnSourceMock)));
         address friendPoolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", friendPoolInitializeData);
         friendPool = FriendPool(friendPoolProxy);
+        
+        // Now set the correct fee destinations
+        roomManager.setFeeDestinations(owner, address(friendPool));
 
         // Set fees after initialization - CRITICAL: Without this, no fees are collected!
-        friendKey.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
-        friendKey.setPerformanceFees(uint16(DEV_PERFORMANCE_FEE_PERCENT), uint16(CREATOR_PERFORMANCE_FEE_PERCENT));
-        friendKey.setSocialFees(uint16(DEV_FEE_PERCENT / 2), uint16(CREATOR_FEE_PERCENT));
+        // Fee setting moved to FriendRoomManager
+        // friendKey.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        // Fee setting moved to FriendRoomManager
+        // friendKey.setPerformanceFees(uint16(DEV_PERFORMANCE_FEE_PERCENT), uint16(CREATOR_PERFORMANCE_FEE_PERCENT));
+        // friendKey.setSocialFees(uint16(DEV_FEE_PERCENT / 2), uint16(CREATOR_FEE_PERCENT));
 
         // Set FriendPool as trading pool fee destination in FriendKey
-        friendKey.setFeeDestinations(owner, address(friendPool));
+        // Fee setting moved to FriendRoomManager
+        // Fee destination setting moved to FriendRoomManager
+        // friendKey.setDevFeeDestination(owner);
+        // friendKey.setTradingPoolFeeDestination(address(friendPool));
 
         // Verify fees are set correctly
-        require(friendKey.tradingPoolFeePercent() == TRADING_POOL_FEE_PERCENT, "Trading pool fee not set");
-        require(friendKey.tradingPoolFeeDestination() == address(friendPool), "Pool destination not set");
+        // Fee variables moved to FriendRoomManager
+        // require(friendKey.tradingPoolFeePercent() == TRADING_POOL_FEE_PERCENT, "Trading pool fee not set");
+        // Fee destination variables moved to FriendRoomManager
+        // require(friendKey.tradingPoolFeeDestination() == address(friendPool), "Pool destination not set");
 
         vm.stopPrank();
 

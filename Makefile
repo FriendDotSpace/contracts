@@ -78,6 +78,7 @@ simulate-testnet:
 
 # Run tests
 test:
+	make clean
 	@echo "Running tests..."
 	forge test -vv
 
