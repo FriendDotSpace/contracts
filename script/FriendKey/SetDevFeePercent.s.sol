@@ -23,7 +23,9 @@ contract SetDevFeePercentScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
-        instance.setDevFeePercent(newDevFeePercent);
+        instance.setTradingFees(
+            uint16(newDevFeePercent), instance.creatorFeePercent(), instance.tradingPoolFeePercent()
+        );
         console2.log("Dev fee percent updated to:", newDevFeePercent, "bps");
 
         vm.stopBroadcast();

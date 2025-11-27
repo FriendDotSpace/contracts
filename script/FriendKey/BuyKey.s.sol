@@ -23,7 +23,7 @@ contract BuyKeyScript is Script {
 
         usdc.approve(PROXY, type(uint256).max);
 
-        instance.buyShares(TOKEN_ID, AMOUNT);
+        instance.buyShares(TOKEN_ID, AMOUNT, 0);
 
         vm.stopBroadcast();
     }

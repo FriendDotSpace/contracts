@@ -24,7 +24,7 @@ contract SetDevPerformanceFeePercentScript is Script {
         // Update this with the new dev performance fee percentage (in basis points, e.g., 500 = 5%)
         uint256 newDevPerformanceFeePercent = vm.envUint("NEW_DEV_PERFORMANCE_FEE_PERCENT");
 
-        instance.setDevPerformanceFeePercent(newDevPerformanceFeePercent);
+        instance.setPerformanceFees(uint16(newDevPerformanceFeePercent), instance.creatorPerformanceFeePercent());
         console2.log("Dev performance fee percent updated to:", newDevPerformanceFeePercent, "bps");
 
         vm.stopBroadcast();

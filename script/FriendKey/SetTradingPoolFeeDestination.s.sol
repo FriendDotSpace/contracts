@@ -23,7 +23,7 @@ contract SetTradingPoolFeeDestinationScript is Script {
 
         FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
         if (newTradingPoolFeeDestination != address(0)) {
-            instance.setTradingPoolFeeDestination(newTradingPoolFeeDestination);
+            instance.setFeeDestinations(instance.devFeeDestination(), newTradingPoolFeeDestination);
             console2.log("Trading pool fee destination updated to:", newTradingPoolFeeDestination);
         }
         vm.stopBroadcast();

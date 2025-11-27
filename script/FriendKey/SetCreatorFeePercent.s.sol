@@ -22,7 +22,9 @@ contract SetCreatorFeePercentScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
-        instance.setCreatorFeePercent(newCreatorFeePercent);
+        instance.setTradingFees(
+            instance.devFeePercent(), uint16(newCreatorFeePercent), instance.tradingPoolFeePercent()
+        );
         console2.log("Creator fee percent updated to:", newCreatorFeePercent, "bps");
 
         vm.stopBroadcast();

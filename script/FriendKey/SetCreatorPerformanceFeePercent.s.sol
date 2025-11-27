@@ -18,12 +18,12 @@ contract SetCreatorPerformanceFeePercentScript is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         // Update this with the new creator performance fee percentage (in basis points, e.g., 1500 = 15%)
-        uint256 newCreatorPerformanceFeePercent = 1500;
+        uint16 newCreatorPerformanceFeePercent = 1500;
 
         vm.startBroadcast(deployerPrivateKey);
 
         FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
-        instance.setCreatorPerformanceFeePercent(newCreatorPerformanceFeePercent);
+        instance.setPerformanceFees(instance.devPerformanceFeePercent(), newCreatorPerformanceFeePercent);
         console2.log("Creator performance fee percent updated to:", newCreatorPerformanceFeePercent, "bps");
 
         vm.stopBroadcast();

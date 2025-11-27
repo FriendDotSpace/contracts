@@ -24,7 +24,7 @@ contract SetDevFeeDestinationScript is Script {
 
         FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
         if (newDevFeeDestination != address(0)) {
-            instance.setDevFeeDestination(newDevFeeDestination);
+            instance.setFeeDestinations(newDevFeeDestination, instance.tradingPoolFeeDestination());
             console2.log("Dev fee destination updated to:", newDevFeeDestination);
         }
         vm.stopBroadcast();

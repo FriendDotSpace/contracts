@@ -52,14 +52,14 @@ contract FriendKey is
     /// @dev Determines the functionality and features available in the room
     enum RoomType {
         Trading, // Full trading functionality with staking pools and cross-chain features
-        Social   // Social-only functionality without staking or cross-chain features
+        Social // Social-only functionality without staking
     }
 
     /// @notice Enum defining different room tiers with varying bonding curve parameters
     /// @dev Each tier has a different divisor that affects the pricing curve steepness
     enum RoomTier {
-        Casual,    // Light tier with high divisor (4000) - Social default (V2)
-        Club,     // Medium tier with moderate divisor (40)
+        Casual, // Light tier with high divisor (4000) - Social default (V2)
+        Club, // Medium tier with moderate divisor (40)
         Exclusive // Premium tier with lowest divisor (4) - highest prices
     }
 
@@ -71,18 +71,20 @@ contract FriendKey is
 
     /// @notice Address where development fees are sent
     address public devFeeDestination;
-    /// @notice Percentage of each trade sent as development fee (in basis points)
-    uint256 public devFeePercent;
-    /// @notice Percentage of each trade sent to creator (in basis points)
-    uint256 public creatorFeePercent;
     /// @notice Address where trading pool fees are sent (usually FriendPool contract)
     address public tradingPoolFeeDestination;
-    /// @notice Percentage of each trade sent as trading pool fee (in basis points)
-    uint256 public tradingPoolFeePercent;
-    /// @notice Development performance fee percentage (in basis points)
-    uint256 public devPerformanceFeePercent;
-    /// @notice Creator performance fee percentage (in basis points)
-    uint256 public creatorPerformanceFeePercent;
+
+    /// @notice Packed fee percentages (in basis points)
+    /// @notice fee for trading rooms dev fee
+    uint16 public devFeePercent;
+    uint16 public creatorFeePercent;
+    uint16 public tradingPoolFeePercent;
+    uint16 public devPerformanceFeePercent;
+    uint16 public creatorPerformanceFeePercent;
+
+    /// @notice fee for social rooms dev fee
+    uint16 public socialDevFeePercent;
+    uint16 public socialCreatorFeePercent;
     /// @notice Address of the FriendStake beacon contract for beacon proxy cloning
     address public friendStakeBeacon;
 
@@ -139,7 +141,6 @@ contract FriendKey is
     /// @dev Maps creatorAddress => roomType => tier => bool (for V2 compatibility)
     mapping(address => mapping(RoomType => mapping(RoomTier => bool))) public creatorRoomUsed;
 
-
     /// @dev keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
     bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
         keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
@@ -181,7 +182,7 @@ contract FriendKey is
         address indexed stakingPool,
         string tokenURI,
         uint256 initialSupply,
-        RoomTier tier, 
+        RoomTier tier,
         RoomType roomType
     );
 
@@ -232,12 +233,6 @@ contract FriendKey is
      * @dev This function replaces the constructor in upgradeable contracts
      * @param initialOwner The address that will own the contract
      * @param _devFeeDestination Address where development fees are sent
-     * @param _devFeePercent Development fee percentage (in basis points)
-     * @param _creatorFeePercent Creator fee percentage (in basis points)
-     * @param _tradingPoolFeeDestination Address where trading pool fees are sent
-     * @param _tradingPoolFeePercent Trading pool fee percentage (in basis points)
-     * @param _devPerformanceFeePercent Development performance fee percentage
-     * @param _creatorPerformanceFeePercent Creator performance fee percentage
      * @param _bondingTokenAddress Address of the ERC20 token used for trading (e.g., USDC)
      * @param _friendStakeBeacon Address of the FriendStake beacon for beacon proxy cloning
      * @param _authority Address with authority to lock staking
@@ -247,12 +242,6 @@ contract FriendKey is
     function initialize(
         address initialOwner,
         address _devFeeDestination,
-        uint256 _devFeePercent,
-        uint256 _creatorFeePercent,
-        address _tradingPoolFeeDestination,
-        uint256 _tradingPoolFeePercent,
-        uint256 _devPerformanceFeePercent,
-        uint256 _creatorPerformanceFeePercent,
         address _bondingTokenAddress,
         address _friendStakeBeacon,
         address _authority,
@@ -266,10 +255,6 @@ contract FriendKey is
         __EIP712_init("FriendKey", "1");
 
         BPS_SCALE = 10000;
-
-        if (_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent > BPS_SCALE) {
-            revert Errors.TotalFeePercentTooHigh();
-        }
         if (_bondingTokenAddress == address(0)) revert Errors.ZeroAddress();
         if (_devFeeDestination == address(0)) revert Errors.ZeroAddress();
         if (_friendStakeBeacon == address(0)) revert Errors.ZeroAddress();
@@ -277,12 +262,6 @@ contract FriendKey is
         if (_eligibilityDuration == 0) revert Errors.InvalidDuration();
 
         devFeeDestination = _devFeeDestination;
-        devFeePercent = _devFeePercent;
-        creatorFeePercent = _creatorFeePercent;
-        tradingPoolFeeDestination = _tradingPoolFeeDestination; // Can be zero before FriendPool is set up
-        tradingPoolFeePercent = _tradingPoolFeePercent;
-        devPerformanceFeePercent = _devPerformanceFeePercent;
-        creatorPerformanceFeePercent = _creatorPerformanceFeePercent;
         bondingToken = IERC20Metadata(_bondingTokenAddress);
         friendStakeBeacon = _friendStakeBeacon;
         authority = _authority;
@@ -304,7 +283,7 @@ contract FriendKey is
      * @dev Only callable by contract owner
      * @param newuri The new base URI string
      */
-    function setURI(string memory newuri) public onlyOwner {
+    function setURI(string memory newuri) external onlyOwner {
         _setURI(newuri);
     }
 
@@ -316,64 +295,31 @@ contract FriendKey is
 
     // --- Fee and Creator Management (Owner only) ---
 
-    /**
-     * @notice Sets the destination address for development fees
-     * @dev Only callable by contract owner
-     * @param _feeDestination New development fee destination address
-     */
-    function setDevFeeDestination(address _feeDestination) public onlyOwner {
-        if (_feeDestination == address(0)) revert Errors.ZeroAddress();
-        devFeeDestination = _feeDestination;
-        emit FeeDestinationChanged(_feeDestination, Target.DevFee);
+    function setFeeDestinations(address _devDest, address _poolDest) external onlyOwner {
+        if (_devDest == address(0) || _poolDest == address(0)) revert Errors.ZeroAddress();
+        devFeeDestination = _devDest;
+        tradingPoolFeeDestination = _poolDest;
     }
 
-    /**
-     * @notice Sets the development fee percentage
-     * @dev Only callable by contract owner. Must not exceed total fee limit
-     * @param _feePercent New development fee percentage in basis points
-     */
-    function setDevFeePercent(uint256 _feePercent) public onlyOwner {
-        if (_feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
-        if (_feePercent + creatorFeePercent + tradingPoolFeePercent > BPS_SCALE) {
-            revert Errors.TotalFeePercentTooHigh();
-        }
-        devFeePercent = _feePercent;
-        emit FeePercentChanged(_feePercent, Target.DevFee);
+    function setTradingFees(uint16 _devFee, uint16 _creatorFee, uint16 _poolFee) external onlyOwner {
+        if (_devFee + _creatorFee + _poolFee > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        devFeePercent = _devFee;
+        creatorFeePercent = _creatorFee;
+        tradingPoolFeePercent = _poolFee;
     }
 
-    function setCreatorFeePercent(uint256 _feePercent) public onlyOwner {
-        if (_feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
-        if (devFeePercent + _feePercent + tradingPoolFeePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
-        creatorFeePercent = _feePercent;
-        emit FeePercentChanged(_feePercent, Target.CreatorFee);
+    function setPerformanceFees(uint16 _devFee, uint16 _creatorFee) external onlyOwner {
+        devPerformanceFeePercent = _devFee;
+        creatorPerformanceFeePercent = _creatorFee;
     }
 
-    function setTradingPoolFeeDestination(address _feeDestination) public onlyOwner {
-        if (_feeDestination == address(0)) revert Errors.ZeroAddress();
-        tradingPoolFeeDestination = _feeDestination;
-        emit FeeDestinationChanged(_feeDestination, Target.TradingPoolFee);
+    function setSocialFees(uint16 _devFee, uint16 _creatorFee) external onlyOwner {
+        if (_devFee + _creatorFee > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        socialDevFeePercent = _devFee;
+        socialCreatorFeePercent = _creatorFee;
     }
 
-    function setTradingPoolFeePercent(uint256 _feePercent) public onlyOwner {
-        if (_feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
-        if (devFeePercent + creatorFeePercent + _feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
-        tradingPoolFeePercent = _feePercent;
-        emit FeePercentChanged(_feePercent, Target.TradingPoolFee);
-    }
-
-    function setDevPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
-        if (creatorPerformanceFeePercent + _feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
-        devPerformanceFeePercent = _feePercent;
-        emit FeePercentChanged(_feePercent, Target.DevPerformanceFee);
-    }
-
-    function setCreatorPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
-        if (devPerformanceFeePercent + _feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
-        creatorPerformanceFeePercent = _feePercent;
-        emit FeePercentChanged(_feePercent, Target.CreatorPerformanceFee);
-    }
-
-    function setIsTierAllowed(RoomType roomType, RoomTier tier, bool isAllowed) public onlyOwner {
+    function setRoomTierAllowed(RoomType roomType, RoomTier tier, bool isAllowed) external onlyOwner {
         isTierAllowed[roomType][tier] = isAllowed;
         emit IsTierAllowedChanged(roomType, tier, isAllowed);
     }
@@ -404,7 +350,8 @@ contract FriendKey is
      * @return The newly created token ID
      */
     function registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature)
-        public virtual
+        public
+        virtual
         returns (uint256)
     {
         if (!isTierAllowed[RoomType.Trading][tier]) revert Errors.TierNotAllowedForRoomType();
@@ -423,7 +370,12 @@ contract FriendKey is
         return registerCreator(RoomTier.Club, 0, metadata, signature);
     }
 
-    function registerSocialCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature) public returns (uint256) {
+    function registerSocialCreator(
+        RoomTier tier,
+        uint256 additionalKeys,
+        string calldata metadata,
+        bytes calldata signature
+    ) public returns (uint256) {
         if (!isTierAllowed[RoomType.Social][tier]) revert Errors.TierNotAllowedForRoomType();
         _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
         return _registerCreator(RoomType.Social, tier, additionalKeys, metadata);
@@ -433,12 +385,11 @@ contract FriendKey is
         return registerSocialCreator(RoomTier.Casual, 0, metadata, signature);
     }
 
-
     function _registerCreator(RoomType roomType, RoomTier tier, uint256 additionalKeys, string calldata metadata)
         internal
         virtual
         returns (uint256)
-    {   
+    {
         address creator = msg.sender;
         require(!creatorRoomUsed[creator][roomType][tier], Errors.CreatorAlreadyRegistered());
 
@@ -468,7 +419,7 @@ contract FriendKey is
             stakingPoolByTokenId[id] = friendStake;
         }
 
-        buyShares(id, 1 + additionalKeys); // Mint 1 + additional shares
+        buyShares(id, 1 + additionalKeys, 0); // Mint 1 + additional shares
         emit KeyCreated(id, creator, stakingPoolByTokenId[id], tokenUri, 1 + additionalKeys, tier, roomType);
         return id;
     }
@@ -573,7 +524,19 @@ contract FriendKey is
      * @return The total cost including base price and all fees
      */
     function getBuyPriceAfterFee(uint256 id, uint256 amount) public view virtual returns (uint256) {
-        uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
+        uint256 divisor = getDivisor(id);
+        if (roomTypes[id] == RoomType.Social) {
+            return BondingCurveLib.getBuyPriceAfterFee(
+                totalSupply(id),
+                amount,
+                divisor,
+                bondingTokenPriceUnit,
+                socialDevFeePercent,
+                socialCreatorFeePercent,
+                0,
+                BPS_SCALE
+            );
+        }
         return BondingCurveLib.getBuyPriceAfterFee(
             totalSupply(id),
             amount,
@@ -593,7 +556,19 @@ contract FriendKey is
      * @return The net proceeds after deducting all fees
      */
     function getSellPriceAfterFee(uint256 id, uint256 amount) public view virtual returns (uint256) {
-        uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
+        uint256 divisor = getDivisor(id);
+        if (roomTypes[id] == RoomType.Social) {
+            return BondingCurveLib.getSellPriceAfterFee(
+                totalSupply(id),
+                amount,
+                divisor,
+                bondingTokenPriceUnit,
+                socialDevFeePercent,
+                socialCreatorFeePercent,
+                0,
+                BPS_SCALE
+            );
+        }
         return BondingCurveLib.getSellPriceAfterFee(
             totalSupply(id),
             amount,
@@ -607,16 +582,6 @@ contract FriendKey is
     }
 
     // --- Buy and Sell Shares ---
-
-    /**
-     * @notice Purchases tokens for a specific creator using bonding curve pricing
-     * @dev Calculates price, collects fees, mints tokens, and distributes payments
-     * @param tokenId The ID of the creator's token to buy
-     * @param amount Number of tokens to purchase
-     */
-    function buyShares(uint256 tokenId, uint256 amount) public {
-        buyShares(tokenId, amount, 0);
-    }
 
     /**
      * @notice Purchases tokens for a specific creator using bonding curve pricing with slippage protection
@@ -635,9 +600,19 @@ contract FriendKey is
             if (msg.sender != creatorAddress) revert Errors.OnlyCreatorCanBuyFirstShare();
         }
 
-        uint256 price = getPrice(currentSupply, amount, bondingCurveDivisors[uint256(roomTiers[tokenId])]);
-        (uint256 devFee, uint256 creatorFee, uint256 tradingPoolFee) =
-            BondingCurveLib.calculateFees(price, devFeePercent, creatorFeePercent, tradingPoolFeePercent, BPS_SCALE);
+        uint256 price = getPrice(currentSupply, amount, getDivisor(tokenId));
+        uint256 devFee;
+        uint256 creatorFee;
+        uint256 tradingPoolFee;
+
+        if (roomTypes[tokenId] == RoomType.Social) {
+            (devFee, creatorFee, tradingPoolFee) =
+                BondingCurveLib.calculateFees(price, socialDevFeePercent, socialCreatorFeePercent, 0, BPS_SCALE);
+        } else {
+            (devFee, creatorFee, tradingPoolFee) = BondingCurveLib.calculateFees(
+                price, devFeePercent, creatorFeePercent, tradingPoolFeePercent, BPS_SCALE
+            );
+        }
         uint256 totalCost = price + devFee + creatorFee + tradingPoolFee;
 
         // Slippage protection: ensure total cost doesn't exceed maxSpend
@@ -675,16 +650,6 @@ contract FriendKey is
     }
 
     /**
-     * @notice Sells tokens for a specific creator using bonding curve pricing
-     * @dev Burns tokens, calculates proceeds after fees, and transfers payment to seller
-     * @param tokenId The ID of the creator's token to sell
-     * @param amount Number of tokens to sell
-     */
-    function sellShares(uint256 tokenId, uint256 amount) public {
-        sellShares(tokenId, amount, 0);
-    }
-
-    /**
      * @notice Sells tokens for a specific creator using bonding curve pricing with slippage protection
      * @dev Burns tokens, calculates proceeds after fees, and transfers payment to seller
      * @param tokenId The ID of the creator's token to sell
@@ -700,9 +665,19 @@ contract FriendKey is
         uint256 currentSupply = totalSupply(tokenId);
         if (currentSupply <= amount) revert Errors.CannotSellAllShares();
 
-        uint256 price = getPrice(currentSupply - amount, amount, bondingCurveDivisors[uint256(roomTiers[tokenId])]);
-        (uint256 devFee, uint256 creatorFee, uint256 tradingPoolFee) =
-            BondingCurveLib.calculateFees(price, devFeePercent, creatorFeePercent, tradingPoolFeePercent, BPS_SCALE);
+        uint256 price = getPrice(currentSupply - amount, amount, getDivisor(tokenId));
+        uint256 devFee;
+        uint256 creatorFee;
+        uint256 tradingPoolFee;
+
+        if (roomTypes[tokenId] == RoomType.Social) {
+            (devFee, creatorFee, tradingPoolFee) =
+                BondingCurveLib.calculateFees(price, socialDevFeePercent, socialCreatorFeePercent, 0, BPS_SCALE);
+        } else {
+            (devFee, creatorFee, tradingPoolFee) = BondingCurveLib.calculateFees(
+                price, devFeePercent, creatorFeePercent, tradingPoolFeePercent, BPS_SCALE
+            );
+        }
 
         uint256 totalFees = devFee + creatorFee + tradingPoolFee;
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
@@ -827,8 +802,8 @@ contract FriendKey is
      * @param tier The room tier to check availability for
      * @return True if the creator can still register this tier, false if already used
      */
-    function canRegisterTier(address creator, RoomTier tier) public view returns (bool) {
-        return !creatorRoomUsed[creator][RoomType.Trading][tier];
+    function canRegisterRoom(address creator, RoomType roomType, RoomTier tier) public view returns (bool) {
+        return !creatorRoomUsed[creator][roomType][tier];
     }
 
     /**

@@ -22,7 +22,9 @@ contract SetTradingPoolFeePercentScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
-        instance.setTradingPoolFeePercent(newTradingPoolFeePercent);
+        instance.setTradingFees(
+            instance.devFeePercent(), instance.creatorFeePercent(), uint16(newTradingPoolFeePercent)
+        );
         console2.log("Trading pool fee percent updated to:", newTradingPoolFeePercent, "bps");
 
         vm.stopBroadcast();

@@ -159,21 +159,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(owner);
         bytes memory initializeData = abi.encodeCall(
-            FriendKey.initialize,
-            (
-                owner,
-                devFeeDestination,
-                DEV_FEE_PERCENT,
-                CREATOR_FEE_PERCENT,
-                tradingPoolFeeDestination,
-                TRADING_POOL_FEE_PERCENT,
-                0, // performance fee percent is not used in this test
-                0,
-                address(mockUsdc),
-                friendStakeBeacon,
-                owner,
-                1 days
-            )
+            FriendKey.initialize, (owner, devFeeDestination, address(mockUsdc), friendStakeBeacon, owner, 1 days)
         );
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
         instance = FriendKey(proxy);
@@ -202,20 +188,20 @@ contract FriendKeyTest is Test {
     function testSetDevFeeDestination() public {
         vm.startPrank(owner);
         address newDevFeeDestination = vm.addr(8);
-        instance.setDevFeeDestination(newDevFeeDestination);
+        instance.setFeeDestinations(newDevFeeDestination, newDevFeeDestination);
         vm.stopPrank();
 
         assertEq(instance.devFeeDestination(), newDevFeeDestination, "Dev fee destination not updated");
-        vm.expectRevert(Errors.ZeroAddress.selector);
         vm.startPrank(owner);
-        instance.setDevFeeDestination(address(0));
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        instance.setFeeDestinations(address(0), instance.tradingPoolFeeDestination());
         vm.stopPrank();
     }
 
     function testSetDevFeePercent() public {
         vm.startPrank(owner);
-        uint256 newDevFeePercent = 300; // 3%
-        instance.setDevFeePercent(newDevFeePercent);
+        uint16 newDevFeePercent = 300; // 3%
+        instance.setTradingFees(newDevFeePercent, instance.creatorFeePercent(), instance.tradingPoolFeePercent());
         vm.stopPrank();
 
         assertEq(instance.devFeePercent(), newDevFeePercent, "Dev fee percent not updated");
@@ -223,8 +209,8 @@ contract FriendKeyTest is Test {
 
     function testSetCreatorFeePercent() public {
         vm.startPrank(owner);
-        uint256 newCreatorFeePercent = 300; // 3%
-        instance.setCreatorFeePercent(newCreatorFeePercent);
+        uint16 newCreatorFeePercent = 300; // 3%
+        instance.setTradingFees(instance.devFeePercent(), newCreatorFeePercent, instance.tradingPoolFeePercent());
         vm.stopPrank();
 
         assertEq(instance.creatorFeePercent(), newCreatorFeePercent, "Creator fee percent not updated");
@@ -233,7 +219,7 @@ contract FriendKeyTest is Test {
     function testSetTradingPoolFeeDestination() public {
         vm.startPrank(owner);
         address newTradingPoolFeeDestination = vm.addr(9);
-        instance.setTradingPoolFeeDestination(newTradingPoolFeeDestination);
+        instance.setFeeDestinations(instance.devFeeDestination(), newTradingPoolFeeDestination);
         vm.stopPrank();
 
         assertEq(
@@ -245,8 +231,8 @@ contract FriendKeyTest is Test {
 
     function testSetTradingPoolFeePercent() public {
         vm.startPrank(owner);
-        uint256 newTradingPoolFeePercent = 300; // 3%
-        instance.setTradingPoolFeePercent(newTradingPoolFeePercent);
+        uint16 newTradingPoolFeePercent = 300; // 3%
+        instance.setTradingFees(instance.devFeePercent(), instance.creatorFeePercent(), newTradingPoolFeePercent);
         vm.stopPrank();
 
         assertEq(instance.tradingPoolFeePercent(), newTradingPoolFeePercent, "Trading pool fee percent not updated");
@@ -255,7 +241,7 @@ contract FriendKeyTest is Test {
     function testSetDevPerformanceFeePercent() public {
         vm.startPrank(owner);
         uint256 newPerformanceFeePercent = 500; // 5%
-        instance.setDevPerformanceFeePercent(newPerformanceFeePercent);
+        instance.setPerformanceFees(uint16(newPerformanceFeePercent), instance.creatorPerformanceFeePercent());
         vm.stopPrank();
 
         assertEq(instance.devPerformanceFeePercent(), newPerformanceFeePercent, "Performance fee percent not updated");
@@ -264,7 +250,7 @@ contract FriendKeyTest is Test {
     function testSetCreatorPerformanceFeePercent() public {
         vm.startPrank(owner);
         uint256 newPerformanceFeePercent = 500; // 5%
-        instance.setCreatorPerformanceFeePercent(newPerformanceFeePercent);
+        instance.setPerformanceFees(instance.devPerformanceFeePercent(), uint16(newPerformanceFeePercent));
         vm.stopPrank();
 
         assertEq(
@@ -274,16 +260,22 @@ contract FriendKeyTest is Test {
 
     // Tests for buying shares
     function testBuyFirstShareAsCreator() public {
+        // Ensure fees are set (they start at 0 after our changes)
+        vm.startPrank(owner);
+        instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        instance.setFeeDestinations(devFeeDestination, tradingPoolFeeDestination);
+        vm.stopPrank();
+
         uint256 initialBalance = mockUsdc.balanceOf(creatorAccount);
         uint256 basePrice = instance.getBuyPrice(CREATOR_TOKEN_ID, 1);
         uint256 price = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
 
         vm.startPrank(creatorAccount);
         mockUsdc.approve(address(instance), price);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
+        instance.buyShares(CREATOR_TOKEN_ID, 1, 0);
         vm.stopPrank();
 
-        uint256 creatorFee = (basePrice * CREATOR_FEE_PERCENT) / instance.BPS_SCALE();
+        uint256 creatorFee = (basePrice * instance.creatorFeePercent()) / instance.BPS_SCALE();
         assertBalances(creatorAccount, initialBalance - price + creatorFee, 2);
 
         // Verify supply
@@ -294,7 +286,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), 1000 * (10 ** 6));
 
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
+        instance.buyShares(CREATOR_TOKEN_ID, 1, 0);
         vm.stopPrank();
 
         // Verify supply remains 2 // one share on registration, one share bought by buyer
@@ -309,7 +301,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), price);
-        instance.buyShares(CREATOR_TOKEN_ID, shareAmount);
+        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, 0);
         vm.stopPrank();
 
         assertBalances(buyerAccount, initialBuyerBalance - price, shareAmount);
@@ -321,7 +313,7 @@ contract FriendKeyTest is Test {
     function testCannotBuyZeroShares() public {
         vm.startPrank(creatorAccount);
         vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
-        instance.buyShares(CREATOR_TOKEN_ID, 0);
+        instance.buyShares(CREATOR_TOKEN_ID, 0, 0);
         vm.stopPrank();
     }
 
@@ -334,14 +326,14 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), buyerPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyerShareAmount);
+        instance.buyShares(CREATOR_TOKEN_ID, buyerShareAmount, 0);
         vm.stopPrank();
 
         uint256 anotherBuyerPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, anotherBuyerShareAmount);
 
         vm.startPrank(anotherBuyerAccount);
         mockUsdc.approve(address(instance), anotherBuyerPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, anotherBuyerShareAmount);
+        instance.buyShares(CREATOR_TOKEN_ID, anotherBuyerShareAmount, 0);
         vm.stopPrank();
 
         // Verify balances
@@ -361,7 +353,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount, 0);
 
         // Buyer sells 1 share
         uint256 sellAmount = 1;
@@ -369,7 +361,7 @@ contract FriendKeyTest is Test {
         uint256 initialBondingCurveReserves = instance.bondingCurveReserves(creatorAccount);
         uint256 sellPriveWithFee = instance.getSellPrice(CREATOR_TOKEN_ID, sellAmount);
         uint256 sellPrice = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
-        instance.sellShares(CREATOR_TOKEN_ID, sellAmount);
+        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, 0);
         uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
         vm.stopPrank();
 
@@ -431,7 +423,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
         mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 1);
+        instance.buyShares(CREATOR_TOKEN_ID, 1, 0);
         vm.stopPrank();
         uint256 holdingSince = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
         assertTrue(holdingSince > 0, "Holding since should be set after first buy");
@@ -440,14 +432,14 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         uint256 newBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
         mockUsdc.approve(address(instance), newBuyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, 2);
+        instance.buyShares(CREATOR_TOKEN_ID, 2, 0);
         vm.stopPrank();
         uint256 newHoldingSince = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
         assertEq(newHoldingSince, holdingSince, "Holding since should not change on subsequent buys");
 
         // Should not change on sells
         vm.startPrank(buyerAccount);
-        instance.sellShares(CREATOR_TOKEN_ID, 1);
+        instance.sellShares(CREATOR_TOKEN_ID, 1, 0);
         vm.stopPrank();
         uint256 holdingSinceAfterSell = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
         assertEq(holdingSinceAfterSell, holdingSince, "Holding since should not change on sells");
@@ -474,12 +466,12 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount, 0);
 
         // Buyer sells multiple shares
         uint256 sellAmount = 3;
         uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
-        instance.sellShares(CREATOR_TOKEN_ID, sellAmount);
+        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, 0);
         uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
         vm.stopPrank();
 
@@ -495,11 +487,11 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount, 0);
 
         // Attempt to sell more than owned
         vm.expectRevert(Errors.InsufficientShares.selector);
-        instance.sellShares(CREATOR_TOKEN_ID, buyAmount + 1);
+        instance.sellShares(CREATOR_TOKEN_ID, buyAmount + 1, 0);
         vm.stopPrank();
     }
 
@@ -507,11 +499,17 @@ contract FriendKeyTest is Test {
         vm.startPrank(creatorAccount);
         // Creator attempts to sell all shares
         vm.expectRevert(Errors.CannotSellAllShares.selector);
-        instance.sellShares(CREATOR_TOKEN_ID, 1);
+        instance.sellShares(CREATOR_TOKEN_ID, 1, 0);
         vm.stopPrank();
     }
 
     function testFeeDistribution() public {
+        // Ensure fees are set (they start at 0 after our changes)
+        vm.startPrank(owner);
+        instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        instance.setFeeDestinations(devFeeDestination, tradingPoolFeeDestination);
+        vm.stopPrank();
+
         // Record initial balances
         uint256 initialDevBalance = mockUsdc.balanceOf(devFeeDestination);
         uint256 initialTradingPoolBalance = mockUsdc.balanceOf(tradingPoolFeeDestination);
@@ -525,7 +523,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), totalBuyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount, 0);
         vm.stopPrank();
 
         // Calculate expected fees
@@ -577,6 +575,12 @@ contract FriendKeyTest is Test {
     }
 
     function testRegisterCreatorWithAdditionalParameters() public {
+        // Ensure fees are set (they start at 0 after our changes)
+        vm.startPrank(owner);
+        instance.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        instance.setFeeDestinations(devFeeDestination, tradingPoolFeeDestination);
+        vm.stopPrank();
+
         address newCreator = vm.addr(10);
         mockUsdc.mint(newCreator, 1_000_000 * (10 ** 6));
 
@@ -592,9 +596,9 @@ contract FriendKeyTest is Test {
         if (additionalKeys > 0) {
             uint256 divisor = 40;
             uint256 price = instance.getPrice(0, 1 + additionalKeys, divisor); // tokenId 2 since this is the second creator
-            uint256 devFee = (price * DEV_FEE_PERCENT) / BPS_SCALE;
-            creatorFee = (price * CREATOR_FEE_PERCENT) / BPS_SCALE;
-            uint256 tradingPoolFee = (price * TRADING_POOL_FEE_PERCENT) / BPS_SCALE;
+            uint256 devFee = (price * instance.devFeePercent()) / BPS_SCALE;
+            creatorFee = (price * instance.creatorFeePercent()) / BPS_SCALE;
+            uint256 tradingPoolFee = (price * instance.tradingPoolFeePercent()) / BPS_SCALE;
             expectedCost = price + devFee + creatorFee + tradingPoolFee;
         }
 
@@ -657,7 +661,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), buyPrice);
-        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount, 0);
         vm.stopPrank();
 
         // Verify buyer owns the shares
@@ -695,9 +699,13 @@ contract FriendKeyTest is Test {
         address testCreator = vm.addr(60);
 
         // Initially, creator should be able to register all tiers
-        assertTrue(instance.canRegisterTier(testCreator, FriendKey.RoomTier.Club), "Should be able to register Club");
         assertTrue(
-            instance.canRegisterTier(testCreator, FriendKey.RoomTier.Exclusive), "Should be able to register Exclusive"
+            instance.canRegisterRoom(testCreator, FriendKey.RoomType.Trading, FriendKey.RoomTier.Club),
+            "Should be able to register Club"
+        );
+        assertTrue(
+            instance.canRegisterRoom(testCreator, FriendKey.RoomType.Trading, FriendKey.RoomTier.Exclusive),
+            "Should be able to register Exclusive"
         );
 
         // Register creator with Club tier
@@ -706,10 +714,11 @@ contract FriendKeyTest is Test {
 
         // Now Club tier should not be available, but Exclusive should be
         assertFalse(
-            instance.canRegisterTier(testCreator, FriendKey.RoomTier.Club), "Should not be able to register Club again"
+            instance.canRegisterRoom(testCreator, FriendKey.RoomType.Trading, FriendKey.RoomTier.Club),
+            "Should not be able to register Club again"
         );
         assertTrue(
-            instance.canRegisterTier(testCreator, FriendKey.RoomTier.Exclusive),
+            instance.canRegisterRoom(testCreator, FriendKey.RoomType.Trading, FriendKey.RoomTier.Exclusive),
             "Should still be able to register Exclusive"
         );
     }

@@ -20,11 +20,11 @@ import {FriendUSD} from "src/FriendUSD.sol";
  */
 contract Deploy is Script {
     // Configuration parameters
-    uint256 constant DEV_FEE_PERCENT = 200; // 2%
-    uint256 constant CREATOR_FEE_PERCENT = 200; // 2%
-    uint256 constant TRADING_POOL_FEE_PERCENT = 600; // 6%
-    uint256 constant DEV_PERFORMANCE_FEE_PERCENT = 500; // 5%
-    uint256 constant CREATOR_PERFORMANCE_FEE_PERCENT = 1500; // 15%
+    uint16 constant DEV_FEE_PERCENT = 200; // 2%
+    uint16 constant CREATOR_FEE_PERCENT = 200; // 2%
+    uint16 constant TRADING_POOL_FEE_PERCENT = 600; // 6%
+    uint16 constant DEV_PERFORMANCE_FEE_PERCENT = 500; // 5%
+    uint16 constant CREATOR_PERFORMANCE_FEE_PERCENT = 1500; // 15%
     uint256 constant ELIGIBILITY_DURATION = 1 days;
     address constant SIGNEE = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788;
     function setUp() public {}
@@ -86,12 +86,6 @@ contract Deploy is Script {
             (
                 initialOwner,
                 initialOwner, // devFeeDestination (using deployer initially)
-                DEV_FEE_PERCENT,
-                CREATOR_FEE_PERCENT,
-                address(0), // tradingPoolFeeDestination (will be set to FriendPool later)
-                TRADING_POOL_FEE_PERCENT,
-                DEV_PERFORMANCE_FEE_PERCENT,
-                CREATOR_PERFORMANCE_FEE_PERCENT,
                 bondingToken,
                 friendStakeBeacon,
                 authorityAddress,
@@ -104,7 +98,13 @@ contract Deploy is Script {
         console2.log("FriendKey deployed to:", address(friendKey));
         friendKey.setSignee(SIGNEE);
         console2.log("Signee set to:", SIGNEE);
-        console2.log("");
+
+        // set fees after initialization
+        friendKey.setTradingFees(DEV_FEE_PERCENT, CREATOR_FEE_PERCENT, TRADING_POOL_FEE_PERCENT);
+        friendKey.setPerformanceFees(DEV_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT);
+        console2.log("Trading pool fees set");
+        friendKey.setSocialFees(DEV_FEE_PERCENT / 2, CREATOR_FEE_PERCENT);
+        console2.log("Social fees set");
 
         // ============================================
         // 4. Deploy FriendPool (UUPS Proxy)
@@ -123,7 +123,11 @@ contract Deploy is Script {
         // 5. Configure FriendKey to use FriendPool
         // ============================================
         console2.log("Configuring FriendKey to use FriendPool...");
-        friendKey.setTradingPoolFeeDestination(address(friendPool));
+        // Set fees after initialization
+        friendKey.setTradingFees(DEV_FEE_PERCENT, CREATOR_FEE_PERCENT, TRADING_POOL_FEE_PERCENT);
+        friendKey.setPerformanceFees(DEV_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT);
+        friendKey.setSocialFees(DEV_FEE_PERCENT / 2, CREATOR_FEE_PERCENT);
+        friendKey.setFeeDestinations(initialOwner, address(friendPool));
         console2.log("Trading pool fee destination set to FriendPool");
         friendPool.setDispatcher(authorityAddress);
         console2.log("");

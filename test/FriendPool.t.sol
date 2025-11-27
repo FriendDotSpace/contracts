@@ -155,21 +155,7 @@ contract FriendPoolTest is Test {
 
         // Deploy FriendKey
         bytes memory friendKeyInitializeData = abi.encodeCall(
-            FriendKey.initialize,
-            (
-                owner,
-                devFeeDestination,
-                DEV_FEE_PERCENT,
-                CREATOR_FEE_PERCENT,
-                address(0), // We'll set this after FriendPool is deployed
-                TRADING_POOL_FEE_PERCENT,
-                DEV_PERFORMANCE_FEE_PERCENT,
-                CREATOR_PERFORMANCE_FEE_PERCENT,
-                address(mockUsdc),
-                friendStakeBeacon,
-                owner,
-                1 days
-            )
+            FriendKey.initialize, (owner, devFeeDestination, address(mockUsdc), friendStakeBeacon, owner, 1 days)
         );
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitializeData);
         friendKey = FriendKey(friendKeyProxy);
@@ -180,8 +166,17 @@ contract FriendPoolTest is Test {
         address friendPoolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", friendPoolInitializeData);
         friendPool = FriendPool(friendPoolProxy);
 
+        // Set fees after initialization - CRITICAL: Without this, no fees are collected!
+        friendKey.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        friendKey.setPerformanceFees(uint16(DEV_PERFORMANCE_FEE_PERCENT), uint16(CREATOR_PERFORMANCE_FEE_PERCENT));
+        friendKey.setSocialFees(uint16(DEV_FEE_PERCENT / 2), uint16(CREATOR_FEE_PERCENT));
+
         // Set FriendPool as trading pool fee destination in FriendKey
-        friendKey.setTradingPoolFeeDestination(address(friendPool));
+        friendKey.setFeeDestinations(owner, address(friendPool));
+
+        // Verify fees are set correctly
+        require(friendKey.tradingPoolFeePercent() == TRADING_POOL_FEE_PERCENT, "Trading pool fee not set");
+        require(friendKey.tradingPoolFeeDestination() == address(friendPool), "Pool destination not set");
 
         vm.stopPrank();
 
@@ -203,7 +198,7 @@ contract FriendPoolTest is Test {
         vm.startPrank(buyer);
         uint256 cost = friendKey.getBuyPriceAfterFee(tokenId, amount);
         mockUsdc.approve(address(friendKey), cost);
-        friendKey.buyShares(tokenId, amount);
+        friendKey.buyShares(tokenId, amount, 0);
         vm.stopPrank();
     }
 
