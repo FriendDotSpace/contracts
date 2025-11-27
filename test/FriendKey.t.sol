@@ -7,7 +7,7 @@ import {FriendKey} from "src/FriendKey.sol";
 import {FriendStake} from "src/FriendStake.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {IFriendPool} from "src/interfaces/IFriendPool.sol";
+import {Errors} from "src/libraries/Errors.sol";
 
 // Simple Mock ERC20 for testing purposes
 contract MockERC20 is IERC20Metadata {
@@ -206,7 +206,7 @@ contract FriendKeyTest is Test {
         vm.stopPrank();
 
         assertEq(instance.devFeeDestination(), newDevFeeDestination, "Dev fee destination not updated");
-        vm.expectRevert("Dev fee destination cannot be zero");
+        vm.expectRevert(Errors.ZeroAddress.selector);
         vm.startPrank(owner);
         instance.setDevFeeDestination(address(0));
         vm.stopPrank();
@@ -320,7 +320,7 @@ contract FriendKeyTest is Test {
 
     function testCannotBuyZeroShares() public {
         vm.startPrank(creatorAccount);
-        vm.expectRevert("Amount must be greater than zero");
+        vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
         instance.buyShares(CREATOR_TOKEN_ID, 0);
         vm.stopPrank();
     }
@@ -401,7 +401,7 @@ contract FriendKeyTest is Test {
 
         // Verify the URI for a non-existent token
         uint256 nonExistentTokenId = 9999;
-        vm.expectRevert("Creator not registered");
+        vm.expectRevert(Errors.CreatorNotRegistered.selector);
         instance.uri(nonExistentTokenId);
     }
 
@@ -416,7 +416,7 @@ contract FriendKeyTest is Test {
         // If user does not own the key, they should not be eligible
         uint256 buyerBalance = instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID);
         assertEq(buyerBalance, 0, "Buyer should not own the key");
-        vm.expectRevert("User does not hold this token");
+        vm.expectRevert(Errors.UserDoesNotHoldToken.selector);
         instance.isUserEligible(CREATOR_TOKEN_ID, buyerAccount);
     }
 
@@ -498,7 +498,7 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
 
         // Attempt to sell more than owned
-        vm.expectRevert("Insufficient shares");
+        vm.expectRevert(Errors.InsufficientShares.selector);
         instance.sellShares(CREATOR_TOKEN_ID, buyAmount + 1);
         vm.stopPrank();
     }
@@ -506,7 +506,7 @@ contract FriendKeyTest is Test {
     function testCannotSellAllRemainingShares() public {
         vm.startPrank(creatorAccount);
         // Creator attempts to sell all shares
-        vm.expectRevert("Cannot sell shares if it makes supply zero or less through this method");
+        vm.expectRevert(Errors.CannotSellAllShares.selector);
         instance.sellShares(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
     }
@@ -578,7 +578,7 @@ contract FriendKeyTest is Test {
         string memory authorizedMetadata = "AUTHORIZED_HASH";
         bytes memory signature = _getRegisterCreatorSignature(creator, FriendKey.RoomTier.Casual, 0, authorizedMetadata);
 
-        vm.expectRevert("Unauthorized register signature");
+        vm.expectRevert(Errors.UnauthorizedRegisterSignature.selector);
         vm.prank(creator);
         instance.registerCreator("OTHER_HASH", signature);
     }
@@ -694,5 +694,235 @@ contract FriendKeyTest is Test {
         instance.safeBatchTransferFrom(recipient, buyerAccount, ids, amounts, "");
         uint256 holdingSinceAfterReturn = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, recipient);
         assertEq(holdingSinceAfterReturn, 0, "Holding since should be reset after returning shares");
+    }
+
+    // Tests for slippage protection on buy
+    function testBuySharesWithMaxSpendSuccess() public {
+        uint256 shareAmount = 3;
+        uint256 expectedPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, shareAmount);
+        uint256 maxSpend = expectedPrice + (expectedPrice * 5) / 100; // 5% slippage tolerance
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), maxSpend);
+        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, maxSpend);
+        vm.stopPrank();
+
+        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), shareAmount);
+    }
+
+    function testBuySharesWithMaxSpendExact() public {
+        uint256 shareAmount = 3;
+        uint256 expectedPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, shareAmount);
+        uint256 maxSpend = expectedPrice; // Exact price
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), maxSpend);
+        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, maxSpend);
+        vm.stopPrank();
+
+        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), shareAmount);
+    }
+
+    function testBuySharesWithMaxSpendReverts() public {
+        uint256 shareAmount = 3;
+        uint256 expectedPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, shareAmount);
+        uint256 maxSpend = expectedPrice - 1; // Less than expected price
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), expectedPrice);
+        vm.expectRevert(Errors.SlippageExceededMaxSpend.selector);
+        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, maxSpend);
+        vm.stopPrank();
+    }
+
+    function testBuySharesWithZeroMaxSpend() public {
+        // Zero maxSpend should work (no slippage protection)
+        uint256 shareAmount = 3;
+        uint256 expectedPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, shareAmount);
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), expectedPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, shareAmount, 0);
+        vm.stopPrank();
+
+        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), shareAmount);
+    }
+
+    // Tests for slippage protection on sell
+    function testSellSharesWithMinReceiveSuccess() public {
+        // First buy some shares
+        uint256 buyAmount = 5;
+        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        vm.stopPrank();
+
+        // Now sell with minReceive
+        uint256 sellAmount = 2;
+        uint256 expectedProceeds = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
+        uint256 minReceive = expectedProceeds - (expectedProceeds * 5) / 100; // 5% slippage tolerance
+
+        uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
+        vm.startPrank(buyerAccount);
+        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
+        vm.stopPrank();
+        uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
+
+        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyAmount - sellAmount);
+        assertGe(balanceAfter - balanceBefore, minReceive, "Should receive at least minReceive");
+    }
+
+    function testSellSharesWithMinReceiveExact() public {
+        // First buy some shares
+        uint256 buyAmount = 5;
+        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        vm.stopPrank();
+
+        // Now sell with exact minReceive
+        uint256 sellAmount = 2;
+        uint256 expectedProceeds = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
+        uint256 minReceive = expectedProceeds; // Exact proceeds
+
+        uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
+        vm.startPrank(buyerAccount);
+        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
+        vm.stopPrank();
+        uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
+
+        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyAmount - sellAmount);
+        assertGe(balanceAfter - balanceBefore, minReceive, "Should receive at least minReceive");
+    }
+
+    function testSellSharesWithMinReceiveReverts() public {
+        // First buy some shares
+        uint256 buyAmount = 5;
+        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        vm.stopPrank();
+
+        // Now try to sell with minReceive higher than expected
+        uint256 sellAmount = 2;
+        uint256 expectedProceeds = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
+        uint256 minReceive = expectedProceeds + 1; // More than expected proceeds
+
+        vm.startPrank(buyerAccount);
+        vm.expectRevert(Errors.SlippageExceededMinReceive.selector);
+        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
+        vm.stopPrank();
+    }
+
+    function testSellSharesWithZeroMinReceive() public {
+        // First buy some shares
+        uint256 buyAmount = 5;
+        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        vm.stopPrank();
+
+        // Zero minReceive should work (no slippage protection)
+        uint256 sellAmount = 2;
+        uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
+        vm.startPrank(buyerAccount);
+        instance.sellShares(CREATOR_TOKEN_ID, sellAmount, 0);
+        vm.stopPrank();
+        uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
+
+        assertEq(instance.balanceOf(buyerAccount, CREATOR_TOKEN_ID), buyAmount - sellAmount);
+        assertGt(balanceAfter, balanceBefore, "Balance should increase");
+    }
+
+    // Test slippage protection with concurrent transactions (simulated by price changes)
+    function testBuySharesSlippageWithPriceIncrease() public {
+        // First buyer buys shares, increasing price
+        uint256 firstBuyAmount = 3;
+        uint256 firstBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, firstBuyAmount);
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), firstBuyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, firstBuyAmount);
+        vm.stopPrank();
+
+        // Get price before second buy
+        uint256 secondBuyAmount = 2;
+        uint256 priceBeforeSecondBuy = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, secondBuyAmount);
+
+        // Another buyer buys, increasing price
+        uint256 anotherBuyAmount = 5;
+        uint256 anotherBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, anotherBuyAmount);
+
+        vm.startPrank(anotherBuyerAccount);
+        mockUsdc.approve(address(instance), anotherBuyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, anotherBuyAmount);
+        vm.stopPrank();
+
+        // Now price should be higher, so buying with old maxSpend should fail
+        uint256 priceAfterSecondBuy = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, secondBuyAmount);
+        uint256 maxSpend = priceBeforeSecondBuy; // Set maxSpend to old price
+
+        // Price should have increased, so this should revert
+        assertGt(priceAfterSecondBuy, priceBeforeSecondBuy, "Price should increase after buys");
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), priceAfterSecondBuy);
+        vm.expectRevert(Errors.SlippageExceededMaxSpend.selector);
+        instance.buyShares(CREATOR_TOKEN_ID, secondBuyAmount, maxSpend);
+        vm.stopPrank();
+    }
+
+    function testSellSharesSlippageWithPriceDecrease() public {
+        // Buyer buys shares
+        uint256 buyAmount = 10;
+        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, buyAmount);
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, buyAmount);
+        vm.stopPrank();
+
+        // Get sell price before any sells
+        uint256 sellAmount = 3;
+        uint256 proceedsBeforeSell = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
+
+        // Another buyer buys more shares (this increases supply, which affects sell price)
+        uint256 anotherBuyAmount = 5;
+        uint256 anotherBuyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, anotherBuyAmount);
+
+        vm.startPrank(anotherBuyerAccount);
+        mockUsdc.approve(address(instance), anotherBuyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, anotherBuyAmount);
+        vm.stopPrank();
+
+        // Now someone else sells, which decreases supply and affects price
+        vm.startPrank(anotherBuyerAccount);
+        instance.sellShares(CREATOR_TOKEN_ID, 2);
+        vm.stopPrank();
+
+        // Get new sell price after the sell
+        uint256 proceedsAfterSell = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
+        uint256 minReceive = proceedsBeforeSell; // Set minReceive to old proceeds
+
+        // Proceeds might have changed, but we test that if they decreased below minReceive, it reverts
+        if (proceedsAfterSell < proceedsBeforeSell) {
+            vm.startPrank(buyerAccount);
+            vm.expectRevert(Errors.SlippageExceededMinReceive.selector);
+            instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
+            vm.stopPrank();
+        } else {
+            // If proceeds didn't decrease, the transaction should succeed
+            vm.startPrank(buyerAccount);
+            instance.sellShares(CREATOR_TOKEN_ID, sellAmount, minReceive);
+            vm.stopPrank();
+        }
     }
 }

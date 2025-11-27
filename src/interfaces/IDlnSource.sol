@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "../libraries/DlnOrderLib.sol";
+import {DlnOrderLib} from "../libraries/DlnOrderLib.sol";
 
 /**
  * @title IDlnSource

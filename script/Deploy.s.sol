@@ -5,7 +5,6 @@ import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
-import {FriendStake} from "src/FriendStake.sol";
 import {FriendPool} from "src/FriendPool.sol";
 import {FriendUSD} from "src/FriendUSD.sol";
 

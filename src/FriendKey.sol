@@ -20,6 +20,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IFriendPool} from "./interfaces/IFriendPool.sol";
 import {FriendStake} from "./FriendStake.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import {Errors} from "./libraries/Errors.sol";
 
 /**
  * @title FriendKey
@@ -235,12 +236,14 @@ contract FriendKey is
 
         BPS_SCALE = 10000;
 
-        require(_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
-        require(_bondingTokenAddress != address(0), "Bonding token address cannot be zero");
-        require(_devFeeDestination != address(0), "Dev fee destination cannot be zero");
-        require(_friendStakeBeacon != address(0), "FriendStake beacon address cannot be zero");
-        require(_authority != address(0), "Authority address cannot be zero");
-        require(_eligibilityDuration > 0, "Eligibility duration must be greater than zero");
+        if (_devFeePercent + _creatorFeePercent + _tradingPoolFeePercent > BPS_SCALE) {
+            revert Errors.TotalFeePercentTooHigh();
+        }
+        if (_bondingTokenAddress == address(0)) revert Errors.ZeroAddress();
+        if (_devFeeDestination == address(0)) revert Errors.ZeroAddress();
+        if (_friendStakeBeacon == address(0)) revert Errors.ZeroAddress();
+        if (_authority == address(0)) revert Errors.ZeroAddress();
+        if (_eligibilityDuration == 0) revert Errors.InvalidDuration();
 
         devFeeDestination = _devFeeDestination;
         devFeePercent = _devFeePercent;
@@ -255,7 +258,7 @@ contract FriendKey is
         eligibilityDuration = _eligibilityDuration;
 
         uint8 decimals = bondingToken.decimals();
-        require(decimals > 0, "Bonding token decimals must be greater than zero");
+        if (decimals == 0) revert Errors.InvalidDecimals();
         bondingTokenPriceUnit = 10 ** decimals;
         bondingCurveDivisors = [4000, 40, 4];
     }
@@ -270,7 +273,7 @@ contract FriendKey is
     }
 
     function setSignee(address signee) public onlyOwner {
-        require(signee != address(0), "Signee cannot be zero address");
+        if (signee == address(0)) revert Errors.ZeroAddress();
         _signee = signee;
         emit SigneeChanged(signee);
     }
@@ -283,7 +286,7 @@ contract FriendKey is
      * @param _feeDestination New development fee destination address
      */
     function setDevFeeDestination(address _feeDestination) public onlyOwner {
-        require(_feeDestination != address(0), "Dev fee destination cannot be zero");
+        if (_feeDestination == address(0)) revert Errors.ZeroAddress();
         devFeeDestination = _feeDestination;
         emit FeeDestinationChanged(_feeDestination, Target.DevFee);
     }
@@ -294,40 +297,42 @@ contract FriendKey is
      * @param _feePercent New development fee percentage in basis points
      */
     function setDevFeePercent(uint256 _feePercent) public onlyOwner {
-        require(_feePercent <= BPS_SCALE, "Dev fee percent too high");
-        require(_feePercent + creatorFeePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
+        if (_feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        if (_feePercent + creatorFeePercent + tradingPoolFeePercent > BPS_SCALE) {
+            revert Errors.TotalFeePercentTooHigh();
+        }
         devFeePercent = _feePercent;
         emit FeePercentChanged(_feePercent, Target.DevFee);
     }
 
     function setCreatorFeePercent(uint256 _feePercent) public onlyOwner {
-        require(_feePercent <= BPS_SCALE, "Creator fee percent too high");
-        require(devFeePercent + _feePercent + tradingPoolFeePercent <= BPS_SCALE, "Total fee percent too high");
+        if (_feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        if (devFeePercent + _feePercent + tradingPoolFeePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
         creatorFeePercent = _feePercent;
         emit FeePercentChanged(_feePercent, Target.CreatorFee);
     }
 
     function setTradingPoolFeeDestination(address _feeDestination) public onlyOwner {
-        require(_feeDestination != address(0), "Trading pool fee destination cannot be zero");
+        if (_feeDestination == address(0)) revert Errors.ZeroAddress();
         tradingPoolFeeDestination = _feeDestination;
         emit FeeDestinationChanged(_feeDestination, Target.TradingPoolFee);
     }
 
     function setTradingPoolFeePercent(uint256 _feePercent) public onlyOwner {
-        require(_feePercent <= BPS_SCALE, "Trading pool fee percent too high");
-        require(devFeePercent + creatorFeePercent + _feePercent <= BPS_SCALE, "Total fee percent too high");
+        if (_feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        if (devFeePercent + creatorFeePercent + _feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
         tradingPoolFeePercent = _feePercent;
         emit FeePercentChanged(_feePercent, Target.TradingPoolFee);
     }
 
     function setDevPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
-        require(creatorPerformanceFeePercent + _feePercent <= BPS_SCALE, "Dev performance fee percent too high");
+        if (creatorPerformanceFeePercent + _feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
         devPerformanceFeePercent = _feePercent;
         emit FeePercentChanged(_feePercent, Target.DevPerformanceFee);
     }
 
     function setCreatorPerformanceFeePercent(uint256 _feePercent) public onlyOwner {
-        require(devPerformanceFeePercent + _feePercent <= BPS_SCALE, "Creator performance fee percent too high");
+        if (devPerformanceFeePercent + _feePercent > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
         creatorPerformanceFeePercent = _feePercent;
         emit FeePercentChanged(_feePercent, Target.CreatorPerformanceFee);
     }
@@ -338,12 +343,12 @@ contract FriendKey is
      * @param _duration The new eligibility duration in seconds.
      */
     function setEligibilityDuration(uint256 _duration) public onlyOwner {
-        require(_duration > 0, "Eligibility duration must be greater than zero");
+        if (_duration == 0) revert Errors.InvalidDuration();
         eligibilityDuration = _duration;
     }
 
     function setAuthority(address _authority) external onlyOwner {
-        require(_authority != address(0), "Authority address cannot be zero");
+        if (_authority == address(0)) revert Errors.ZeroAddress();
         authority = _authority;
     }
 
@@ -422,10 +427,9 @@ contract FriendKey is
         );
         bytes32 digest = _hashTypedDataV4(structHash);
         address recoveredSigner = digest.recover(signature);
-        require(
-            recoveredSigner == owner() || (_signee != address(0) && recoveredSigner == _signee),
-            "Unauthorized register signature"
-        );
+        if (recoveredSigner != owner() && (_signee == address(0) || recoveredSigner != _signee)) {
+            revert Errors.UnauthorizedRegisterSignature();
+        }
         registerCreatorNonces[account] = nonce + 1;
     }
 
@@ -437,7 +441,7 @@ contract FriendKey is
      */
     function uri(uint256 tokenId) public view override returns (string memory) {
         address creator = creatorByTokenId[tokenId];
-        require(creator != address(0), "Creator not registered");
+        if (creator == address(0)) revert Errors.CreatorNotRegistered();
         string memory tokenURI = tokenId.toString();
         string memory base = super.uri(tokenId);
 
@@ -461,7 +465,7 @@ contract FriendKey is
      * @return The calculated price in bonding token units
      */
     function getPrice(uint256 supply, uint256 amount, uint256 divisor) public view returns (uint256) {
-        require(divisor > 0, "Divisor must be greater than zero");
+        if (divisor == 0) revert Errors.InvalidDivisor();
         uint256 sum1 = supply == 0 ? 0 : ((supply - 1) * (supply) * (2 * (supply - 1) + 1)) / 6;
         uint256 sum2 = supply == 0 && amount == 1
             ? 0
@@ -499,7 +503,7 @@ contract FriendKey is
      * @return The price in bonding token units before fees
      */
     function getSellPrice(uint256 id, uint256 amount) public view returns (uint256) {
-        require(totalSupply(id) >= amount, "Amount exceeds supply");
+        if (totalSupply(id) < amount) revert Errors.AmountExceedsSupply();
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
         return getPrice(totalSupply(id) - amount, amount, divisor);
     }
@@ -542,13 +546,24 @@ contract FriendKey is
      * @param amount Number of tokens to purchase
      */
     function buyShares(uint256 tokenId, uint256 amount) public {
-        require(amount > 0, "Amount must be greater than zero");
+        buyShares(tokenId, amount, 0);
+    }
+
+    /**
+     * @notice Purchases tokens for a specific creator using bonding curve pricing with slippage protection
+     * @dev Calculates price, collects fees, mints tokens, and distributes payments
+     * @param tokenId The ID of the creator's token to buy
+     * @param amount Number of tokens to purchase
+     * @param maxSpend Maximum amount of bonding tokens to spend (0 = no limit, for backward compatibility)
+     */
+    function buyShares(uint256 tokenId, uint256 amount, uint256 maxSpend) public {
+        if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         address creatorAddress = creatorByTokenId[tokenId];
-        require(creatorAddress != address(0), "Creator not registered or no token ID associated");
+        if (creatorAddress == address(0)) revert Errors.CreatorNotRegistered();
 
         uint256 currentSupply = totalSupply(tokenId);
         if (currentSupply == 0) {
-            require(msg.sender == creatorAddress, "Only creator can buy the first share");
+            if (msg.sender != creatorAddress) revert Errors.OnlyCreatorCanBuyFirstShare();
         }
 
         uint256 price = getPrice(currentSupply, amount, bondingCurveDivisors[uint256(roomTiers[tokenId])]);
@@ -557,6 +572,11 @@ contract FriendKey is
         uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
         uint256 totalCost = price + devFee + creatorFee + tradingPoolFee;
 
+        // Slippage protection: ensure total cost doesn't exceed maxSpend
+        if (maxSpend > 0) {
+            if (totalCost > maxSpend) revert Errors.SlippageExceededMaxSpend();
+        }
+
         bondingCurveReserves[creatorAddress] += price;
 
         _mint(msg.sender, tokenId, amount, "");
@@ -564,12 +584,12 @@ contract FriendKey is
         if (totalCost > 0) {
             // Check the allowance and balance first
             uint256 allowance = bondingToken.allowance(msg.sender, address(this));
-            require(allowance >= totalCost, "Insufficient allowance for bonding token transfer");
+            if (allowance < totalCost) revert Errors.InsufficientAllowance();
             uint256 balance = bondingToken.balanceOf(msg.sender);
-            require(balance >= totalCost, "Insufficient bonding token balance");
+            if (balance < totalCost) revert Errors.InsufficientBalance();
             // Transfer the bonding token from the user to this contract
             bool ok = bondingToken.transferFrom(msg.sender, address(this), totalCost);
-            require(ok, "Transfer failed");
+            if (!ok) revert Errors.TransferFailed();
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
@@ -593,13 +613,24 @@ contract FriendKey is
      * @param amount Number of tokens to sell
      */
     function sellShares(uint256 tokenId, uint256 amount) public {
-        require(amount > 0, "Amount must be greater than zero");
+        sellShares(tokenId, amount, 0);
+    }
+
+    /**
+     * @notice Sells tokens for a specific creator using bonding curve pricing with slippage protection
+     * @dev Burns tokens, calculates proceeds after fees, and transfers payment to seller
+     * @param tokenId The ID of the creator's token to sell
+     * @param amount Number of tokens to sell
+     * @param minReceive Minimum amount of bonding tokens to receive (0 = no limit, for backward compatibility)
+     */
+    function sellShares(uint256 tokenId, uint256 amount, uint256 minReceive) public {
+        if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         address creatorAddress = creatorByTokenId[tokenId];
-        require(creatorAddress != address(0), "Creator not registered or no token ID associated");
-        require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares");
+        if (creatorAddress == address(0)) revert Errors.CreatorNotRegistered();
+        if (balanceOf(msg.sender, tokenId) < amount) revert Errors.InsufficientShares();
 
         uint256 currentSupply = totalSupply(tokenId);
-        require(currentSupply > amount, "Cannot sell shares if it makes supply zero or less through this method");
+        if (currentSupply <= amount) revert Errors.CannotSellAllShares();
 
         uint256 price = getPrice(currentSupply - amount, amount, bondingCurveDivisors[uint256(roomTiers[tokenId])]);
         uint256 devFee = (price * devFeePercent) / BPS_SCALE;
@@ -608,6 +639,11 @@ contract FriendKey is
 
         uint256 totalFees = devFee + creatorFee + tradingPoolFee;
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
+
+        // Slippage protection: ensure proceeds meet minimum requirement
+        if (minReceive > 0) {
+            if (proceeds < minReceive) revert Errors.SlippageExceededMinReceive();
+        }
 
         bondingCurveReserves[creatorAddress] -= price;
         emit Trade(tokenId, msg.sender, creatorAddress, false, amount, price, currentSupply - amount);
@@ -636,14 +672,14 @@ contract FriendKey is
      * @param amount Number of tokens to stake
      */
     function stake(uint256 tokenId, uint256 amount) public {
-        require(amount > 0, "Amount must be greater than zero");
-        require(balanceOf(msg.sender, tokenId) >= amount, "Insufficient shares to stake");
+        if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
+        if (balanceOf(msg.sender, tokenId) < amount) revert Errors.InsufficientShares();
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
-        require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
+        if (stakingPoolAddress == address(0)) revert Errors.StakingPoolNotRegistered();
         emit KeyStaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
-        require(stakingPool.isOpenForStaking(), "Staking pool is not open for staking");
+        if (!stakingPool.isOpenForStaking()) revert Errors.StakingPoolNotOpen();
 
         _safeTransferFrom(msg.sender, stakingPoolAddress, tokenId, amount, "");
     }
@@ -655,12 +691,12 @@ contract FriendKey is
      * @param amount Number of tokens to unstake
      */
     function unstake(uint256 tokenId, uint256 amount) public {
-        require(amount > 0, "Amount must be greater than zero");
+        if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
-        require(stakingPoolAddress != address(0), "Staking pool not registered for this token ID");
+        if (stakingPoolAddress == address(0)) revert Errors.StakingPoolNotRegistered();
 
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
-        require(stakingPool.isOpenForStaking(), "Staking pool is not open for unstaking");
+        if (!stakingPool.isOpenForStaking()) revert Errors.StakingPoolNotOpen();
 
         emit KeyUnstaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
@@ -677,7 +713,7 @@ contract FriendKey is
         // Check if the destination has code (is a contract)
         if (tradingPoolFeeDestination.code.length > 0) {
             // try to approve and pull from the trading pool otherwise transfer
-            require(bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee), "Approve to trading pool failed");
+            if (!bondingToken.approve(tradingPoolFeeDestination, tradingPoolFee)) revert Errors.ApproveFailed();
             try IFriendPool(tradingPoolFeeDestination).pull(tokenId, tradingPoolFee) {
             // If the pull succeeds, we don't need to do anything else
             }
@@ -698,7 +734,7 @@ contract FriendKey is
      */
     function isUserEligible(uint256 tokenId, address user) public view returns (bool) {
         uint256 holdingSince = getKeyHoldingSince(tokenId, user);
-        require(holdingSince > 0, "User does not hold this token");
+        if (holdingSince == 0) revert Errors.UserDoesNotHoldToken();
         return block.timestamp >= holdingSince + 24 hours; // Example: 1 day eligibility
     }
 

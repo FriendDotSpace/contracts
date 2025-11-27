@@ -5,12 +5,12 @@ pragma solidity ^0.8.27;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IFriendKey} from "./interfaces/IFriendKey.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDlnSource} from "./interfaces/IDlnSource.sol";
-import "./libraries/DlnOrderLib.sol";
+import {DlnOrderLib} from "./libraries/DlnOrderLib.sol";
+import {Errors} from "./libraries/Errors.sol";
 
 /**
  * @title FriendPool
@@ -70,10 +70,10 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
 
-        require(_friendKey != address(0), "FriendPool: FriendKey address cannot be zero");
+        if (_friendKey == address(0)) revert Errors.ZeroAddress();
         friendKey = IFriendKey(_friendKey);
 
-        require(_dlnSource != address(0), "FriendPool: DLN Source address cannot be zero");
+        if (_dlnSource == address(0)) revert Errors.ZeroAddress();
         dlnSource = IDlnSource(_dlnSource);
     }
 
@@ -87,8 +87,12 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @dev Modifier to ensure only the FriendKey contract can call certain functions
      */
     modifier onlyFriendKey() {
-        require(msg.sender == address(friendKey), "FriendPool: Caller is not the FriendKey contract");
+        _onlyFriendKey();
         _;
+    }
+
+    function _onlyFriendKey() internal view {
+        if (msg.sender != address(friendKey)) revert Errors.NotFriendKey();
     }
 
     /**
@@ -97,7 +101,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @param dispatcher The address authorized to dispatch funds cross-chain
      */
     function setDispatcher(address dispatcher) external onlyOwner {
-        require(dispatcher != address(0), "FriendPool: Dispatcher address cannot be zero");
+        if (dispatcher == address(0)) revert Errors.ZeroAddress();
         _dispatcher = dispatcher;
     }
 
@@ -114,7 +118,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         payable
         returns (uint256)
     {
-        require(msg.sender == _dispatcher || msg.sender == owner(), "FriendPool: Caller is not the dispatcher");
+        if (msg.sender != _dispatcher && msg.sender != owner()) revert Errors.NotDispatcher();
         uint256 amount = _dispatch(tokenId, data, _salt);
         return amount;
     }
@@ -132,16 +136,16 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         returns (uint256)
     {
         uint256 amount = poolReserves[tokenId];
-        require(amount > 0, "FriendPool: No funds available for dispatch");
+        if (amount == 0) revert Errors.NoFundsAvailable();
 
         IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
-        require(bondingToken.balanceOf(address(this)) >= amount, "FriendPool: Insufficient pool reserves");
+        if (bondingToken.balanceOf(address(this)) < amount) revert Errors.InsufficientReserves();
 
         // remove funds from pool reserves
         poolReserves[tokenId] -= amount;
 
         // approve funds to recipient
-        require(bondingToken.approve(address(dlnSource), amount), "FriendPool: Approve failed");
+        if (!bondingToken.approve(address(dlnSource), amount)) revert Errors.ApproveFailed();
 
         // dispatch funds to recipient
         bytes32 orderId = dlnSource.createSaltedOrder{value: msg.value}(_orderCreation, _salt, "", 0, "", "");
@@ -158,16 +162,13 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      */
     function pull(uint256 tokenId, uint256 amount) external onlyFriendKey {
         IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
-        require(bondingToken.balanceOf(msg.sender) >= amount, "FriendPool: Insufficient bonding token balance");
-        require(
-            bondingToken.allowance(msg.sender, address(this)) >= amount,
-            "FriendPool: Insufficient allowance for bonding token"
-        );
+        if (bondingToken.balanceOf(msg.sender) < amount) revert Errors.InsufficientBalance();
+        if (bondingToken.allowance(msg.sender, address(this)) < amount) revert Errors.InsufficientAllowance();
 
         poolReserves[tokenId] += amount;
 
         emit FundsPulled(tokenId, amount, poolReserves[tokenId]);
         bool success = bondingToken.transferFrom(msg.sender, address(this), amount);
-        require(success, "FriendPool: Transfer failed");
+        if (!success) revert Errors.TransferFailed();
     }
 }
