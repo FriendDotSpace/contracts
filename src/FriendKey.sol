@@ -21,6 +21,7 @@ import {IFriendPool} from "./interfaces/IFriendPool.sol";
 import {FriendStake} from "./FriendStake.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import {Errors} from "./libraries/Errors.sol";
+import {BondingCurveLib} from "./libraries/BondingCurveLib.sol";
 
 /**
  * @title FriendKey
@@ -476,13 +477,7 @@ contract FriendKey is
      * @return The calculated price in bonding token units
      */
     function getPrice(uint256 supply, uint256 amount, uint256 divisor) public view returns (uint256) {
-        if (divisor == 0) revert Errors.InvalidDivisor();
-        uint256 sum1 = supply == 0 ? 0 : ((supply - 1) * (supply) * (2 * (supply - 1) + 1)) / 6;
-        uint256 sum2 = supply == 0 && amount == 1
-            ? 0
-            : ((supply + amount - 1) * (supply + amount) * (2 * (supply + amount - 1) + 1)) / 6;
-        uint256 summation = sum2 - sum1;
-        return (summation * bondingTokenPriceUnit) / divisor;
+        return BondingCurveLib.getPrice(supply, amount, divisor, bondingTokenPriceUnit);
     }
 
     /**
@@ -497,6 +492,17 @@ contract FriendKey is
     }
 
     /**
+     * @notice Returns the divisor for a specific room tier
+     * @dev Note: updating the divisor for a tier will affect prices of all tokens with that tier
+     * @param tier The room tier to get divisor for
+     * @param divisor The new divisor value for the room tier
+     */
+    function updateDivisorByTier(RoomTier tier, uint256 divisor) public onlyOwner {
+        if (divisor == 0) revert Errors.InvalidDivisor();
+        bondingCurveDivisors[uint256(tier)] = divisor;
+    }
+
+    /**
      * @notice Calculates the price to buy a specific amount of tokens (before fees)
      * @param id The token ID to buy
      * @param amount Number of tokens to buy
@@ -504,7 +510,7 @@ contract FriendKey is
      */
     function getBuyPrice(uint256 id, uint256 amount) public view returns (uint256) {
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
-        return getPrice(totalSupply(id), amount, divisor);
+        return BondingCurveLib.getBuyPrice(totalSupply(id), amount, divisor, bondingTokenPriceUnit);
     }
 
     /**
@@ -516,7 +522,7 @@ contract FriendKey is
     function getSellPrice(uint256 id, uint256 amount) public view returns (uint256) {
         if (totalSupply(id) < amount) revert Errors.AmountExceedsSupply();
         uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
-        return getPrice(totalSupply(id) - amount, amount, divisor);
+        return BondingCurveLib.getSellPrice(totalSupply(id), amount, divisor, bondingTokenPriceUnit);
     }
 
     /**
@@ -526,11 +532,17 @@ contract FriendKey is
      * @return The total cost including base price and all fees
      */
     function getBuyPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
-        uint256 price = getBuyPrice(id, amount);
-        uint256 devFee = (price * devFeePercent) / BPS_SCALE;
-        uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
-        uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
-        return price + devFee + creatorFee + tradingPoolFee;
+        uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
+        return BondingCurveLib.getBuyPriceAfterFee(
+            totalSupply(id),
+            amount,
+            divisor,
+            bondingTokenPriceUnit,
+            devFeePercent,
+            creatorFeePercent,
+            tradingPoolFeePercent,
+            BPS_SCALE
+        );
     }
 
     /**
@@ -540,12 +552,17 @@ contract FriendKey is
      * @return The net proceeds after deducting all fees
      */
     function getSellPriceAfterFee(uint256 id, uint256 amount) public view returns (uint256) {
-        uint256 price = getSellPrice(id, amount);
-        uint256 devFee = (price * devFeePercent) / BPS_SCALE;
-        uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
-        uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
-        uint256 totalFees = devFee + creatorFee + tradingPoolFee;
-        return price > totalFees ? price - totalFees : 0;
+        uint256 divisor = bondingCurveDivisors[uint256(roomTiers[id])];
+        return BondingCurveLib.getSellPriceAfterFee(
+            totalSupply(id),
+            amount,
+            divisor,
+            bondingTokenPriceUnit,
+            devFeePercent,
+            creatorFeePercent,
+            tradingPoolFeePercent,
+            BPS_SCALE
+        );
     }
 
     // --- Buy and Sell Shares ---
@@ -578,9 +595,8 @@ contract FriendKey is
         }
 
         uint256 price = getPrice(currentSupply, amount, bondingCurveDivisors[uint256(roomTiers[tokenId])]);
-        uint256 devFee = (price * devFeePercent) / BPS_SCALE;
-        uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
-        uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
+        (uint256 devFee, uint256 creatorFee, uint256 tradingPoolFee) =
+            BondingCurveLib.calculateFees(price, devFeePercent, creatorFeePercent, tradingPoolFeePercent, BPS_SCALE);
         uint256 totalCost = price + devFee + creatorFee + tradingPoolFee;
 
         // Slippage protection: ensure total cost doesn't exceed maxSpend
@@ -644,9 +660,8 @@ contract FriendKey is
         if (currentSupply <= amount) revert Errors.CannotSellAllShares();
 
         uint256 price = getPrice(currentSupply - amount, amount, bondingCurveDivisors[uint256(roomTiers[tokenId])]);
-        uint256 devFee = (price * devFeePercent) / BPS_SCALE;
-        uint256 creatorFee = (price * creatorFeePercent) / BPS_SCALE;
-        uint256 tradingPoolFee = (price * tradingPoolFeePercent) / BPS_SCALE;
+        (uint256 devFee, uint256 creatorFee, uint256 tradingPoolFee) =
+            BondingCurveLib.calculateFees(price, devFeePercent, creatorFeePercent, tradingPoolFeePercent, BPS_SCALE);
 
         uint256 totalFees = devFee + creatorFee + tradingPoolFee;
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
