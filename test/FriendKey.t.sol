@@ -6,7 +6,6 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendStake} from "src/FriendStake.sol";
 import {FriendRoomManager} from "src/FriendRoomManager.sol";
-import {IFriendKey} from "src/interfaces/IFriendKey.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -164,16 +163,15 @@ contract FriendKeyTest is Test {
         bytes memory roomManagerInitData = abi.encodeCall(FriendRoomManager.initialize, (owner));
         address roomManagerProxy = Upgrades.deployUUPSProxy("FriendRoomManager.sol", roomManagerInitData);
         FriendRoomManager roomManager = FriendRoomManager(roomManagerProxy);
-        
-        bytes memory initializeData = abi.encodeCall(
-            FriendKey.initialize, (owner, address(mockUsdc), friendStakeBeacon, address(roomManager))
-        );
+
+        bytes memory initializeData =
+            abi.encodeCall(FriendKey.initialize, (owner, address(mockUsdc), friendStakeBeacon, address(roomManager)));
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
         instance = FriendKey(proxy);
-        
+
         // Set FriendKey address in RoomManager
         roomManager.setFriendKey(address(instance));
-        
+
         // Set fee destinations in RoomManager
         roomManager.setFeeDestinations(devFeeDestination, tradingPoolFeeDestination);
         vm.stopPrank();

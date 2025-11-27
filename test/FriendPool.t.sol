@@ -159,16 +159,15 @@ contract FriendPoolTest is Test {
         bytes memory roomManagerInitData = abi.encodeCall(FriendRoomManager.initialize, (owner));
         address roomManagerProxy = Upgrades.deployUUPSProxy("FriendRoomManager.sol", roomManagerInitData);
         FriendRoomManager roomManager = FriendRoomManager(roomManagerProxy);
-        
-        bytes memory friendKeyInitializeData = abi.encodeCall(
-            FriendKey.initialize, (owner, address(mockUsdc), friendStakeBeacon, address(roomManager))
-        );
+
+        bytes memory friendKeyInitializeData =
+            abi.encodeCall(FriendKey.initialize, (owner, address(mockUsdc), friendStakeBeacon, address(roomManager)));
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitializeData);
         friendKey = FriendKey(friendKeyProxy);
-        
+
         // Set FriendKey address in RoomManager
         roomManager.setFriendKey(address(friendKey));
-        
+
         // Set fee destinations in RoomManager - CRITICAL for FriendPool tests
         // Note: friendPool is deployed after this, so we need to set it later
 
@@ -177,7 +176,7 @@ contract FriendPoolTest is Test {
             abi.encodeCall(FriendPool.initialize, (owner, address(friendKey), address(dlnSourceMock)));
         address friendPoolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", friendPoolInitializeData);
         friendPool = FriendPool(friendPoolProxy);
-        
+
         // Now set the correct fee destinations
         roomManager.setFeeDestinations(owner, address(friendPool));
 

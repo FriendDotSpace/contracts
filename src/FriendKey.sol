@@ -237,11 +237,12 @@ contract FriendKey is
         roomManager = _roomManager;
     }
 
-        /// @notice Modifier to ensure RoomManager is set before calling functions that depend on it
+    /// @notice Modifier to ensure RoomManager is set before calling functions that depend on it
     modifier requireRM() {
         if (roomManager == address(0)) revert Errors.RoomManagerNotSet();
         _;
     }
+
     /**
      * @notice Sets the base URI for token metadata
      * @dev Only callable by contract owner
@@ -261,7 +262,6 @@ contract FriendKey is
         if (_roomManager == address(0)) revert Errors.ZeroAddress();
         roomManager = _roomManager;
     }
-
 
     // --- Fee and Creator Management ---
 
@@ -317,10 +317,12 @@ contract FriendKey is
      * @notice Registers a creator for social rooms with a specific tier
      * @dev Social rooms have different pricing and no staking/trading pool
      */
-    function registerSocialCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature)
-        public
-        returns (uint256)
-    {
+    function registerSocialCreator(
+        RoomTier tier,
+        uint256 additionalKeys,
+        string calldata metadata,
+        bytes calldata signature
+    ) public returns (uint256) {
         _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
         return _registerCreator(RoomType.Social, tier, additionalKeys, metadata);
     }
@@ -334,22 +336,20 @@ contract FriendKey is
 
     function _registerCreator(RoomType roomType, RoomTier tier, uint256 additionalKeys, string calldata metadata)
         internal
-        requireRM
         virtual
+        requireRM
         returns (uint256)
     {
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
-        
+
         // Check room limits via RoomManager if set
         if (roomManager != address(0)) {
             // This will revert if limit exceeded
-            try IFriendRoomManager(roomManager).checkAndUpdateRoomRegistration(
-                creator, 
-                IFriendKey.RoomType(uint8(roomType)), 
-                IFriendKey.RoomTier(uint8(tier)), 
-                id
-            ) {}
+            try IFriendRoomManager(roomManager)
+                .checkAndUpdateRoomRegistration(
+                    creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
+                ) {}
             catch {
                 revert Errors.RoomLimitExceeded();
             }
@@ -364,17 +364,17 @@ contract FriendKey is
         string memory tokenUri = uri(id);
 
         if (roomType == RoomType.Trading) {
-        bytes memory parameters = abi.encodeWithSelector(
-            FriendStake.initialize.selector,
-            owner(),
-            address(this),
-            address(bondingToken),
-            id,
-            IFriendRoomManager(roomManager).authority(),
-            IFriendRoomManager(roomManager).eligibilityDuration()
-        );
-        address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
-        stakingPoolByTokenId[id] = friendStake;
+            bytes memory parameters = abi.encodeWithSelector(
+                FriendStake.initialize.selector,
+                owner(),
+                address(this),
+                address(bondingToken),
+                id,
+                IFriendRoomManager(roomManager).authority(),
+                IFriendRoomManager(roomManager).eligibilityDuration()
+            );
+            address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
+            stakingPoolByTokenId[id] = friendStake;
         }
 
         buyShares(id, 1 + additionalKeys, 0); // Mint 1 + additional shares
@@ -444,7 +444,8 @@ contract FriendKey is
      * @return The divisor value for the token's room tier
      */
     function getDivisor(uint256 id) public view virtual requireRM returns (uint256) {
-        return IFriendRoomManager(roomManager).getDivisor(IFriendKey.RoomType(uint8(roomTypes[id])), IFriendKey.RoomTier(uint8(roomTiers[id])));
+        return IFriendRoomManager(roomManager)
+            .getDivisor(IFriendKey.RoomType(uint8(roomTypes[id])), IFriendKey.RoomTier(uint8(roomTiers[id])));
     }
 
     /**
@@ -481,26 +482,12 @@ contract FriendKey is
         if (roomTypes[id] == RoomType.Social) {
             (uint16 socialDevFee, uint16 socialCreatorFee) = _getSocialFees();
             return BondingCurveLib.getBuyPriceAfterFee(
-                totalSupply(id),
-                amount,
-                divisor,
-                bondingTokenPriceUnit,
-                socialDevFee,
-                socialCreatorFee,
-                0,
-                BPS_SCALE
+                totalSupply(id), amount, divisor, bondingTokenPriceUnit, socialDevFee, socialCreatorFee, 0, BPS_SCALE
             );
         }
         (uint16 devFee, uint16 creatorFee, uint16 poolFee) = _getTradingFees();
         return BondingCurveLib.getBuyPriceAfterFee(
-            totalSupply(id),
-            amount,
-            divisor,
-            bondingTokenPriceUnit,
-            devFee,
-            creatorFee,
-            poolFee,
-            BPS_SCALE
+            totalSupply(id), amount, divisor, bondingTokenPriceUnit, devFee, creatorFee, poolFee, BPS_SCALE
         );
     }
 
@@ -515,26 +502,12 @@ contract FriendKey is
         if (roomTypes[id] == RoomType.Social) {
             (uint16 socialDevFee, uint16 socialCreatorFee) = _getSocialFees();
             return BondingCurveLib.getSellPriceAfterFee(
-                totalSupply(id),
-                amount,
-                divisor,
-                bondingTokenPriceUnit,
-                socialDevFee,
-                socialCreatorFee,
-                0,
-                BPS_SCALE
+                totalSupply(id), amount, divisor, bondingTokenPriceUnit, socialDevFee, socialCreatorFee, 0, BPS_SCALE
             );
         }
         (uint16 devFee, uint16 creatorFee, uint16 poolFee) = _getTradingFees();
         return BondingCurveLib.getSellPriceAfterFee(
-            totalSupply(id),
-            amount,
-            divisor,
-            bondingTokenPriceUnit,
-            devFee,
-            creatorFee,
-            poolFee,
-            BPS_SCALE
+            totalSupply(id), amount, divisor, bondingTokenPriceUnit, devFee, creatorFee, poolFee, BPS_SCALE
         );
     }
 
@@ -769,11 +742,8 @@ contract FriendKey is
      * @return True if the creator can still register this tier, false if already used
      */
     function canRegisterRoom(address creator, RoomType roomType, RoomTier tier) public view requireRM returns (bool) {
-        return IFriendRoomManager(roomManager).canRegisterRoom(
-            creator, 
-            IFriendKey.RoomType(uint8(roomType)), 
-            IFriendKey.RoomTier(uint8(tier))
-        );
+        return IFriendRoomManager(roomManager)
+            .canRegisterRoom(creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)));
     }
 
     /**

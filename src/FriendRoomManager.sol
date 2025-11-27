@@ -48,7 +48,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     /// @notice Duration that a stake must be held to be eligible for rewards
     uint256 public eligibilityDuration;
 
-        /// @notice Maximum number of rooms allowed per creator per tier per room type
+    /// @notice Maximum number of rooms allowed per creator per tier per room type
     mapping(IFriendKey.RoomType => mapping(IFriendKey.RoomTier => uint256)) public maxRoomsPerTier;
 
     /// @notice Nonce tracking for room creation per creator per room type per tier
@@ -68,7 +68,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
         address indexed creator, IFriendKey.RoomType indexed roomType, IFriendKey.RoomTier indexed tier, uint256 tokenId
     );
 
-        /// @custom:oz-upgrades-unsafe-allow constructor
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }

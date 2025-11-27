@@ -39,7 +39,6 @@ library Errors {
     error NoFundsAvailable();
     error InsufficientReserves();
 
-
     // FriendRoomManager specific errors
     error RoomManagerNotSet();
     error RoomLimitExceeded();

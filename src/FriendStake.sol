@@ -312,11 +312,10 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
 
         (uint16 devPerformanceFeePercent, uint16 creatorPerformanceFeePercent) = friendKeyToken.getPerformanceFees();
         uint256 platformShare = (rewardAmount * devPerformanceFeePercent) / friendKeyToken.BPS_SCALE();
-        uint256 creatorShare =
-            (rewardAmount * creatorPerformanceFeePercent) / friendKeyToken.BPS_SCALE();
+        uint256 creatorShare = (rewardAmount * creatorPerformanceFeePercent) / friendKeyToken.BPS_SCALE();
 
         rewardAmount -= platformShare;
-        (address devFeeDestination, address poolFeeDestination) = friendKeyToken.getFeeDestinations();
+        (address devFeeDestination,) = friendKeyToken.getFeeDestinations();
         rewardToken.safeTransfer(devFeeDestination, platformShare);
         emit RewardClaimed(devFeeDestination, tokenId, platformShare);
 
