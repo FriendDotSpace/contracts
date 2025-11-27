@@ -7,6 +7,7 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendPool} from "src/FriendPool.sol";
 import {FriendUSD} from "src/FriendUSD.sol";
+import {FriendRoomManager} from "src/FriendRoomManager.sol";
 
 /**
  * @title Deploy
@@ -14,9 +15,10 @@ import {FriendUSD} from "src/FriendUSD.sol";
  * @dev This script deploys:
  *      1. FriendUSD (if USDC address is not provided or is address(0))
  *      2. FriendStake beacon (used by FriendKey to create staking pools)
- *      3. FriendKey UUPS proxy (main protocol contract)
- *      4. FriendPool UUPS proxy (cross-chain pool for bonding curve reserves)
- *      5. Configures FriendKey to use FriendPool as trading pool fee destination
+ *      3. FriendRoomManager UUPS proxy (main protocol contract)
+ *      4. FriendKey UUPS proxy (main protocol contract)
+ *      5. FriendPool UUPS proxy (cross-chain pool for bonding curve reserves)
+ *      6. Configures FriendRoomManager to use FriendPool as trading pool fee destination
  */
 contract Deploy is Script {
     // Configuration parameters
@@ -77,34 +79,45 @@ contract Deploy is Script {
         // ============================================
         // 3. Deploy FriendKey (UUPS Proxy)
         // ============================================
+        console2.log("Deploying FriendRoomManager...");
+
+        // Deploy FriendRoomManager first
+        bytes memory roomManagerInitData = abi.encodeCall(FriendRoomManager.initialize, (initialOwner));
+
+        address roomManagerProxy = Upgrades.deployUUPSProxy("FriendRoomManager.sol", roomManagerInitData);
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerProxy);
+        console2.log("FriendRoomManager deployed to:", address(roomManager));
+
         console2.log("Deploying FriendKey...");
 
-        // Note: We use address(0) as temporary tradingPoolFeeDestination
-        // We'll update it after deploying FriendPool
-        bytes memory friendKeyInitData = abi.encodeCall(
-            FriendKey.initialize,
-            (
-                initialOwner,
-                initialOwner, // devFeeDestination (using deployer initially)
-                bondingToken,
-                friendStakeBeacon,
-                authorityAddress,
-                ELIGIBILITY_DURATION
-            )
-        );
+        // Deploy FriendKey with RoomManager address
+        bytes memory friendKeyInitData =
+            abi.encodeCall(FriendKey.initialize, (initialOwner, bondingToken, friendStakeBeacon, address(roomManager)));
 
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitData);
         FriendKey friendKey = FriendKey(friendKeyProxy);
         console2.log("FriendKey deployed to:", address(friendKey));
         friendKey.setSignee(SIGNEE);
-        console2.log("Signee set to:", SIGNEE);
 
-        // set fees after initialization
-        friendKey.setTradingFees(DEV_FEE_PERCENT, CREATOR_FEE_PERCENT, TRADING_POOL_FEE_PERCENT);
-        friendKey.setPerformanceFees(DEV_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT);
-        console2.log("Trading pool fees set");
-        friendKey.setSocialFees(DEV_FEE_PERCENT / 2, CREATOR_FEE_PERCENT);
-        console2.log("Social fees set");
+        // Set FriendKey address in RoomManager
+        roomManager.setFriendKey(address(friendKey));
+
+        // Set fees in RoomManager
+        roomManager.setTradingFees(DEV_FEE_PERCENT, CREATOR_FEE_PERCENT, TRADING_POOL_FEE_PERCENT);
+        console2.log("Trading fees set in RoomManager");
+
+        roomManager.setPerformanceFees(DEV_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT);
+        console2.log("Performance fees set in RoomManager");
+
+        roomManager.setSocialFees(DEV_FEE_PERCENT / 2, CREATOR_FEE_PERCENT);
+        console2.log("Social fees set in RoomManager");
+
+        // Set authority and eligibility duration in RoomManager
+        roomManager.setAuthority(authorityAddress);
+        roomManager.setEligibilityDuration(ELIGIBILITY_DURATION);
+        console2.log("Authority and eligibility duration set in RoomManager");
+
+        console2.log("Signee set to:", SIGNEE);
 
         // ============================================
         // 4. Deploy FriendPool (UUPS Proxy)
@@ -117,19 +130,17 @@ contract Deploy is Script {
         address friendPoolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", friendPoolInitData);
         FriendPool friendPool = FriendPool(friendPoolProxy);
         console2.log("FriendPool deployed to:", address(friendPool));
-        console2.log("");
+
+        // Now set fee destinations in RoomManager
+        roomManager.setFeeDestinations(initialOwner, address(friendPool));
+        console2.log("Fee destinations set in RoomManager (dev: owner, pool: FriendPool)");
 
         // ============================================
-        // 5. Configure FriendKey to use FriendPool
+        // 5. Configure FriendPool
         // ============================================
-        console2.log("Configuring FriendKey to use FriendPool...");
-        // Set fees after initialization
-        friendKey.setTradingFees(DEV_FEE_PERCENT, CREATOR_FEE_PERCENT, TRADING_POOL_FEE_PERCENT);
-        friendKey.setPerformanceFees(DEV_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT);
-        friendKey.setSocialFees(DEV_FEE_PERCENT / 2, CREATOR_FEE_PERCENT);
-        friendKey.setFeeDestinations(initialOwner, address(friendPool));
-        console2.log("Trading pool fee destination set to FriendPool");
+        console2.log("Configuring FriendPool...");
         friendPool.setDispatcher(authorityAddress);
+        console2.log("FriendPool dispatcher set to:", authorityAddress);
         console2.log("");
 
         // ============================================
