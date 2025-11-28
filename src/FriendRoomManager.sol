@@ -122,7 +122,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     }
 
     modifier onlyAuthorized() {
-        if (msg.sender != authority || msg.sender != owner()) revert Errors.Unauthorized();
+        if (msg.sender != authority && msg.sender != owner()) revert Errors.Unauthorized();
         _;
     }
 
