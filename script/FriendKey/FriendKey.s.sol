@@ -41,7 +41,6 @@ contract FriendKeyScript is Script {
             abi.encodeCall(FriendKey.initialize, (initialOwner, address(usdc), friendStakeBeacon, mockRoomManager));
         address proxy = Upgrades.deployUUPSProxy("FriendKey.sol", initializeData);
         FriendKey instance = FriendKey(proxy);
-        // Fee setting moved to FriendRoomManager
         // instance.setTradingFees(DEV_FEE_PERCENT, CREATOR_FEE_PERCENT, TRADING_POOL_FEE_PERCENT);
         // instance.setPerformanceFees(DEV_PERFORMANCE_FEE_PERCENT, CREATOR_PERFORMANCE_FEE_PERCENT);
         // instance.setSocialFees(DEV_FEE_PERCENT / 2, CREATOR_FEE_PERCENT);

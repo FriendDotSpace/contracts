@@ -10,8 +10,8 @@ import {Errors} from "./libraries/Errors.sol";
 /**
  * @title FriendRoomManager
  * @notice Extension contract to manage room creation limits and advanced room features
- * @dev This contract works alongside FriendKey to provide enhanced room management
- *      Storage has been moved from FriendKey to this contract for size optimization
+ * @dev This contract works alongside FriendKey to provide room management and some admin
+ *      functionality for the FriendKey contract.
  */
 contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     // ============================================
