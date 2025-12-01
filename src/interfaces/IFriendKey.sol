@@ -19,6 +19,7 @@ interface IFriendKey is IERC1155 {
     function devPerformanceFeePercent() external view returns (uint256);
     function creatorPerformanceFeePercent() external view returns (uint256);
     function bondingToken() external view returns (address);
+    function roomManager() external view returns (address);
 
     function registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature)
         external

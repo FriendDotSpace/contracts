@@ -49,4 +49,10 @@ interface IFriendRoomManager {
     function eligibilityDuration() external view returns (uint256);
     function authority() external view returns (address);
     function setAuthority(address _authority) external;
+
+    // Pause management
+    function pause() external;
+    function unpause() external;
+    function isPaused() external view returns (bool);
+    function paused() external view returns (bool);
 }

@@ -8,6 +8,7 @@ import {FriendStake} from "src/FriendStake.sol";
 import {FriendRoomManager} from "src/FriendRoomManager.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import {Errors} from "src/libraries/Errors.sol";
 
 // Use the same MockERC20 from FriendKey.t.sol
 import {MockERC20, MockPool} from "./FriendKey.t.sol";
@@ -296,6 +297,95 @@ contract FriendStakeTest is Test {
         friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
         vm.expectRevert("FriendStake: Staking is not open");
         friendKey.safeTransferFrom(staker1, address(stake), CREATOR_TOKEN_ID, 1, "");
+        vm.stopPrank();
+    }
+
+    // Pause tests
+    function testPause_StakeRevertsWhenPaused() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.setApprovalForAll(address(stake), true);
+        vm.stopPrank();
+
+        // Now pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to stake - should revert
+        vm.startPrank(staker1);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+    }
+
+    function testPause_UnstakeRevertsWhenPaused() public {
+        // First stake some tokens
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to unstake - should revert
+        vm.startPrank(staker1);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        friendKey.unstake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+    }
+
+    function testPause_ClaimRevertsWhenPaused() public {
+        // Setup: stake, lock, and fund rewards
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        // Fund rewards and lock staking
+        mockUsdc.mint(address(stake), 10 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+        vm.prank(owner);
+        stake.calculateTotalEligible(10);
+
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to claim - should revert
+        vm.startPrank(staker1);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        stake.claim();
+        vm.stopPrank();
+    }
+
+    function testPause_OperationsWorkAfterUnpause() public {
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Unpause the contract
+        vm.prank(owner);
+        roomManager.unpause();
+
+        // Operations should work again
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
     }
 }

@@ -488,4 +488,65 @@ contract FriendPoolTest is Test {
             friendPool.poolReserves(secondTokenId), secondTokenReserves, "Second token reserves should be unchanged"
         );
     }
+
+    // Pause tests
+    function testPause_PullRevertsWhenPaused() public {
+        // First generate some fees
+        _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
+
+        address roomManagerAddr = friendKey.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to pull - should revert (this is called by FriendKey during buy/sell)
+        // We can't directly call pull since it's onlyFriendKey, but we can test that buy/sell reverts
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(friendKey), type(uint256).max);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        vm.stopPrank();
+    }
+
+    function testPause_DispatchRevertsWhenPaused() public {
+        // First generate some fees
+        _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
+
+        address roomManagerAddr = friendKey.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to dispatch - should revert
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        vm.startPrank(owner);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
+        vm.stopPrank();
+    }
+
+    function testPause_OperationsWorkAfterUnpause() public {
+        address roomManagerAddr = friendKey.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Unpause the contract
+        vm.prank(owner);
+        roomManager.unpause();
+
+        // Operations should work again
+        _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
+
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        vm.startPrank(owner);
+        friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
+        vm.stopPrank();
+    }
 }

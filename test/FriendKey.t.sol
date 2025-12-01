@@ -1293,4 +1293,116 @@ contract FriendKeyTest is Test {
         // In actual implementation, creator always buys first share, so this scenario shouldn't happen
         // But we can test the logic exists
     }
+
+    // Pause tests
+    function testPause_BuySharesRevertsWhenPaused() public {
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        vm.prank(owner);
+        roomManager.pause();
+        assertTrue(roomManager.paused());
+
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), type(uint256).max);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        instance.buyShares(CREATOR_TOKEN_ID, 10, 0);
+        vm.stopPrank();
+    }
+
+    function testPause_SellSharesRevertsWhenPaused() public {
+        // First buy some shares
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), type(uint256).max);
+        instance.buyShares(CREATOR_TOKEN_ID, 10, 0);
+        vm.stopPrank();
+
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to sell shares - should revert
+        vm.startPrank(buyerAccount);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        instance.sellShares(CREATOR_TOKEN_ID, 5, 0);
+        vm.stopPrank();
+    }
+
+    function testPause_StakeRevertsWhenPaused() public {
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), type(uint256).max);
+        instance.buyShares(CREATOR_TOKEN_ID, 10, 0);
+        vm.stopPrank();
+
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to stake - should revert
+        vm.startPrank(buyerAccount);
+        instance.setApprovalForAll(address(friendStake), true);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        instance.stake(CREATOR_TOKEN_ID, 5);
+        vm.stopPrank();
+    }
+
+    function testPause_UnstakeRevertsWhenPaused() public {
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), type(uint256).max);
+        instance.buyShares(CREATOR_TOKEN_ID, 10, 0);
+        instance.setApprovalForAll(address(friendStake), true);
+        instance.stake(CREATOR_TOKEN_ID, 5);
+        vm.stopPrank();
+
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to unstake - should revert
+        vm.startPrank(buyerAccount);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        instance.unstake(CREATOR_TOKEN_ID, 3);
+        vm.stopPrank();
+    }
+
+    function testPause_RegisterCreatorRevertsWhenPaused() public {
+        address testCreator = vm.addr(107);
+        mockUsdc.mint(testCreator, 10_000_000 * (10 ** 6));
+
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        vm.prank(owner);
+        roomManager.pause();
+
+        bytes memory signature = _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Club, 0, "test");
+        vm.prank(testCreator);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        instance.registerCreator(FriendKey.RoomTier.Club, 0, "test", signature);
+    }
+
+    function testPause_OperationsWorkAfterUnpause() public {
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        vm.prank(owner);
+        roomManager.pause();
+
+        vm.prank(owner);
+        roomManager.unpause();
+        assertFalse(roomManager.paused());
+
+        // Operations should work again
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), type(uint256).max);
+        instance.buyShares(CREATOR_TOKEN_ID, 10, 0);
+        instance.sellShares(CREATOR_TOKEN_ID, 5, 0);
+        vm.stopPrank();
+    }
 }

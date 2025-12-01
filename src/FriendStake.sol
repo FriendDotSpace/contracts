@@ -12,6 +12,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IterableMapping} from "./lib/IterableMapping.sol";
 import {IFriendKey} from "./interfaces/IFriendKey.sol";
+import {IFriendRoomManager} from "./interfaces/IFriendRoomManager.sol";
+import {Errors} from "./libraries/Errors.sol";
 
 /**
  * @title FriendStake
@@ -148,6 +150,17 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     }
 
     /**
+     * @dev Modifier to check if contract is paused via FriendKey -> RoomManager
+     */
+    modifier whenNotPaused() {
+        address roomManagerAddress = friendKeyToken.roomManager();
+        if (roomManagerAddress != address(0)) {
+            if (IFriendRoomManager(roomManagerAddress).paused()) revert Errors.ContractPaused();
+        }
+        _;
+    }
+
+    /**
      * @notice Sets the duration that a stake must be held to be eligible for rewards
      * @dev Only callable by the contract owner
      * @param duration Duration in seconds
@@ -188,6 +201,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         public
         virtual
         override
+        whenNotPaused
         returns (bytes4)
     {
         require(isOpenForStaking, "FriendStake: Staking is not open");
@@ -217,6 +231,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         public
         virtual
         override
+        whenNotPaused
         returns (bytes4)
     {
         require(isOpenForStaking, "FriendStake: Staking is not open");
@@ -284,21 +299,21 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         emit RewardClaimed(user, tokenId, userClaim);
     }
 
-    function claim() external {
+    function claim() external whenNotPaused {
         require(!isOpenForStaking, "FriendStake: Staking is still open");
         require(stakedBalances.getTotalStake(_msgSender()) > 0, "FriendStake: No staked tokens to claim rewards");
         claimRewards(_msgSender());
     }
 
-    function unstake(uint256 amount, address user) external onlyFriendKey {
+    function unstake(uint256 amount, address user) external onlyFriendKey whenNotPaused {
         _unstake(amount, user);
     }
 
-    function unstake(uint256 amount) external {
+    function unstake(uint256 amount) external whenNotPaused {
         _unstake(amount, _msgSender());
     }
 
-    function unstakeAll() external {
+    function unstakeAll() external whenNotPaused {
         uint256 userBalance = stakedBalances.getTotalStake(_msgSender());
         _unstake(userBalance, _msgSender());
     }

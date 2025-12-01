@@ -60,13 +60,13 @@ contract FriendKey is
     /// @notice Enum defining different room tiers with varying bonding curve parameters
     /// @dev Each tier has a different divisor that affects the pricing curve steepness
     enum RoomTier {
-        Casual, // Light tier with high divisor (4000) - Social default (V2)
+        Casual, // Most affordable tier with highest divisor (4000)
         Club, // Medium tier with moderate divisor (40)
         Exclusive // Premium tier with lowest divisor (4) - highest prices
     }
 
     /// @dev Counter for generating unique token IDs
-    uint256 internal _nextTokenId;
+    uint256 private _nextTokenId;
 
     /// @notice Basis point scale for percentage calculations (10000 = 100%)
     uint256 public BPS_SCALE;
@@ -243,6 +243,14 @@ contract FriendKey is
         _;
     }
 
+    /// @notice Modifier to check if contract is paused
+    modifier whenNotPaused() {
+        if (roomManager != address(0)) {
+            if (IFriendRoomManager(roomManager).paused()) revert Errors.ContractPaused();
+        }
+        _;
+    }
+
     /**
      * @notice Sets the base URI for token metadata
      * @dev Only callable by contract owner
@@ -295,6 +303,7 @@ contract FriendKey is
     function registerCreator(RoomTier tier, uint256 additionalKeys, string calldata metadata, bytes calldata signature)
         public
         virtual
+        whenNotPaused
         returns (uint256)
     {
         // Tier allowance now checked via FriendRoomManager
@@ -309,7 +318,12 @@ contract FriendKey is
      * @param signature Owner signature authorizing the registration parameters
      * @return The newly created token ID
      */
-    function registerCreator(string calldata metadata, bytes calldata signature) public returns (uint256) {
+    function registerCreator(string calldata metadata, bytes calldata signature)
+        public
+        virtual
+        whenNotPaused
+        returns (uint256)
+    {
         return registerCreator(RoomTier.Club, 0, metadata, signature);
     }
 
@@ -322,7 +336,7 @@ contract FriendKey is
         uint256 additionalKeys,
         string calldata metadata,
         bytes calldata signature
-    ) public returns (uint256) {
+    ) public virtual whenNotPaused returns (uint256) {
         _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
         return _registerCreator(RoomType.Social, tier, additionalKeys, metadata);
     }
@@ -330,7 +344,12 @@ contract FriendKey is
     /**
      * @notice Registers a creator for social rooms with default Club tier
      */
-    function registerSocialCreator(string calldata metadata, bytes calldata signature) public returns (uint256) {
+    function registerSocialCreator(string calldata metadata, bytes calldata signature)
+        public
+        virtual
+        whenNotPaused
+        returns (uint256)
+    {
         return registerSocialCreator(RoomTier.Club, 0, metadata, signature);
     }
 
@@ -388,7 +407,7 @@ contract FriendKey is
         uint256 additionalKeys,
         string calldata metadata,
         bytes calldata signature
-    ) internal {
+    ) internal virtual {
         uint256 nonce = registerCreatorNonces[account];
         bytes32 metadataHash = keccak256(bytes(metadata));
         bytes32 structHash = keccak256(
@@ -520,7 +539,7 @@ contract FriendKey is
      * @param amount Number of tokens to purchase
      * @param maxSpend Maximum amount of bonding tokens to spend (0 = no limit, for backward compatibility)
      */
-    function buyShares(uint256 tokenId, uint256 amount, uint256 maxSpend) public {
+    function buyShares(uint256 tokenId, uint256 amount, uint256 maxSpend) public virtual whenNotPaused {
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         address creatorAddress = creatorByTokenId[tokenId];
         if (creatorAddress == address(0)) revert Errors.CreatorNotRegistered();
@@ -589,7 +608,7 @@ contract FriendKey is
      * @param amount Number of tokens to sell
      * @param minReceive Minimum amount of bonding tokens to receive (0 = no limit, for backward compatibility)
      */
-    function sellShares(uint256 tokenId, uint256 amount, uint256 minReceive) public {
+    function sellShares(uint256 tokenId, uint256 amount, uint256 minReceive) public virtual whenNotPaused {
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         address creatorAddress = creatorByTokenId[tokenId];
         if (creatorAddress == address(0)) revert Errors.CreatorNotRegistered();
@@ -650,7 +669,7 @@ contract FriendKey is
      * @param tokenId The ID of the token to stake
      * @param amount Number of tokens to stake
      */
-    function stake(uint256 tokenId, uint256 amount) public virtual {
+    function stake(uint256 tokenId, uint256 amount) public virtual whenNotPaused {
         // @dev: since by default social rooms don't have a staking pool (address(0)), we don't need to check for that
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         if (balanceOf(msg.sender, tokenId) < amount) revert Errors.InsufficientShares();
@@ -670,7 +689,7 @@ contract FriendKey is
      * @param tokenId The ID of the token to unstake
      * @param amount Number of tokens to unstake
      */
-    function unstake(uint256 tokenId, uint256 amount) public virtual {
+    function unstake(uint256 tokenId, uint256 amount) public virtual whenNotPaused {
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         // since by default social rooms don't have a staking pool (address(0)), we don't need to check for that
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
@@ -744,6 +763,7 @@ contract FriendKey is
     function canRegisterRoom(address creator, RoomType roomType, RoomTier tier)
         public
         view
+        virtual
         roomManagerSet
         returns (bool)
     {

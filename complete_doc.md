@@ -194,20 +194,6 @@ enum RoomTier {
 
 **Price Impact**: Lower divisor = Higher prices = More exclusive
 
-### Room Limits (Default Configuration)
-
-```javascript
-// Trading Rooms (per creator per tier)
-maxRoomsPerTier[Trading][Casual] = 0;     // Disabled by default
-maxRoomsPerTier[Trading][Club] = 1;       // 1 Club room allowed
-maxRoomsPerTier[Trading][Exclusive] = 1;  // 1 Exclusive room allowed
-
-// Social Rooms (per creator per tier)
-maxRoomsPerTier[Social][Casual] = 0;      // Disabled by default
-maxRoomsPerTier[Social][Club] = 0;        // Disabled by default
-maxRoomsPerTier[Social][Exclusive] = 0;   // Disabled by default
-```
-
 **Note**: Limits can be changed by contract owner via `FriendRoomManager.setMaxRoomsPerTier()`
 
 ---

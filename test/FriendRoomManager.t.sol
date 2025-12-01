@@ -179,4 +179,61 @@ contract FriendRoomManagerTest is Test {
 
         vm.stopPrank();
     }
+
+    function testPause() public {
+        // Initially not paused
+        assertFalse(roomManager.paused());
+        assertFalse(roomManager.isPaused());
+
+        // Owner can pause
+        roomManager.pause();
+        assertTrue(roomManager.paused());
+        assertTrue(roomManager.isPaused());
+
+        // Pausing again is idempotent
+        roomManager.pause();
+        assertTrue(roomManager.paused());
+    }
+
+    function testUnpause() public {
+        // Pause first
+        roomManager.pause();
+        assertTrue(roomManager.paused());
+
+        // Owner can unpause
+        roomManager.unpause();
+        assertFalse(roomManager.paused());
+        assertFalse(roomManager.isPaused());
+
+        // Unpausing again is idempotent
+        roomManager.unpause();
+        assertFalse(roomManager.paused());
+    }
+
+    function testPauseOnlyOwner() public {
+        address nonOwner = vm.addr(999);
+
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        roomManager.pause();
+
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        roomManager.unpause();
+    }
+
+    function testPauseUnpauseCycle() public {
+        // Multiple pause/unpause cycles should work
+        roomManager.pause();
+        assertTrue(roomManager.paused());
+
+        roomManager.unpause();
+        assertFalse(roomManager.paused());
+
+        roomManager.pause();
+        assertTrue(roomManager.paused());
+
+        roomManager.unpause();
+        assertFalse(roomManager.paused());
+    }
 }

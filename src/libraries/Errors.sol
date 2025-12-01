@@ -44,5 +44,6 @@ library Errors {
     error RoomLimitExceeded();
     error ZeroDivisor();
     error Unauthorized();
+    error ContractPaused();
 }
 

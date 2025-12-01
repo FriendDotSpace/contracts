@@ -62,6 +62,9 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     /// @notice Duration that a stake must be held to be eligible for rewards
     uint256 public eligibilityDuration;
 
+    /// @notice Global pause state - when true, all operations are paused
+    bool public paused;
+
     /// @notice Maximum number of rooms allowed per creator per tier per room type
     mapping(IFriendKey.RoomType => mapping(IFriendKey.RoomTier => uint256)) public maxRoomsPerTier;
 
@@ -90,6 +93,8 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     event FeeDestinationsSet(address indexed devDest, address indexed poolDest);
     event FriendKeySet(address indexed friendKey);
     event AuthoritySet(address indexed authority);
+    event Paused(address indexed account);
+    event Unpaused(address indexed account);
 
     // ============================================
     // CONSTRUCTOR & INITIALIZER
@@ -156,6 +161,34 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      */
     function setEligibilityDuration(uint256 _duration) external onlyAuthorized {
         eligibilityDuration = _duration;
+    }
+
+    /**
+     * @notice Pauses all operations across all contracts
+     * @dev Only callable by owner
+     */
+    function pause() external onlyOwner {
+        if (paused) return; // Already paused, idempotent
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice Unpauses all operations across all contracts
+     * @dev Only callable by owner
+     */
+    function unpause() external onlyOwner {
+        if (!paused) return; // Not paused, idempotent
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+
+    /**
+     * @notice Checks if the contract is paused
+     * @return True if paused, false otherwise
+     */
+    function isPaused() external view returns (bool) {
+        return paused;
     }
 
     // ============================================
@@ -253,11 +286,9 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
         IFriendKey.RoomType roomType,
         IFriendKey.RoomTier tier,
         uint256 tokenId
-    ) external {
-        // Only FriendKey can call this
+    ) external virtual {
         require(msg.sender == address(friendKey), Errors.NotFriendKey());
 
-        // Check if creator can register this room type/tier
         if (!canRegisterRoom(creator, roomType, tier)) {
             revert Errors.RoomLimitExceeded();
         }
@@ -372,7 +403,12 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @param tier Tier of room (Casual/Club/Exclusive)
      * @return Divisor value for the specified room type and tier
      */
-    function getDivisor(IFriendKey.RoomType roomType, IFriendKey.RoomTier tier) external view returns (uint256) {
+    function getDivisor(IFriendKey.RoomType roomType, IFriendKey.RoomTier tier)
+        external
+        view
+        virtual
+        returns (uint256)
+    {
         if (roomType == IFriendKey.RoomType.Social) {
             return socialDivisors[uint256(tier)];
         }
@@ -389,6 +425,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     function canRegisterRoom(address creator, IFriendKey.RoomType roomType, IFriendKey.RoomTier tier)
         public
         view
+        virtual
         returns (bool)
     {
         uint256 maxAllowed = maxRoomsPerTier[roomType][tier];
@@ -441,7 +478,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
         IFriendKey.RoomType roomType,
         IFriendKey.RoomTier tier,
         uint256 tokenId
-    ) internal {
+    ) internal virtual {
         creatorRoomNonce[creator][roomType][tier]++;
         creatorRoomsByTier[creator][roomType][tier].push(tokenId);
     }
