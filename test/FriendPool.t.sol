@@ -219,7 +219,7 @@ contract FriendPoolTest is Test {
         vm.startPrank(buyer);
         uint256 cost = friendKey.getBuyPriceAfterFee(tokenId, amount);
         mockUsdc.approve(address(friendKey), cost);
-        friendKey.buyShares(tokenId, amount, 0);
+        friendKey.buyShares(tokenId, amount, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -506,7 +506,7 @@ contract FriendPoolTest is Test {
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(friendKey), type(uint256).max);
         vm.expectRevert(Errors.ContractPaused.selector);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
         vm.stopPrank();
     }
 

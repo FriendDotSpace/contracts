@@ -6,7 +6,6 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendStake} from "src/FriendStake.sol";
 import {FriendRoomManager} from "src/FriendRoomManager.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {Errors} from "src/libraries/Errors.sol";
 
@@ -102,7 +101,7 @@ contract FriendStakeTest is Test {
         vm.startPrank(creatorAccount);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
 
         friendKey.stake(CREATOR_TOKEN_ID, 2); // Stake the initial share + the one just bought
 
@@ -116,7 +115,7 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 3);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 3, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 3, type(uint256).max);
 
         // First stake the shares
         friendKey.stake(CREATOR_TOKEN_ID, 3);
@@ -145,7 +144,7 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 2, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
         friendKey.stake(CREATOR_TOKEN_ID, 2);
         assertEq(stake.totalStaked(), 2);
 
@@ -163,7 +162,7 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 2, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
         friendKey.stake(CREATOR_TOKEN_ID, 2);
         vm.stopPrank();
         assertEq(stake.totalStaked(), 2); // 2 shares staked
@@ -194,14 +193,14 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price1 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
         mockUsdc.approve(address(friendKey), price1);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 2, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
         friendKey.stake(CREATOR_TOKEN_ID, 2);
         vm.stopPrank();
 
         vm.startPrank(staker2);
         uint256 price2 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 3);
         mockUsdc.approve(address(friendKey), price2);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 3, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 3, type(uint256).max);
         friendKey.stake(CREATOR_TOKEN_ID, 3);
         vm.stopPrank();
 
@@ -257,7 +256,7 @@ contract FriendStakeTest is Test {
                 mockUsdc.mint(staker, 1_000_000 * (10 ** 6));
                 uint256 price1 = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
                 mockUsdc.approve(address(friendKey), price1);
-                friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+                friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
                 friendKey.stake(CREATOR_TOKEN_ID, 1);
                 vm.stopPrank();
             }
@@ -283,7 +282,7 @@ contract FriendStakeTest is Test {
 
     function testCannotStakeWhenClosed() public {
         // Owner closes staking
-        vm.expectRevert("FriendStake: No rewards to distribute");
+        vm.expectRevert(Errors.NoRewardsToDistribute.selector);
         vm.prank(owner);
         stake.lockStaking();
         mockUsdc.mint(address(stake), 10 * (10 ** 6));
@@ -294,8 +293,8 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
-        vm.expectRevert("FriendStake: Staking is not open");
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        vm.expectRevert(Errors.StakingNotOpen.selector);
         friendKey.safeTransferFrom(staker1, address(stake), CREATOR_TOKEN_ID, 1, "");
         vm.stopPrank();
     }
@@ -305,7 +304,7 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
         friendKey.setApprovalForAll(address(stake), true);
         vm.stopPrank();
 
@@ -325,7 +324,7 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
         friendKey.setApprovalForAll(address(stake), true);
         friendKey.stake(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
@@ -346,7 +345,7 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
         friendKey.setApprovalForAll(address(stake), true);
         friendKey.stake(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
@@ -383,7 +382,7 @@ contract FriendStakeTest is Test {
         vm.startPrank(staker1);
         uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
         mockUsdc.approve(address(friendKey), price);
-        friendKey.buyShares(CREATOR_TOKEN_ID, 1, 0);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
         friendKey.setApprovalForAll(address(stake), true);
         friendKey.stake(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();

@@ -22,11 +22,13 @@ library Errors {
     error CreatorNotRegistered();
     error AmountExceedsSupply();
     error OnlyCreatorCanBuyFirstShare();
+
     error SlippageExceededMaxSpend();
     error SlippageProtectionRequired();
+    error SlippageExceededMinReceive();
+
     error InvalidTier();
     error CreatorAlreadyRegistered();
-    error SlippageExceededMinReceive();
     error InsufficientShares();
     error CannotSellAllShares();
     error StakingPoolNotRegistered();
@@ -46,5 +48,19 @@ library Errors {
     error ZeroDivisor();
     error Unauthorized();
     error ContractPaused();
-}
 
+    // FriendStake specific errors
+    error StakingNotOpen();
+    error StakingAlreadyClosed();
+    error StakingStillOpen();
+    error CallerNotFriendKey();
+    error CallerNotAuthorityOrOwner();
+    error InvalidTokenId();
+    error NotEnoughStakedBalance();
+    error TotalEligibleNotSet();
+    error TotalEligibleAlreadySet();
+    error NoRewardsToDistribute();
+    error AlreadyClaimed();
+    error InvalidArrayLength();
+    error FriendKeyMustBeERC1155();
+}

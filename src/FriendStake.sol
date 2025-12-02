@@ -37,19 +37,21 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     uint256 public tokenId;
     /// @notice Whether the staking pool is currently accepting new stakes
     bool public isOpenForStaking;
-    /// @dev Internal counter for reward distribution rounds
-    uint256 rewardDistributionIndex;
-    /// @dev Internal counter for reward eligibility calculation rounds
+    /// @notice Number of users processed so far in current distribution round - Used to determine where to start next batch iteration
+    uint256 usersProcessedThisRound;
+    /// @notice Internal counter for reward eligibility calculation rounds
     uint256 calculateEligibleIndex;
     /// @notice Total amount of reward tokens available for distribution
     uint256 public rewardAmount;
     /// @notice Time period that staked tokens are locked (in seconds)
     uint256 public lockTime;
 
-    /// @notice Array to track which users have claimed rewards for current distribution
-    /// @dev Using array instead of mapping for gas-efficient reset after distribution.
-    ///      The array is reset for each new distribution round in the `resetClaims()` function.
-    bool[] public claimed;
+    /// @notice Current distribution round counter
+    uint256 public distributionRound;
+
+    /// @notice Mapping to track which users have claimed rewards for each distribution round
+    /// @dev Format: claimed[distributionRound][user] = true if user has claimed for this round
+    mapping(uint256 => mapping(address => bool)) public claimed;
 
     /// @notice Total amount of tokens currently staked in this pool
     uint256 public totalStaked;
@@ -115,13 +117,12 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     ) public initializer {
         __Ownable_init(initialOwner);
         // __UUPSUpgradeable_init();
-        require(_friendKeyAddress != address(0), "FriendKey address cannot be zero");
-        require(_rewardToken != address(0), "Reward token address cannot be zero");
+        if (_friendKeyAddress == address(0)) revert Errors.ZeroAddress();
+        if (_rewardToken == address(0)) revert Errors.ZeroAddress();
         rewardToken = IERC20(_rewardToken);
-        require(
-            IFriendKey(_friendKeyAddress).supportsInterface(type(IERC1155).interfaceId),
-            "FriendKey address must be an ERC1155 contract"
-        );
+        if (!IFriendKey(_friendKeyAddress).supportsInterface(type(IERC1155).interfaceId)) {
+            revert Errors.FriendKeyMustBeERC1155();
+        }
         friendKeyToken = IFriendKey(_friendKeyAddress);
         tokenId = _tokenId;
         totalStaked = 0;
@@ -136,7 +137,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
      * @dev Modifier to ensure only the FriendKey contract can call certain functions
      */
     modifier onlyFriendKey() {
-        require(_msgSender() == address(friendKeyToken), "FriendStake: Caller not FriendKey");
+        if (_msgSender() != address(friendKeyToken)) revert Errors.CallerNotFriendKey();
         _;
     }
 
@@ -145,7 +146,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
      *      Functions using this modifier can only be called by the authority or the owner.
      */
     modifier onlyAuthority() {
-        require(_msgSender() == authority || _msgSender() == owner(), "FriendStake: Caller not authority or owner");
+        if (_msgSender() != authority && _msgSender() != owner()) revert Errors.CallerNotAuthorityOrOwner();
         _;
     }
 
@@ -166,7 +167,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
      * @param duration Duration in seconds
      */
     function setEligibilityDuration(uint256 duration) external onlyOwner {
-        require(duration > 0, "Eligibility duration must be positive");
+        if (duration == 0) revert Errors.AmountMustBeGreaterThanZero();
         eligibilityDuration = duration;
         emit EligibilityDurationSet(tokenId, duration);
     }
@@ -177,7 +178,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
      * @param _authority The address to be set as authority
      */
     function setAuthority(address _authority) external onlyOwner {
-        require(_authority != address(0), "Authority address cannot be zero");
+        if (_authority == address(0)) revert Errors.ZeroAddress();
         authority = _authority;
     }
 
@@ -204,11 +205,11 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         whenNotPaused
         returns (bytes4)
     {
-        require(isOpenForStaking, "FriendStake: Staking is not open");
+        if (!isOpenForStaking) revert Errors.StakingNotOpen();
         // only FriendKey tokens are allowed
-        require(_msgSender() == address(friendKeyToken), "FriendStake: Only FriendKey tokens can be staked");
-        require(id == tokenId, "FriendStake: Invalid token ID");
-        require(value > 0, "FriendStake: Cannot stake zero tokens");
+        if (_msgSender() != address(friendKeyToken)) revert Errors.CallerNotFriendKey();
+        if (id != tokenId) revert Errors.InvalidTokenId();
+        if (value == 0) revert Errors.AmountMustBeGreaterThanZero();
         if (data.length != 0) {
             from = abi.decode(data, (address));
         }
@@ -234,14 +235,14 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         whenNotPaused
         returns (bytes4)
     {
-        require(isOpenForStaking, "FriendStake: Staking is not open");
-        require(ids.length == values.length, "FriendStake: IDs and values length mismatch");
-        require(_msgSender() == address(friendKeyToken), "FriendStake: Only FriendKey tokens can be staked");
+        if (!isOpenForStaking) revert Errors.StakingNotOpen();
+        if (ids.length != values.length) revert Errors.InvalidArrayLength();
+        if (_msgSender() != address(friendKeyToken)) revert Errors.CallerNotFriendKey();
 
         // uint256 balance = stakedBalances.get(from);
         for (uint256 i = 0; i < ids.length; i++) {
-            require(ids[i] == tokenId, "FriendStake: Invalid token ID");
-            require(values[i] > 0, "FriendStake: Cannot stake zero tokens");
+            if (ids[i] != tokenId) revert Errors.InvalidTokenId();
+            if (values[i] == 0) revert Errors.AmountMustBeGreaterThanZero();
 
             stakedBalances.append(from, IterableMapping.Stake(values[i], block.timestamp));
             // stakedBalances.set(from, balance + values[i]);
@@ -252,7 +253,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     }
 
     function _unstake(uint256 amount, address user) internal {
-        require(isOpenForStaking, "FriendStake: Reward distribution in progress");
+        if (!isOpenForStaking) revert Errors.StakingNotOpen();
         IterableMapping.Stake[] storage stakes = stakedBalances.get(user);
         uint256 remaining = amount;
         uint256 i = stakes.length;
@@ -269,7 +270,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
                 stakes.pop();
             }
         }
-        require(remaining == 0, "Not enough staked balance");
+        if (remaining != 0) revert Errors.NotEnoughStakedBalance();
 
         totalStaked -= amount;
         emit KeyUnstaked(user, tokenId, amount);
@@ -277,20 +278,19 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     }
 
     function claimRewards(address user) internal {
-        require(!isOpenForStaking, "FriendStake: Staking is still open");
-        require(isTotalEligibleSet, "FriendStake: Total staked amount is not set");
+        if (isOpenForStaking) revert Errors.StakingStillOpen();
+        if (!isTotalEligibleSet) revert Errors.TotalEligibleNotSet();
         uint256 userStake = stakedBalances.getEligibleStake(user, lockTime, eligibilityDuration);
-        require(userStake > 0, "FriendStake: No staked tokens to claim rewards");
+        if (userStake == 0) revert Errors.AmountMustBeGreaterThanZero();
 
         uint256 remainingAmount = rewardToken.balanceOf(address(this));
 
         uint256 userReward = (rewardAmount * userStake) / totalEligible;
         uint256 userClaim = userReward > remainingAmount ? remainingAmount : userReward;
 
-        uint256 userIndex = stakedBalances.getIndexOfKey(user);
-        require(!claimed[userIndex], "FriendStake: User has already claimed rewards");
+        if (claimed[distributionRound][user]) revert Errors.AlreadyClaimed();
 
-        claimed[userIndex] = true; // Mark user as having claimed rewards
+        claimed[distributionRound][user] = true; // Mark user as having claimed rewards for this round
 
         if (userClaim > 0) {
             rewardToken.safeTransfer(user, userClaim);
@@ -300,8 +300,8 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     }
 
     function claim() external whenNotPaused {
-        require(!isOpenForStaking, "FriendStake: Staking is still open");
-        require(stakedBalances.getTotalStake(_msgSender()) > 0, "FriendStake: No staked tokens to claim rewards");
+        if (isOpenForStaking) revert Errors.StakingStillOpen();
+        if (stakedBalances.getTotalStake(_msgSender()) == 0) revert Errors.AmountMustBeGreaterThanZero();
         claimRewards(_msgSender());
     }
 
@@ -319,11 +319,11 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     }
 
     function lockStaking() public onlyAuthority {
-        require(isOpenForStaking, "FriendStake: Staking is already closed");
+        if (!isOpenForStaking) revert Errors.StakingAlreadyClosed();
         isOpenForStaking = false;
         lockTime = block.timestamp;
         rewardAmount = rewardToken.balanceOf(address(this));
-        require(rewardAmount > 0, "FriendStake: No rewards to distribute");
+        if (rewardAmount == 0) revert Errors.NoRewardsToDistribute();
 
         (uint16 devPerformanceFeePercent, uint16 creatorPerformanceFeePercent) = friendKeyToken.getPerformanceFees();
         uint256 platformShare = (rewardAmount * devPerformanceFeePercent) / friendKeyToken.BPS_SCALE();
@@ -338,13 +338,14 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         rewardToken.safeTransfer(friendKeyToken.creatorByTokenId(tokenId), creatorShare);
         emit RewardClaimed(friendKeyToken.creatorByTokenId(tokenId), tokenId, creatorShare);
 
-        claimed = new bool[](stakedBalances.size()); // Reset claimed array
+        distributionRound++;
+        usersProcessedThisRound = 0; // Reset for new round's processing
     }
 
     function calculateTotalEligible(uint256 batchSize) public {
-        require(!isOpenForStaking, "FriendStake: Staking is still open");
-        require(!isTotalEligibleSet, "FriendStake: Total staked amount is already set");
-        require(batchSize > 0, "FriendStake: Batch size must be greater than zero");
+        if (isOpenForStaking) revert Errors.StakingStillOpen();
+        if (isTotalEligibleSet) revert Errors.TotalEligibleAlreadySet();
+        if (batchSize == 0) revert Errors.AmountMustBeGreaterThanZero();
 
         uint256 startIndex = calculateEligibleIndex;
         uint256 endIndex =
@@ -361,27 +362,34 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     }
 
     function distributeRewards(uint256 batchSize) public {
-        require(batchSize > 0, "FriendStake: Batch size must be greater than zero");
-        require(!isOpenForStaking, "FriendStake: Staking is still open");
+        if (batchSize == 0) revert Errors.AmountMustBeGreaterThanZero();
+        if (isOpenForStaking) revert Errors.StakingStillOpen();
         if (!isTotalEligibleSet) {
             calculateTotalEligible(batchSize);
         }
-        require(isTotalEligibleSet, "FriendStake: Total staked amount is not set");
-        uint256 endIndex = rewardDistributionIndex + batchSize > stakedBalances.size()
-            ? stakedBalances.size()
-            : rewardDistributionIndex + batchSize;
-        for (; rewardDistributionIndex < endIndex; rewardDistributionIndex++) {
-            address user = stakedBalances.getKeyAtIndex(rewardDistributionIndex);
+        if (!isTotalEligibleSet) revert Errors.TotalEligibleNotSet();
+
+        uint256 totalUsers = stakedBalances.size();
+        uint256 processed = 0;
+        uint256 startIndex = usersProcessedThisRound;
+
+        for (uint256 i = startIndex; i < totalUsers && processed < batchSize; i++) {
+            address user = stakedBalances.getKeyAtIndex(i);
             uint256 userStake = stakedBalances.getEligibleStake(user, lockTime, eligibilityDuration);
-            if (userStake > 0 && !claimed[rewardDistributionIndex]) {
+            if (userStake > 0 && !claimed[distributionRound][user]) {
                 claimRewards(user);
+                processed++;
             }
+            usersProcessedThisRound++;
         }
-        if (rewardDistributionIndex == stakedBalances.size()) {
+
+        // If processed all users, complete distribution
+        if (usersProcessedThisRound >= totalUsers) {
             isOpenForStaking = true; // Reopen staking after distribution
             isTotalEligibleSet = false;
             calculateEligibleIndex = 0;
             totalEligible = 0;
+            usersProcessedThisRound = 0;
         }
     }
 
