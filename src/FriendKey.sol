@@ -396,7 +396,7 @@ contract FriendKey is
             stakingPoolByTokenId[id] = friendStake;
         }
 
-        buyShares(id, 1 + additionalKeys, 0); // Mint 1 + additional shares
+        buyShares(id, 1 + additionalKeys, type(uint256).max); // Mint 1 + additional shares
         emit KeyCreated(id, creator, stakingPoolByTokenId[id], tokenUri, 1 + additionalKeys, tier, roomType);
         return id;
     }
@@ -537,7 +537,7 @@ contract FriendKey is
      * @dev Calculates price, collects fees, mints tokens, and distributes payments
      * @param tokenId The ID of the creator's token to buy
      * @param amount Number of tokens to purchase
-     * @param maxSpend Maximum amount of bonding tokens to spend (0 = no limit, for backward compatibility)
+     * @param maxSpend Maximum amount of bonding tokens to spend. Use type(uint256).max to disable protection
      */
     function buyShares(uint256 tokenId, uint256 amount, uint256 maxSpend) public virtual whenNotPaused {
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
@@ -567,8 +567,9 @@ contract FriendKey is
         uint256 totalCost = price + devFee + creatorFee + tradingPoolFee;
 
         // Slippage protection: ensure total cost doesn't exceed maxSpend
-        if (maxSpend > 0) {
-            if (totalCost > maxSpend) revert Errors.SlippageExceededMaxSpend();
+        if (maxSpend == 0) revert Errors.SlippageProtectionRequired();
+        if (maxSpend != type(uint256).max && totalCost > maxSpend) {
+            revert Errors.SlippageExceededMaxSpend();
         }
 
         bondingCurveReserves[creatorAddress] += price;
@@ -606,7 +607,7 @@ contract FriendKey is
      * @dev Burns tokens, calculates proceeds after fees, and transfers payment to seller
      * @param tokenId The ID of the creator's token to sell
      * @param amount Number of tokens to sell
-     * @param minReceive Minimum amount of bonding tokens to receive (0 = no limit, for backward compatibility)
+     * @param minReceive Minimum amount of bonding tokens to receive (0 = no protection)
      */
     function sellShares(uint256 tokenId, uint256 amount, uint256 minReceive) public virtual whenNotPaused {
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
@@ -639,8 +640,8 @@ contract FriendKey is
         uint256 proceeds = price > totalFees ? price - totalFees : 0;
 
         // Slippage protection: ensure proceeds meet minimum requirement
-        if (minReceive > 0) {
-            if (proceeds < minReceive) revert Errors.SlippageExceededMinReceive();
+        if (minReceive > 0 && proceeds < minReceive) {
+            revert Errors.SlippageExceededMinReceive();
         }
 
         bondingCurveReserves[creatorAddress] -= price;

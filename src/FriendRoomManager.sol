@@ -18,8 +18,8 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     // CONSTANTS
     // ============================================
 
-    uint256 private constant BPS_SCALE = 10000;
     uint256 private constant MAX_FEE_PERCENT_BPS = 2500; // 25%
+    uint256 private constant MAX_PERFORMANCE_FEE_PERCENT_BPS = 4000; // 40%
 
     // ============================================
     // STATE VARIABLES
@@ -230,6 +230,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @param _creatorFee Creator performance fee in basis points
      */
     function setPerformanceFees(uint16 _devFee, uint16 _creatorFee) external onlyOwner {
+        if (_devFee + _creatorFee > MAX_PERFORMANCE_FEE_PERCENT_BPS) revert Errors.TotalFeePercentTooHigh();
         devPerformanceFeePercent = _devFee;
         creatorPerformanceFeePercent = _creatorFee;
     }
