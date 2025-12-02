@@ -328,7 +328,9 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), price);
+        vm.startSnapshotGas("buyShares");
         instance.buyShares(CREATOR_TOKEN_ID, shareAmount, 0);
+        vm.stopSnapshotGas();
         vm.stopPrank();
 
         assertBalances(buyerAccount, initialBuyerBalance - price, shareAmount);
@@ -388,7 +390,9 @@ contract FriendKeyTest is Test {
         uint256 initialBondingCurveReserves = instance.bondingCurveReserves(creatorAccount);
         uint256 sellPriveWithFee = instance.getSellPrice(CREATOR_TOKEN_ID, sellAmount);
         uint256 sellPrice = instance.getSellPriceAfterFee(CREATOR_TOKEN_ID, sellAmount);
+        vm.startSnapshotGas("sellShares");
         instance.sellShares(CREATOR_TOKEN_ID, sellAmount, 0);
+        vm.stopSnapshotGas();
         uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
         vm.stopPrank();
 
@@ -473,14 +477,18 @@ contract FriendKeyTest is Test {
 
         // Should not change on stake if the user still holds the key
         vm.startPrank(buyerAccount);
+        vm.startSnapshotGas("stake");
         instance.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopSnapshotGas();
         vm.stopPrank();
         uint256 holdingSinceAfterStake = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
         assertEq(holdingSinceAfterStake, holdingSince, "Holding since should not change on stake");
 
         // Should not change on unstake
         vm.startPrank(buyerAccount);
+        vm.startSnapshotGas("unstake");
         instance.unstake(CREATOR_TOKEN_ID, 1);
+        vm.stopSnapshotGas();
         vm.stopPrank();
         uint256 holdingSinceAfterUnstake = instance.getKeyHoldingSince(CREATOR_TOKEN_ID, buyerAccount);
         assertEq(holdingSinceAfterUnstake, holdingSince, "Holding since should not change on unstake");
@@ -640,7 +648,9 @@ contract FriendKeyTest is Test {
         mockUsdc.approve(address(instance), expectedCost);
         string memory metadata = "CLUB_CREATOR";
         bytes memory signature = _getRegisterCreatorSignature(newCreator, tier, additionalKeys, metadata);
+        vm.startSnapshotGas("registerCreator");
         uint256 tokenId = instance.registerCreator(tier, additionalKeys, metadata, signature);
+        vm.stopSnapshotGas();
         friendStake = FriendStake(instance.stakingPoolByTokenId(tokenId));
         vm.stopPrank();
 

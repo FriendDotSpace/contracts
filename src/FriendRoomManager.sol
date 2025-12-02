@@ -19,6 +19,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
     // ============================================
 
     uint256 private constant BPS_SCALE = 10000;
+    uint256 private constant MAX_FEE_PERCENT_BPS = 2500; // 25%
 
     // ============================================
     // STATE VARIABLES
@@ -216,7 +217,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @param _poolFee Trading pool fee in basis points
      */
     function setTradingFees(uint16 _devFee, uint16 _creatorFee, uint16 _poolFee) external onlyOwner {
-        if (_devFee + _creatorFee + _poolFee > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        if (_devFee + _creatorFee + _poolFee > MAX_FEE_PERCENT_BPS) revert Errors.TotalFeePercentTooHigh();
 
         devFeePercent = _devFee;
         creatorFeePercent = _creatorFee;
@@ -239,7 +240,7 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @param _creatorFee Social creator fee in basis points
      */
     function setSocialFees(uint16 _devFee, uint16 _creatorFee) external onlyOwner {
-        if (_devFee + _creatorFee > BPS_SCALE) revert Errors.TotalFeePercentTooHigh();
+        if (_devFee + _creatorFee > MAX_FEE_PERCENT_BPS) revert Errors.TotalFeePercentTooHigh();
 
         socialDevFeePercent = _devFee;
         socialCreatorFeePercent = _creatorFee;

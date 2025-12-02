@@ -170,6 +170,7 @@ contract Deploy is Script {
         console2.log("FriendPool Proxy:", address(friendPool));
         console2.log("DLN Source:", dlnSourceAddress);
         console2.log("Authority:", authorityAddress);
+        console2.log("FriendRoomManager:", address(roomManager));
         console2.log("");
         console2.log("=== Configuration ===");
         console2.log("Dev Fee: %s bps (%s%%)", DEV_FEE_PERCENT, DEV_FEE_PERCENT / 100);
