@@ -286,12 +286,8 @@ contract FriendRoomManager is Initializable, OwnableUpgradeable, UUPSUpgradeable
         IFriendKey.RoomType roomType,
         IFriendKey.RoomTier tier,
         uint256 tokenId
-    ) external virtual {
-        require(msg.sender == address(friendKey), Errors.NotFriendKey());
-
-        if (!canRegisterRoom(creator, roomType, tier)) {
-            revert Errors.RoomLimitExceeded();
-        }
+    ) external virtual onlyFriendKey {
+        if (!canRegisterRoom(creator, roomType, tier)) revert Errors.RoomLimitExceeded();
 
         // Update our tracking
         _updateRoomTracking(creator, roomType, tier, tokenId);

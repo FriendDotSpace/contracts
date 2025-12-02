@@ -675,7 +675,7 @@ contract FriendKey is
         if (balanceOf(msg.sender, tokenId) < amount) revert Errors.InsufficientShares();
         address stakingPoolAddress = stakingPoolByTokenId[tokenId];
         if (stakingPoolAddress == address(0)) revert Errors.StakingPoolNotRegistered();
-        // Event removed for size optimization
+        emit KeyStaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         if (!stakingPool.isOpenForStaking()) revert Errors.StakingPoolNotOpen();
@@ -698,7 +698,7 @@ contract FriendKey is
         FriendStake stakingPool = FriendStake(stakingPoolAddress);
         if (!stakingPool.isOpenForStaking()) revert Errors.StakingPoolNotOpen();
 
-        // Event removed for size optimization
+        emit KeyUnstaked(tokenId, msg.sender, stakingPoolAddress, amount);
 
         stakingPool.unstake(amount, msg.sender);
     }

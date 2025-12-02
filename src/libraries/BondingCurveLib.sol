@@ -26,7 +26,7 @@ library BondingCurveLib {
         pure
         returns (uint256)
     {
-        if (divisor == 0) revert Errors.InvalidDivisor();
+        if (divisor == 0) revert Errors.ZeroDivisor();
 
         // Calculate sum of squares from 0 to (supply-1)
         uint256 sum1 = supply == 0 ? 0 : ((supply - 1) * (supply) * (2 * (supply - 1) + 1)) / 6;
