@@ -63,4 +63,5 @@ library Errors {
     error AlreadyClaimed();
     error InvalidArrayLength();
     error FriendKeyMustBeERC1155();
+    error MaxStakeEntriesExceeded();
 }
