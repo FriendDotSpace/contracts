@@ -87,6 +87,15 @@ test-gas:
 	@echo "Running tests with gas reporting..."
 	forge test --gas-report
 
+# Run test coverage
+coverage:
+	@echo "Running test coverage..."
+	forge coverage --ir-minimum
+
+# Run test flow
+test-flow:
+	@echo "Running test flow..."
+	forge script script/TestFlow.s.sol:TestFlowScript --rpc-url testnet --broadcast -vvv
 # Verify contracts on Etherscan
 verify:
 	@echo "Verifying contracts..."
