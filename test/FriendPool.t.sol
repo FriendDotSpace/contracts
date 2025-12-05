@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendPool} from "src/FriendPool.sol";
+import {FriendRoomManager} from "src/FriendRoomManager.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {DlnOrderLib} from "src/libraries/DlnOrderLib.sol";
@@ -154,25 +155,21 @@ contract FriendPoolTest is Test {
         vm.startPrank(owner);
 
         // Deploy FriendKey
-        bytes memory friendKeyInitializeData = abi.encodeCall(
-            FriendKey.initialize,
-            (
-                owner,
-                devFeeDestination,
-                DEV_FEE_PERCENT,
-                CREATOR_FEE_PERCENT,
-                address(0), // We'll set this after FriendPool is deployed
-                TRADING_POOL_FEE_PERCENT,
-                DEV_PERFORMANCE_FEE_PERCENT,
-                CREATOR_PERFORMANCE_FEE_PERCENT,
-                address(mockUsdc),
-                friendStakeBeacon,
-                owner,
-                1 days
-            )
-        );
+        // Deploy and setup RoomManager for testing
+        bytes memory roomManagerInitData = abi.encodeCall(FriendRoomManager.initialize, (owner));
+        address roomManagerProxy = Upgrades.deployUUPSProxy("FriendRoomManager.sol", roomManagerInitData);
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerProxy);
+
+        bytes memory friendKeyInitializeData =
+            abi.encodeCall(FriendKey.initialize, (owner, address(mockUsdc), friendStakeBeacon, address(roomManager)));
         address friendKeyProxy = Upgrades.deployUUPSProxy("FriendKey.sol", friendKeyInitializeData);
         friendKey = FriendKey(friendKeyProxy);
+
+        // Set FriendKey address in RoomManager
+        roomManager.setFriendKey(address(friendKey));
+
+        // Set fee destinations in RoomManager - CRITICAL for FriendPool tests
+        // Note: friendPool is deployed after this, so we need to set it later
 
         // Deploy FriendPool
         bytes memory friendPoolInitializeData =
@@ -180,15 +177,34 @@ contract FriendPoolTest is Test {
         address friendPoolProxy = Upgrades.deployUUPSProxy("FriendPool.sol", friendPoolInitializeData);
         friendPool = FriendPool(friendPoolProxy);
 
+        // Now set the correct fee destinations
+        roomManager.setFeeDestinations(owner, address(friendPool));
+
+        // Set fees after initialization - CRITICAL: Without this, no fees are collected!
+        // Fee setting moved to FriendRoomManager
+        // friendKey.setTradingFees(uint16(DEV_FEE_PERCENT), uint16(CREATOR_FEE_PERCENT), uint16(TRADING_POOL_FEE_PERCENT));
+        // Fee setting moved to FriendRoomManager
+        // friendKey.setPerformanceFees(uint16(DEV_PERFORMANCE_FEE_PERCENT), uint16(CREATOR_PERFORMANCE_FEE_PERCENT));
+        // friendKey.setSocialFees(uint16(DEV_FEE_PERCENT / 2), uint16(CREATOR_FEE_PERCENT));
+
         // Set FriendPool as trading pool fee destination in FriendKey
-        friendKey.setTradingPoolFeeDestination(address(friendPool));
+        // Fee setting moved to FriendRoomManager
+        // Fee destination setting moved to FriendRoomManager
+        // friendKey.setDevFeeDestination(owner);
+        // friendKey.setTradingPoolFeeDestination(address(friendPool));
+
+        // Verify fees are set correctly
+        // Fee variables moved to FriendRoomManager
+        // require(friendKey.tradingPoolFeePercent() == TRADING_POOL_FEE_PERCENT, "Trading pool fee not set");
+        // Fee destination variables moved to FriendRoomManager
+        // require(friendKey.tradingPoolFeeDestination() == address(friendPool), "Pool destination not set");
 
         vm.stopPrank();
 
         vm.startPrank(creatorAccount);
         // Register creator
         string memory metadata = "POOL_CREATOR";
-        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Club, 0, metadata);
         friendKey.registerCreator(metadata, signature);
         assertEq(friendKey.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();
@@ -203,7 +219,7 @@ contract FriendPoolTest is Test {
         vm.startPrank(buyer);
         uint256 cost = friendKey.getBuyPriceAfterFee(tokenId, amount);
         mockUsdc.approve(address(friendKey), cost);
-        friendKey.buyShares(tokenId, amount);
+        friendKey.buyShares(tokenId, amount, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -445,8 +461,7 @@ contract FriendPoolTest is Test {
         // Register another creator
         vm.startPrank(anotherBuyerAccount);
         string memory metadata = "SECOND_CREATOR";
-        bytes memory signature =
-            _getRegisterCreatorSignature(anotherBuyerAccount, FriendKey.RoomTier.Casual, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(anotherBuyerAccount, FriendKey.RoomTier.Club, 0, metadata);
         uint256 secondTokenId = friendKey.registerCreator(metadata, signature);
         vm.stopPrank();
 
@@ -472,5 +487,66 @@ contract FriendPoolTest is Test {
         assertEq(
             friendPool.poolReserves(secondTokenId), secondTokenReserves, "Second token reserves should be unchanged"
         );
+    }
+
+    // Pause tests
+    function testPause_PullRevertsWhenPaused() public {
+        // First generate some fees
+        _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
+
+        address roomManagerAddr = friendKey.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to pull - should revert (this is called by FriendKey during buy/sell)
+        // We can't directly call pull since it's onlyFriendKey, but we can test that buy/sell reverts
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(friendKey), type(uint256).max);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        vm.stopPrank();
+    }
+
+    function testPause_DispatchRevertsWhenPaused() public {
+        // First generate some fees
+        _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
+
+        address roomManagerAddr = friendKey.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Try to dispatch - should revert
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        vm.startPrank(owner);
+        vm.expectRevert(Errors.ContractPaused.selector);
+        friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
+        vm.stopPrank();
+    }
+
+    function testPause_OperationsWorkAfterUnpause() public {
+        address roomManagerAddr = friendKey.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+
+        // Pause the contract
+        vm.prank(owner);
+        roomManager.pause();
+
+        // Unpause the contract
+        vm.prank(owner);
+        roomManager.unpause();
+
+        // Operations should work again
+        _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
+
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        vm.startPrank(owner);
+        friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
+        vm.stopPrank();
     }
 }

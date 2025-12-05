@@ -22,19 +22,46 @@ library Errors {
     error CreatorNotRegistered();
     error AmountExceedsSupply();
     error OnlyCreatorCanBuyFirstShare();
+
     error SlippageExceededMaxSpend();
+    error SlippageProtectionRequired();
     error SlippageExceededMinReceive();
+
+    error InvalidTier();
+    error CreatorAlreadyRegistered();
     error InsufficientShares();
     error CannotSellAllShares();
     error StakingPoolNotRegistered();
     error StakingPoolNotOpen();
     error UserDoesNotHoldToken();
     error UnauthorizedRegisterSignature();
-
+    error TierNotAllowedForRoomType();
     // FriendPool specific errors
     error NotFriendKey();
     error NotDispatcher();
     error NoFundsAvailable();
     error InsufficientReserves();
-}
 
+    // FriendRoomManager specific errors
+    error RoomManagerNotSet();
+    error RoomLimitExceeded();
+    error ZeroDivisor();
+    error Unauthorized();
+    error ContractPaused();
+
+    // FriendStake specific errors
+    error StakingNotOpen();
+    error StakingAlreadyClosed();
+    error StakingStillOpen();
+    error CallerNotFriendKey();
+    error CallerNotAuthorityOrOwner();
+    error InvalidTokenId();
+    error NotEnoughStakedBalance();
+    error TotalEligibleNotSet();
+    error TotalEligibleAlreadySet();
+    error NoRewardsToDistribute();
+    error AlreadyClaimed();
+    error InvalidArrayLength();
+    error FriendKeyMustBeERC1155();
+    error MaxStakeEntriesExceeded();
+}

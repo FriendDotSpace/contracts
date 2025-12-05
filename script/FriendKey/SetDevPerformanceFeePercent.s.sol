@@ -3,31 +3,31 @@ pragma solidity ^0.8.27;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
-import {FriendKey} from "src/FriendKey.sol";
+import {FriendRoomManager} from "src/FriendRoomManager.sol";
 
 /**
  * @title SetDevPerformanceFeePercentScript
- * @notice Script to update the development performance fee percentage for FriendKey contract
+ * @notice Script to update the dev performance fee percentage in FriendRoomManager
  */
 contract SetDevPerformanceFeePercentScript is Script {
-    // Update this with your deployed FriendKey proxy address
-    address constant FRIEND_KEY_PROXY = 0x295577574FDc19EF2EbC4437462E2F5044591D14;
+    // Update this with deployed FriendRoomManager proxy address
+    address constant ROOM_MANAGER_PROXY = 0x0000000000000000000000000000000000000000; // TODO: Update this
 
     function setUp() public {}
 
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        // Update this with the new dev performance fee percentage (in basis points, e.g., 500 = 5%)
+        uint16 newDevPerformanceFeePercent = uint16(vm.envUint("NEW_DEV_PERFORMANCE_FEE"));
+
         vm.startBroadcast(deployerPrivateKey);
 
-        FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
+        FriendRoomManager roomManager = FriendRoomManager(ROOM_MANAGER_PROXY);
+        (, uint16 creatorPerformanceFee) = roomManager.getPerformanceFees();
+        roomManager.setPerformanceFees(newDevPerformanceFeePercent, creatorPerformanceFee);
 
-        // Update this with the new dev performance fee percentage (in basis points, e.g., 500 = 5%)
-        uint256 newDevPerformanceFeePercent = vm.envUint("NEW_DEV_PERFORMANCE_FEE_PERCENT");
-
-        instance.setDevPerformanceFeePercent(newDevPerformanceFeePercent);
         console2.log("Dev performance fee percent updated to:", newDevPerformanceFeePercent, "bps");
 
         vm.stopBroadcast();
     }
 }
-

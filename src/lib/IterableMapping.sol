@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
+import {Errors} from "../libraries/Errors.sol";
+
 library IterableMapping {
+    /// @notice Maximum number of stake entries allowed per user to prevent DoS attacks
+    uint256 public constant MAX_STAKE_ENTRIES_PER_USER = 100;
+
     // Iterable mapping from address to stake;
     struct Stake {
         uint256 amount;
@@ -72,7 +77,12 @@ library IterableMapping {
 
     function append(Map storage map, address key, Stake memory val) internal {
         if (map.inserted[key]) {
-            map.values[key].push(val);
+            // this is for prevention Dos - max 100 active stakes per user (as this is used for user stakes)
+            Stake[] storage stakes = map.values[key];
+            if (stakes.length >= MAX_STAKE_ENTRIES_PER_USER) {
+                revert Errors.MaxStakeEntriesExceeded();
+            }
+            stakes.push(val);
         } else {
             map.inserted[key] = true;
             map.values[key].push(val);

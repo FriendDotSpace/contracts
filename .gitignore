@@ -12,6 +12,7 @@ docs/
 
 # Dotenv file
 .env
+gas_report.json
 
 # Misc
 .DS_Store

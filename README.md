@@ -13,7 +13,7 @@ This project implements an ERC-1155 based token contract with the following key 
 
 ## Contract Architecture
 
-The project consists of three main contracts:
+The project consists of four main contracts:
 
 ### FriendKey
 The main contract that inherits from several OpenZeppelin contracts:
@@ -23,6 +23,7 @@ The main contract that inherits from several OpenZeppelin contracts:
 - `ERC1155SupplyUpgradeable`: Tracks token supply
 - `OwnableUpgradeable`: Access control
 - `UUPSUpgradeable`: Upgradeable proxy pattern
+- Supports both **Trading** and **Social** room types with different tiers
 
 ### FriendStake
 A staking contract that allows users to stake their FriendKey tokens to earn rewards:
@@ -40,14 +41,25 @@ A pool contract that manages reserves and cross-chain functionality:
 - **Fund Dispatching**: Allows authorized dispatching of funds across chains
 - **Upgradeable**: Uses UUPS proxy pattern for future upgrades
 
+### FriendRoomManager
+A manager contract that handles room creation limits and configuration:
+
+- **Room Limit Enforcement**: Controls how many rooms a creator can register per tier and type
+- **Fee Management**: fee configuration for trading and social rooms
+- **Bonding Curve Config**: Manages divisors and parameters for different room types
+- **Room Type Support**: Enables/disables Trading and Social room creation
+- **Upgradeable**: Uses UUPS proxy pattern for future upgrades
 ## Key Functions
 
 ### FriendKey Contract
-- `buyShares(address creatorAddress, uint256 amount)`: Purchase shares of a creator
-- `sellShares(address creatorAddress, uint256 amount)`: Sell shares of a creator
+- `buyShares(uint256 tokenId, uint256 amount, uint256 maxSpend)`: Purchase shares of a creator with slippage protection
+- `sellShares(uint256 tokenId, uint256 amount, uint256 minReceive)`: Sell shares of a creator with slippage protection
 - `getBuyPrice(uint256 id, uint256 amount)`: Calculate purchase price before fees
 - `getSellPrice(uint256 id, uint256 amount)`: Calculate sell price before fees
-- `registerCreator(string metadata, bytes signature)`: Register as a creator (requires owner-signed authorization) and attach an off-chain metadata pointer (e.g., hash or URI)
+- `registerCreator(RoomTier tier, uint256 additionalKeys, string metadata, bytes signature)`: Register as a trading room creator
+- `registerSocialCreator(RoomTier tier, uint256 additionalKeys, string metadata, bytes signature)`: Register as a social room creator (no staking/trading pool)
+- `stake(uint256 tokenId, uint256 amount)`: Stake tokens in the creator's pool
+- `unstake(uint256 tokenId, uint256 amount)`: Unstake tokens from the creator's pool
 
 ### FriendStake Contract
 - `stake(uint256 amount)`: Stake FriendKey tokens to earn rewards
@@ -59,6 +71,14 @@ A pool contract that manages reserves and cross-chain functionality:
 - `pull(uint256 tokenId, uint256 amount)`: Pull funds from bonding curve reserves
 - `dispatch(uint256 tokenId, uint256 amount)`: Dispatch funds cross-chain using DLN
 - `allowDispatch(uint256 tokenId, address recipient)`: Authorize fund dispatching
+
+### FriendRoomManager Contract
+- `setMaxRoomsPerTier(RoomType, RoomTier, uint256 maxRooms)`: Set maximum rooms allowed per tier
+- `enableRoomType(RoomType, RoomTier)`: Enable room creation for a specific type/tier
+- `disableRoomType(RoomType, RoomTier)`: Disable room creation for a specific type/tier
+- `setTradingFees(uint16 devFee, uint16 creatorFee, uint16 poolFee)`: Configure trading room fees
+- `setSocialFees(uint16 devFee, uint16 creatorFee)`: Configure social room fees
+- `canRegisterRoom(address creator, RoomType, RoomTier)`: Check if creator can register a room
 
 ### Mock Contracts
 - `MockPool`: A mock contract for testing the pool functionality

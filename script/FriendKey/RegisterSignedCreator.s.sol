@@ -27,7 +27,7 @@ contract RegisterSignedCreatorScript is Script {
 
         address creator = vm.addr(deployerPrivateKey);
         uint256 nonce = instance.registerCreatorNonces(creator);
-        FriendKey.RoomTier tier = FriendKey.RoomTier.Casual;
+        FriendKey.RoomTier tier = FriendKey.RoomTier.Club;
         uint256 additionalKeys = 0;
 
         string memory metadata;

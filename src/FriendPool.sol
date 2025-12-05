@@ -6,6 +6,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IFriendKey} from "./interfaces/IFriendKey.sol";
+import {IFriendRoomManager} from "./interfaces/IFriendRoomManager.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDlnSource} from "./interfaces/IDlnSource.sol";
@@ -96,6 +97,17 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     /**
+     * @dev Modifier to check if contract is paused via FriendKey -> RoomManager
+     */
+    modifier whenNotPaused() {
+        address roomManagerAddress = friendKey.roomManager();
+        if (roomManagerAddress != address(0)) {
+            if (IFriendRoomManager(roomManagerAddress).paused()) revert Errors.ContractPaused();
+        }
+        _;
+    }
+
+    /**
      * @notice Sets the authorized dispatcher address for cross-chain operations
      * @dev Only callable by contract owner
      * @param dispatcher The address authorized to dispatch funds cross-chain
@@ -116,6 +128,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     function dispatchAs(uint256 tokenId, DlnOrderLib.OrderCreation calldata data, uint64 _salt)
         external
         payable
+        whenNotPaused
         returns (uint256)
     {
         if (msg.sender != _dispatcher && msg.sender != owner()) revert Errors.NotDispatcher();
@@ -160,7 +173,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @param tokenId The token ID to associate the pulled funds with
      * @param amount Amount of bonding tokens to pull into reserves
      */
-    function pull(uint256 tokenId, uint256 amount) external onlyFriendKey {
+    function pull(uint256 tokenId, uint256 amount) external onlyFriendKey whenNotPaused {
         IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
         if (bondingToken.balanceOf(msg.sender) < amount) revert Errors.InsufficientBalance();
         if (bondingToken.allowance(msg.sender, address(this)) < amount) revert Errors.InsufficientAllowance();
