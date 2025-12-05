@@ -6,7 +6,6 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 import {FriendStake} from "src/FriendStake.sol";
 import {FriendRoomManager} from "src/FriendRoomManager.sol";
-import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {Errors} from "src/libraries/Errors.sol";
 
 // Use the same MockERC20 from FriendKey.t.sol
@@ -386,5 +385,533 @@ contract FriendStakeTest is Test {
         friendKey.setApprovalForAll(address(stake), true);
         friendKey.stake(CREATOR_TOKEN_ID, 1);
         vm.stopPrank();
+    }
+
+    // ============================================
+    // SET ELIGIBILITY DURATION TESTS
+    // ============================================
+
+    function testSetEligibilityDuration() public {
+        uint256 newDuration = 48 hours;
+        
+        vm.prank(owner);
+        stake.setEligibilityDuration(newDuration);
+        
+        assertEq(stake.eligibilityDuration(), newDuration, "Eligibility duration should be updated");
+    }
+
+    function testSetEligibilityDuration_ZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
+        stake.setEligibilityDuration(0);
+    }
+
+    function testSetEligibilityDuration_OnlyOwner() public {
+        address maliciousUser = vm.addr(999);
+        vm.prank(maliciousUser);
+        vm.expectRevert();
+        stake.setEligibilityDuration(48 hours);
+    }
+
+    // ============================================
+    // SET AUTHORITY TESTS
+    // ============================================
+
+    function testSetAuthority() public {
+        address newAuthority = vm.addr(100);
+        
+        vm.prank(owner);
+        stake.setAuthority(newAuthority);
+        
+        assertEq(stake.authority(), newAuthority, "Authority should be updated");
+    }
+
+    function testSetAuthority_ZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        stake.setAuthority(address(0));
+    }
+
+    function testSetAuthority_OnlyOwner() public {
+        address maliciousUser = vm.addr(999);
+        vm.prank(maliciousUser);
+        vm.expectRevert();
+        stake.setAuthority(vm.addr(100));
+    }
+
+    function testLockStaking_ByAuthority() public {
+        address newAuthority = vm.addr(200);
+        vm.prank(owner);
+        stake.setAuthority(newAuthority);
+
+        // Staker stakes some tokens
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 2);
+        vm.stopPrank();
+
+        // Fund rewards
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+
+        // Authority (not owner) can lock staking
+        vm.prank(newAuthority);
+        stake.lockStaking();
+        
+        assertEq(stake.isOpenForStaking(), false, "Staking should be closed");
+    }
+
+    // ============================================
+    // BATCH RECEIVE TESTS
+    // ============================================
+
+    function testOnERC1155BatchReceived() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 5);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 5, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        
+        // Batch transfer to stake
+        uint256[] memory ids = new uint256[](2);
+        uint256[] memory amounts = new uint256[](2);
+        ids[0] = CREATOR_TOKEN_ID;
+        amounts[0] = 2;
+        ids[1] = CREATOR_TOKEN_ID;
+        amounts[1] = 3;
+        
+        friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
+        vm.stopPrank();
+
+        assertEq(stake.totalStaked(), 5, "Should have 5 tokens staked");
+    }
+
+    function testOnERC1155BatchReceived_InvalidTokenId() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        
+        // Try to transfer invalid token ID - will fail at ERC1155 level (insufficient balance)
+        uint256[] memory ids = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        ids[0] = 999; // Invalid token ID - user doesn't have this
+        amounts[0] = 1;
+        
+        // ERC1155 will revert with insufficient balance before reaching the receiver
+        vm.expectRevert();
+        friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
+        vm.stopPrank();
+    }
+
+    function testOnERC1155BatchReceived_InvalidArrayLength() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        
+        uint256[] memory ids = new uint256[](2);
+        uint256[] memory amounts = new uint256[](1); // Different length
+        ids[0] = CREATOR_TOKEN_ID;
+        ids[1] = CREATOR_TOKEN_ID;
+        amounts[0] = 1;
+        
+        // ERC1155's safeBatchTransferFrom checks array length and reverts with panic
+        vm.expectRevert();
+        friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
+        vm.stopPrank();
+    }
+
+    function testOnERC1155BatchReceived_ZeroAmount() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 2);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        
+        uint256[] memory ids = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        ids[0] = CREATOR_TOKEN_ID;
+        amounts[0] = 0; // Zero amount
+        
+        vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
+        friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
+        vm.stopPrank();
+    }
+
+    // ============================================
+    // UNSTAKE ALL TESTS
+    // ============================================
+
+    function testUnstakeAll() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 5);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 5, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 5);
+        vm.stopPrank();
+
+        assertEq(stake.totalStaked(), 5, "Should have 5 staked");
+
+        // Unstake all
+        vm.prank(staker1);
+        stake.unstakeAll();
+
+        assertEq(stake.totalStaked(), 0, "Should have 0 staked");
+        assertEq(friendKey.balanceOf(staker1, CREATOR_TOKEN_ID), 5, "Should have tokens back");
+    }
+
+    function testUnstakeAll_NoStake() public {
+        vm.prank(staker1);
+        vm.expectRevert("Key does not exist");
+        stake.unstakeAll();
+    }
+
+    // ============================================
+    // CALCULATE TOTAL ELIGIBLE TESTS
+    // ============================================
+
+    function testCalculateTotalEligible_PartialBatch() public {
+        // Setup multiple stakers
+        address[] memory stakers = new address[](5);
+        for (uint256 i = 0; i < 5; i++) {
+            stakers[i] = vm.addr(100 + i);
+            mockUsdc.mint(stakers[i], 1_000_000 * (10 ** 6));
+            
+            vm.startPrank(stakers[i]);
+            uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+            mockUsdc.approve(address(friendKey), price);
+            friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+            friendKey.setApprovalForAll(address(stake), true);
+            friendKey.stake(CREATOR_TOKEN_ID, 1);
+            vm.stopPrank();
+        }
+
+        // Fund rewards and lock
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+
+        // Calculate eligible with partial batch (2 users at a time)
+        vm.prank(owner);
+        stake.calculateTotalEligible(2);
+        assertFalse(stake.isTotalEligibleSet(), "Should not be fully set yet");
+
+        vm.prank(owner);
+        stake.calculateTotalEligible(2);
+        assertFalse(stake.isTotalEligibleSet(), "Should not be fully set yet");
+
+        vm.prank(owner);
+        stake.calculateTotalEligible(2);
+        assertTrue(stake.isTotalEligibleSet(), "Should be fully set now");
+        assertEq(stake.totalEligible(), 5, "All 5 should be eligible");
+    }
+
+    function testCalculateTotalEligible_ZeroBatchSize() public {
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+
+        vm.prank(owner);
+        vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
+        stake.calculateTotalEligible(0);
+    }
+
+    function testCalculateTotalEligible_StakingStillOpen() public {
+        vm.prank(owner);
+        vm.expectRevert(Errors.StakingStillOpen.selector);
+        stake.calculateTotalEligible(10);
+    }
+
+    function testCalculateTotalEligible_AlreadySet() public {
+        // Setup and lock
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+
+        vm.prank(owner);
+        stake.calculateTotalEligible(10);
+
+        vm.prank(owner);
+        vm.expectRevert(Errors.TotalEligibleAlreadySet.selector);
+        stake.calculateTotalEligible(10);
+    }
+
+    // ============================================
+    // DISTRIBUTE REWARDS TESTS
+    // ============================================
+
+    function testDistributeRewards_PartialBatch() public {
+        // Setup multiple stakers
+        address[] memory stakers = new address[](4);
+        for (uint256 i = 0; i < 4; i++) {
+            stakers[i] = vm.addr(200 + i);
+            mockUsdc.mint(stakers[i], 1_000_000 * (10 ** 6));
+            
+            vm.startPrank(stakers[i]);
+            uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+            mockUsdc.approve(address(friendKey), price);
+            friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+            friendKey.setApprovalForAll(address(stake), true);
+            friendKey.stake(CREATOR_TOKEN_ID, 1);
+            vm.stopPrank();
+        }
+
+        // Fund rewards and lock
+        uint256 rewardAmount = 1000 * (10 ** 6);
+        mockUsdc.mint(address(stake), rewardAmount);
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+
+        // Calculate eligible
+        vm.prank(owner);
+        stake.calculateTotalEligible(10);
+
+        // Distribute in batches
+        uint256[] memory balancesBefore = new uint256[](4);
+        for (uint256 i = 0; i < 4; i++) {
+            balancesBefore[i] = mockUsdc.balanceOf(stakers[i]);
+        }
+
+        // First batch - 2 users
+        vm.prank(owner);
+        stake.distributeRewards(2);
+
+        // Second batch - 2 users
+        vm.prank(owner);
+        stake.distributeRewards(2);
+
+        // Check balances increased
+        for (uint256 i = 0; i < 4; i++) {
+            assertTrue(
+                mockUsdc.balanceOf(stakers[i]) > balancesBefore[i],
+                "Staker should have received rewards"
+            );
+        }
+
+        assertTrue(stake.isOpenForStaking(), "Staking should be reopened");
+    }
+
+    function testDistributeRewards_ZeroBatchSize() public {
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+
+        vm.prank(owner);
+        vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
+        stake.distributeRewards(0);
+    }
+
+    function testDistributeRewards_AutoCalculateEligible() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        uint256 balanceBefore = mockUsdc.balanceOf(staker1);
+
+        vm.warp(block.timestamp + 1 days + 1 hours);
+        
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.prank(owner);
+        stake.lockStaking();
+
+        assertFalse(stake.isTotalEligibleSet(), "Eligible should not be set before distribution");
+
+        vm.prank(owner);
+        stake.distributeRewards(10);
+
+        assertTrue(stake.isOpenForStaking(), "Staking should be reopened after distribution");
+        assertTrue(mockUsdc.balanceOf(staker1) > balanceBefore, "Staker should have received rewards");
+    }
+
+    // ============================================
+    // CLAIM REWARDS EDGE CASES
+    // ============================================
+
+    function testClaim_AlreadyClaimed() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+        vm.prank(owner);
+        stake.calculateTotalEligible(10);
+
+        // First claim should work
+        vm.prank(staker1);
+        stake.claim();
+
+        // Second claim should fail
+        vm.prank(staker1);
+        vm.expectRevert(Errors.AlreadyClaimed.selector);
+        stake.claim();
+    }
+
+    function testClaim_NoStake() public {
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+        vm.prank(owner);
+        stake.calculateTotalEligible(10);
+
+        vm.prank(staker1);
+        vm.expectRevert("Key does not exist");
+        stake.claim();
+    }
+
+    function testClaim_StakingStillOpen() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        vm.prank(staker1);
+        vm.expectRevert(Errors.StakingStillOpen.selector);
+        stake.claim();
+    }
+
+    function testClaim_TotalEligibleNotSet() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+
+        vm.prank(staker1);
+        vm.expectRevert(Errors.TotalEligibleNotSet.selector);
+        stake.claim();
+    }
+
+    // ============================================
+    // LOCK STAKING EDGE CASES
+    // ============================================
+
+    function testLockStaking_AlreadyClosed() public {
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+
+        vm.prank(owner);
+        vm.expectRevert(Errors.StakingAlreadyClosed.selector);
+        stake.lockStaking();
+    }
+
+    function testLockStaking_NoRewards() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        vm.expectRevert(Errors.NoRewardsToDistribute.selector);
+        stake.lockStaking();
+    }
+
+    function testLockStaking_OnlyAuthority() public {
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+
+        address maliciousUser = vm.addr(999);
+        vm.prank(maliciousUser);
+        vm.expectRevert(Errors.CallerNotAuthorityOrOwner.selector);
+        stake.lockStaking();
+    }
+
+    // ============================================
+    // UNSTAKE EDGE CASES
+    // ============================================
+
+    function testUnstake_NotEnoughStaked() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        vm.prank(staker1);
+        vm.expectRevert(Errors.NotEnoughStakedBalance.selector);
+        stake.unstake(2);
+    }
+
+    function testUnstake_StakingNotOpen() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        mockUsdc.mint(address(stake), 100 * (10 ** 6));
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        stake.lockStaking();
+
+        vm.prank(staker1);
+        vm.expectRevert(Errors.StakingNotOpen.selector);
+        stake.unstake(1);
+    }
+
+    function testUnstake_OnlyFriendKey() public {
+        vm.startPrank(staker1);
+        uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
+        mockUsdc.approve(address(friendKey), price);
+        friendKey.buyShares(CREATOR_TOKEN_ID, 1, type(uint256).max);
+        friendKey.setApprovalForAll(address(stake), true);
+        friendKey.stake(CREATOR_TOKEN_ID, 1);
+        vm.stopPrank();
+
+        // Try to call unstake directly (should fail)
+        vm.prank(staker1);
+        vm.expectRevert(Errors.CallerNotFriendKey.selector);
+        stake.unstake(1, staker1);
     }
 }
