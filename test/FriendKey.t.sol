@@ -1591,7 +1591,7 @@ contract FriendKeyTest is Test {
 
     function testSetSignee() public {
         address newSignee = vm.addr(300);
-        
+
         vm.prank(owner);
         instance.setSignee(newSignee);
 
@@ -1601,7 +1601,8 @@ contract FriendKeyTest is Test {
 
         // Create signature with new signee's private key
         uint256 signeePrivateKey = 300;
-        bytes memory signature = _getRegisterCreatorSignatureWithKey(testCreator, FriendKey.RoomTier.Club, 0, "", signeePrivateKey);
+        bytes memory signature =
+            _getRegisterCreatorSignatureWithKey(testCreator, FriendKey.RoomTier.Club, 0, "", signeePrivateKey);
 
         vm.prank(testCreator);
         uint256 tokenId = instance.registerCreator("", signature);
@@ -1672,7 +1673,7 @@ contract FriendKeyTest is Test {
     function testTransferToPool_EOA() public {
         // Create a simple EOA address (no contract code)
         address eoaPool = vm.addr(500);
-        
+
         // Update trading pool fee destination to EOA
         address roomManagerAddr = instance.roomManager();
         FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
@@ -1699,7 +1700,7 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         uint256 price = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 10);
         mockUsdc.approve(address(instance), price - 1); // Approve less than needed
-        
+
         vm.expectRevert(Errors.InsufficientAllowance.selector);
         instance.buyShares(CREATOR_TOKEN_ID, 10, type(uint256).max);
         vm.stopPrank();
@@ -1709,12 +1710,12 @@ contract FriendKeyTest is Test {
         vm.startPrank(buyerAccount);
         uint256 price = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 10);
         mockUsdc.approve(address(instance), price);
-        
+
         // Set balance to less than needed
         uint256 currentBalance = mockUsdc.balanceOf(buyerAccount);
         uint256 amountToBurn = currentBalance - price + 1;
         mockUsdc.burn(buyerAccount, amountToBurn); // Reduce balance
-        
+
         vm.expectRevert(Errors.InsufficientBalance.selector);
         instance.buyShares(CREATOR_TOKEN_ID, 10, type(uint256).max);
         vm.stopPrank();
@@ -1723,7 +1724,7 @@ contract FriendKeyTest is Test {
     function testBuyShares_SlippageProtectionRequired() public {
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), type(uint256).max);
-        
+
         vm.expectRevert(Errors.SlippageProtectionRequired.selector);
         instance.buyShares(CREATOR_TOKEN_ID, 10, 0); // maxSpend = 0
         vm.stopPrank();
@@ -1731,7 +1732,7 @@ contract FriendKeyTest is Test {
 
     function testSellShares_AmountExceedsSupply() public {
         uint256 currentSupply = instance.totalSupply(CREATOR_TOKEN_ID);
-        
+
         vm.startPrank(buyerAccount);
         vm.expectRevert(Errors.AmountExceedsSupply.selector);
         instance.getSellPrice(CREATOR_TOKEN_ID, currentSupply + 1);
@@ -1744,7 +1745,7 @@ contract FriendKeyTest is Test {
 
         string memory metadata = "ipfs://QmTestHash";
         bytes memory signature = _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Club, 0, metadata);
-        
+
         vm.prank(testCreator);
         uint256 tokenId = instance.registerCreator(FriendKey.RoomTier.Club, 0, metadata, signature);
 

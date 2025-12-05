@@ -393,10 +393,10 @@ contract FriendStakeTest is Test {
 
     function testSetEligibilityDuration() public {
         uint256 newDuration = 48 hours;
-        
+
         vm.prank(owner);
         stake.setEligibilityDuration(newDuration);
-        
+
         assertEq(stake.eligibilityDuration(), newDuration, "Eligibility duration should be updated");
     }
 
@@ -419,10 +419,10 @@ contract FriendStakeTest is Test {
 
     function testSetAuthority() public {
         address newAuthority = vm.addr(100);
-        
+
         vm.prank(owner);
         stake.setAuthority(newAuthority);
-        
+
         assertEq(stake.authority(), newAuthority, "Authority should be updated");
     }
 
@@ -460,7 +460,7 @@ contract FriendStakeTest is Test {
         // Authority (not owner) can lock staking
         vm.prank(newAuthority);
         stake.lockStaking();
-        
+
         assertEq(stake.isOpenForStaking(), false, "Staking should be closed");
     }
 
@@ -474,7 +474,7 @@ contract FriendStakeTest is Test {
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 5, type(uint256).max);
         friendKey.setApprovalForAll(address(stake), true);
-        
+
         // Batch transfer to stake
         uint256[] memory ids = new uint256[](2);
         uint256[] memory amounts = new uint256[](2);
@@ -482,7 +482,7 @@ contract FriendStakeTest is Test {
         amounts[0] = 2;
         ids[1] = CREATOR_TOKEN_ID;
         amounts[1] = 3;
-        
+
         friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
         vm.stopPrank();
 
@@ -495,13 +495,13 @@ contract FriendStakeTest is Test {
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
         friendKey.setApprovalForAll(address(stake), true);
-        
+
         // Try to transfer invalid token ID - will fail at ERC1155 level (insufficient balance)
         uint256[] memory ids = new uint256[](1);
         uint256[] memory amounts = new uint256[](1);
         ids[0] = 999; // Invalid token ID - user doesn't have this
         amounts[0] = 1;
-        
+
         // ERC1155 will revert with insufficient balance before reaching the receiver
         vm.expectRevert();
         friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
@@ -514,13 +514,13 @@ contract FriendStakeTest is Test {
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
         friendKey.setApprovalForAll(address(stake), true);
-        
+
         uint256[] memory ids = new uint256[](2);
         uint256[] memory amounts = new uint256[](1); // Different length
         ids[0] = CREATOR_TOKEN_ID;
         ids[1] = CREATOR_TOKEN_ID;
         amounts[0] = 1;
-        
+
         // ERC1155's safeBatchTransferFrom checks array length and reverts with panic
         vm.expectRevert();
         friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
@@ -533,12 +533,12 @@ contract FriendStakeTest is Test {
         mockUsdc.approve(address(friendKey), price);
         friendKey.buyShares(CREATOR_TOKEN_ID, 2, type(uint256).max);
         friendKey.setApprovalForAll(address(stake), true);
-        
+
         uint256[] memory ids = new uint256[](1);
         uint256[] memory amounts = new uint256[](1);
         ids[0] = CREATOR_TOKEN_ID;
         amounts[0] = 0; // Zero amount
-        
+
         vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
         friendKey.safeBatchTransferFrom(staker1, address(stake), ids, amounts, "");
         vm.stopPrank();
@@ -583,7 +583,7 @@ contract FriendStakeTest is Test {
         for (uint256 i = 0; i < 5; i++) {
             stakers[i] = vm.addr(100 + i);
             mockUsdc.mint(stakers[i], 1_000_000 * (10 ** 6));
-            
+
             vm.startPrank(stakers[i]);
             uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
             mockUsdc.approve(address(friendKey), price);
@@ -664,7 +664,7 @@ contract FriendStakeTest is Test {
         for (uint256 i = 0; i < 4; i++) {
             stakers[i] = vm.addr(200 + i);
             mockUsdc.mint(stakers[i], 1_000_000 * (10 ** 6));
-            
+
             vm.startPrank(stakers[i]);
             uint256 price = friendKey.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 1);
             mockUsdc.approve(address(friendKey), price);
@@ -701,10 +701,7 @@ contract FriendStakeTest is Test {
 
         // Check balances increased
         for (uint256 i = 0; i < 4; i++) {
-            assertTrue(
-                mockUsdc.balanceOf(stakers[i]) > balancesBefore[i],
-                "Staker should have received rewards"
-            );
+            assertTrue(mockUsdc.balanceOf(stakers[i]) > balancesBefore[i], "Staker should have received rewards");
         }
 
         assertTrue(stake.isOpenForStaking(), "Staking should be reopened");
@@ -733,7 +730,7 @@ contract FriendStakeTest is Test {
         uint256 balanceBefore = mockUsdc.balanceOf(staker1);
 
         vm.warp(block.timestamp + 1 days + 1 hours);
-        
+
         mockUsdc.mint(address(stake), 100 * (10 ** 6));
         vm.prank(owner);
         stake.lockStaking();
