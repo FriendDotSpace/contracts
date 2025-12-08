@@ -34,4 +34,3 @@ contract PauseRoomManagerScript is Script {
     }
 }
 
-

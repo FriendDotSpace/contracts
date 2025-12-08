@@ -32,4 +32,3 @@ contract EnableRoomTypeScript is Script {
     }
 }
 
-

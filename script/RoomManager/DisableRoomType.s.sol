@@ -32,4 +32,3 @@ contract DisableRoomTypeScript is Script {
     }
 }
 
-

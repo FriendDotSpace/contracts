@@ -32,4 +32,3 @@ contract SetSocialFeesScript is Script {
     }
 }
 
-

@@ -29,4 +29,3 @@ contract SetAuthorityScript is Script {
     }
 }
 
-

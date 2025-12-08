@@ -29,4 +29,3 @@ contract SetEligibilityDurationScript is Script {
     }
 }
 
-

@@ -32,4 +32,3 @@ contract SetPerformanceFeesScript is Script {
     }
 }
 
-

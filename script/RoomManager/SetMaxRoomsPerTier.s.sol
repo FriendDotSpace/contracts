@@ -34,4 +34,3 @@ contract SetMaxRoomsPerTierScript is Script {
     }
 }
 
-

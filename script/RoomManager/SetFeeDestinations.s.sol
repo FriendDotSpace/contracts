@@ -32,4 +32,3 @@ contract SetFeeDestinationsScript is Script {
     }
 }
 
-

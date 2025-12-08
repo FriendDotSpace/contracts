@@ -31,4 +31,3 @@ contract SetBondingCurveDivisorsScript is Script {
     }
 }
 
-

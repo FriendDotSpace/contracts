@@ -31,4 +31,3 @@ contract SetSocialDivisorsScript is Script {
     }
 }
 
-
