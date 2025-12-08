@@ -46,7 +46,7 @@ contract Deploy is Script {
 
         // Optional: Get authority address from environment variable
         // If not set, use the deployer address
-        address authorityAddress = vm.envOr("AUTHORITY_ADDRESS", initialOwner);
+        address authorityAddress = vm.envOr("AUTHORITY_ADDRESS", SIGNEE);
 
         // REQUIRED: Get DLN Source address from environment variable
         // Script will revert with error if DLN_SOURCE_ADDRESS is not set
