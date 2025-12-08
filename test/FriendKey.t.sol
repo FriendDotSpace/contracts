@@ -64,6 +64,12 @@ contract MockERC20 is IERC20Metadata {
         totalSupply += amount;
         emit Transfer(address(0), account, amount);
     }
+
+    function burn(address account, uint256 amount) external {
+        balances[account] -= amount;
+        totalSupply -= amount;
+        emit Transfer(account, address(0), amount);
+    }
 }
 
 contract MockPool {
@@ -1414,5 +1420,336 @@ contract FriendKeyTest is Test {
         instance.buyShares(CREATOR_TOKEN_ID, 10, type(uint256).max);
         instance.sellShares(CREATOR_TOKEN_ID, 5, 0);
         vm.stopPrank();
+    }
+
+    // ============================================
+    // SOCIAL ROOM TESTS
+    // ============================================
+
+    function testRegisterSocialCreator() public {
+        // Enable Social rooms
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+        vm.prank(owner);
+        roomManager.enableRoomType(toIRoomType(FriendKey.RoomType.Social), toIRoomTier(FriendKey.RoomTier.Club));
+
+        address socialCreator = vm.addr(200);
+        mockUsdc.mint(socialCreator, 1_000_000 * (10 ** 6));
+
+        string memory metadata = "SOCIAL_METADATA";
+        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, metadata);
+
+        vm.startPrank(socialCreator);
+        uint256 tokenId = instance.registerSocialCreator(FriendKey.RoomTier.Club, 0, metadata, signature);
+        vm.stopPrank();
+
+        assertEq(instance.creatorByTokenId(tokenId), socialCreator, "Creator should be registered");
+        assertEq(uint256(instance.roomTypes(tokenId)), uint256(FriendKey.RoomType.Social), "Should be Social room type");
+        assertEq(instance.stakingPoolByTokenId(tokenId), address(0), "Social rooms should not have staking pool");
+        assertEq(instance.totalSupply(tokenId), 1, "Should have 1 initial share");
+    }
+
+    function testRegisterSocialCreatorWithDefaultTier() public {
+        // Enable Social rooms
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+        vm.prank(owner);
+        roomManager.enableRoomType(toIRoomType(FriendKey.RoomType.Social), toIRoomTier(FriendKey.RoomTier.Club));
+
+        address socialCreator = vm.addr(201);
+        mockUsdc.mint(socialCreator, 1_000_000 * (10 ** 6));
+
+        string memory metadata = "SOCIAL_DEFAULT";
+        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, metadata);
+
+        vm.startPrank(socialCreator);
+        uint256 tokenId = instance.registerSocialCreator(metadata, signature);
+        vm.stopPrank();
+
+        assertEq(instance.creatorByTokenId(tokenId), socialCreator, "Creator should be registered");
+        assertEq(uint256(instance.roomTypes(tokenId)), uint256(FriendKey.RoomType.Social), "Should be Social room type");
+        assertEq(uint256(instance.roomTiers(tokenId)), uint256(FriendKey.RoomTier.Club), "Should be Club tier");
+    }
+
+    function testSocialRoomBuyShares() public {
+        // Enable Social rooms
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+        vm.prank(owner);
+        roomManager.enableRoomType(toIRoomType(FriendKey.RoomType.Social), toIRoomTier(FriendKey.RoomTier.Club));
+
+        address socialCreator = vm.addr(203);
+        mockUsdc.mint(socialCreator, 10_000_000 * (10 ** 6));
+        mockUsdc.mint(buyerAccount, 10_000_000 * (10 ** 6));
+
+        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, "");
+        vm.startPrank(socialCreator);
+        uint256 tokenId = instance.registerSocialCreator("", signature);
+        vm.stopPrank();
+
+        // Buyer buys shares from social room
+        vm.startPrank(buyerAccount);
+        uint256 buyPrice = instance.getBuyPriceAfterFee(tokenId, 3);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(tokenId, 3, type(uint256).max);
+        vm.stopPrank();
+
+        assertEq(instance.balanceOf(buyerAccount, tokenId), 3, "Buyer should have 3 shares");
+        assertEq(instance.totalSupply(tokenId), 4, "Total supply should be 4");
+    }
+
+    function testSocialRoomSellShares() public {
+        // Enable Social rooms
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+        vm.prank(owner);
+        roomManager.enableRoomType(toIRoomType(FriendKey.RoomType.Social), toIRoomTier(FriendKey.RoomTier.Club));
+
+        address socialCreator = vm.addr(204);
+        mockUsdc.mint(socialCreator, 10_000_000 * (10 ** 6));
+        mockUsdc.mint(buyerAccount, 10_000_000 * (10 ** 6));
+
+        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, "");
+        vm.startPrank(socialCreator);
+        uint256 tokenId = instance.registerSocialCreator("", signature);
+        vm.stopPrank();
+
+        // Buyer buys and then sells
+        vm.startPrank(buyerAccount);
+        uint256 buyPrice = instance.getBuyPriceAfterFee(tokenId, 5);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(tokenId, 5, type(uint256).max);
+
+        uint256 balanceBefore = mockUsdc.balanceOf(buyerAccount);
+        instance.sellShares(tokenId, 2, 0);
+        uint256 balanceAfter = mockUsdc.balanceOf(buyerAccount);
+        vm.stopPrank();
+
+        assertEq(instance.balanceOf(buyerAccount, tokenId), 3, "Buyer should have 3 shares left");
+        assertTrue(balanceAfter > balanceBefore, "Balance should increase after sell");
+    }
+
+    function testSocialRoomCannotStake() public {
+        // Enable Social rooms
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+        vm.prank(owner);
+        roomManager.enableRoomType(toIRoomType(FriendKey.RoomType.Social), toIRoomTier(FriendKey.RoomTier.Club));
+
+        address socialCreator = vm.addr(205);
+        mockUsdc.mint(socialCreator, 10_000_000 * (10 ** 6));
+        mockUsdc.mint(buyerAccount, 10_000_000 * (10 ** 6));
+
+        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, "");
+        vm.startPrank(socialCreator);
+        uint256 tokenId = instance.registerSocialCreator("", signature);
+        vm.stopPrank();
+
+        // Buyer buys shares
+        vm.startPrank(buyerAccount);
+        uint256 buyPrice = instance.getBuyPriceAfterFee(tokenId, 2);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(tokenId, 2, type(uint256).max);
+
+        // Try to stake - should fail (no staking pool)
+        vm.expectRevert(Errors.StakingPoolNotRegistered.selector);
+        instance.stake(tokenId, 1);
+        vm.stopPrank();
+    }
+
+    function testCanRegisterRoom_SocialType() public {
+        // Enable Social rooms
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+        vm.prank(owner);
+        roomManager.enableRoomType(toIRoomType(FriendKey.RoomType.Social), toIRoomTier(FriendKey.RoomTier.Club));
+
+        address testCreator = vm.addr(206);
+        mockUsdc.mint(testCreator, 10_000_000 * (10 ** 6));
+
+        // Can register Social room
+        assertTrue(
+            instance.canRegisterRoom(testCreator, FriendKey.RoomType.Social, FriendKey.RoomTier.Club),
+            "Should be able to register Social Club"
+        );
+
+        // Register Social room
+        bytes memory signature = _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Club, 0, "");
+        vm.prank(testCreator);
+        instance.registerSocialCreator("", signature);
+
+        // Can still register Trading room (different type)
+        assertTrue(
+            instance.canRegisterRoom(testCreator, FriendKey.RoomType.Trading, FriendKey.RoomTier.Club),
+            "Should be able to register Trading Club after Social"
+        );
+    }
+
+    // ============================================
+    // SET SIGNEE TESTS
+    // ============================================
+
+    function testSetSignee() public {
+        address newSignee = vm.addr(300);
+
+        vm.prank(owner);
+        instance.setSignee(newSignee);
+
+        // Test that signee can now sign registrations
+        address testCreator = vm.addr(301);
+        mockUsdc.mint(testCreator, 1_000_000 * (10 ** 6));
+
+        // Create signature with new signee's private key
+        uint256 signeePrivateKey = 300;
+        bytes memory signature =
+            _getRegisterCreatorSignatureWithKey(testCreator, FriendKey.RoomTier.Club, 0, "", signeePrivateKey);
+
+        vm.prank(testCreator);
+        uint256 tokenId = instance.registerCreator("", signature);
+        assertEq(instance.creatorByTokenId(tokenId), testCreator, "Creator should be registered with signee signature");
+    }
+
+    function testSetSignee_ZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        instance.setSignee(address(0));
+    }
+
+    function testSetSignee_OnlyOwner() public {
+        address maliciousUser = vm.addr(999);
+        vm.prank(maliciousUser);
+        vm.expectRevert();
+        instance.setSignee(vm.addr(300));
+    }
+
+    function _getRegisterCreatorSignatureWithKey(
+        address account,
+        FriendKey.RoomTier tier,
+        uint256 additionalKeys,
+        string memory metadata,
+        uint256 privateKey
+    ) internal view returns (bytes memory) {
+        uint256 nonce = instance.registerCreatorNonces(account);
+        bytes32 metadataHash = keccak256(bytes(metadata));
+        bytes32 structHash =
+            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    // ============================================
+    // TRANSFER TO POOL EDGE CASES
+    // ============================================
+
+    function testTransferToPool_SocialRoom() public {
+        // Enable Social rooms
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+        vm.prank(owner);
+        roomManager.enableRoomType(toIRoomType(FriendKey.RoomType.Social), toIRoomTier(FriendKey.RoomTier.Club));
+
+        address socialCreator = vm.addr(400);
+        mockUsdc.mint(socialCreator, 10_000_000 * (10 ** 6));
+        mockUsdc.mint(buyerAccount, 10_000_000 * (10 ** 6));
+
+        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, "");
+        vm.startPrank(socialCreator);
+        uint256 tokenId = instance.registerSocialCreator("", signature);
+        vm.stopPrank();
+
+        // Buy shares - fees should go to dev destination for social rooms
+        uint256 devBalanceBefore = mockUsdc.balanceOf(devFeeDestination);
+        vm.startPrank(buyerAccount);
+        uint256 buyPrice = instance.getBuyPriceAfterFee(tokenId, 10);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(tokenId, 10, type(uint256).max);
+        vm.stopPrank();
+
+        uint256 devBalanceAfter = mockUsdc.balanceOf(devFeeDestination);
+        assertTrue(devBalanceAfter > devBalanceBefore, "Dev should receive fees from social room");
+    }
+
+    function testTransferToPool_EOA() public {
+        // Create a simple EOA address (no contract code)
+        address eoaPool = vm.addr(500);
+
+        // Update trading pool fee destination to EOA
+        address roomManagerAddr = instance.roomManager();
+        FriendRoomManager roomManager = FriendRoomManager(roomManagerAddr);
+        vm.prank(owner);
+        roomManager.setFeeDestinations(devFeeDestination, eoaPool);
+
+        // Buy shares - should transfer directly to EOA
+        uint256 eoaBalanceBefore = mockUsdc.balanceOf(eoaPool);
+        vm.startPrank(buyerAccount);
+        uint256 buyPrice = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 5);
+        mockUsdc.approve(address(instance), buyPrice);
+        instance.buyShares(CREATOR_TOKEN_ID, 5, type(uint256).max);
+        vm.stopPrank();
+
+        uint256 eoaBalanceAfter = mockUsdc.balanceOf(eoaPool);
+        assertTrue(eoaBalanceAfter > eoaBalanceBefore, "EOA should receive pool fees");
+    }
+
+    // ============================================
+    // ADDITIONAL EDGE CASES
+    // ============================================
+
+    function testBuyShares_InsufficientAllowance() public {
+        vm.startPrank(buyerAccount);
+        uint256 price = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 10);
+        mockUsdc.approve(address(instance), price - 1); // Approve less than needed
+
+        vm.expectRevert(Errors.InsufficientAllowance.selector);
+        instance.buyShares(CREATOR_TOKEN_ID, 10, type(uint256).max);
+        vm.stopPrank();
+    }
+
+    function testBuyShares_InsufficientBalance() public {
+        vm.startPrank(buyerAccount);
+        uint256 price = instance.getBuyPriceAfterFee(CREATOR_TOKEN_ID, 10);
+        mockUsdc.approve(address(instance), price);
+
+        // Set balance to less than needed
+        uint256 currentBalance = mockUsdc.balanceOf(buyerAccount);
+        uint256 amountToBurn = currentBalance - price + 1;
+        mockUsdc.burn(buyerAccount, amountToBurn); // Reduce balance
+
+        vm.expectRevert(Errors.InsufficientBalance.selector);
+        instance.buyShares(CREATOR_TOKEN_ID, 10, type(uint256).max);
+        vm.stopPrank();
+    }
+
+    function testBuyShares_SlippageProtectionRequired() public {
+        vm.startPrank(buyerAccount);
+        mockUsdc.approve(address(instance), type(uint256).max);
+
+        vm.expectRevert(Errors.SlippageProtectionRequired.selector);
+        instance.buyShares(CREATOR_TOKEN_ID, 10, 0); // maxSpend = 0
+        vm.stopPrank();
+    }
+
+    function testSellShares_AmountExceedsSupply() public {
+        uint256 currentSupply = instance.totalSupply(CREATOR_TOKEN_ID);
+
+        vm.startPrank(buyerAccount);
+        vm.expectRevert(Errors.AmountExceedsSupply.selector);
+        instance.getSellPrice(CREATOR_TOKEN_ID, currentSupply + 1);
+        vm.stopPrank();
+    }
+
+    function testUri_WithMetadata() public {
+        address testCreator = vm.addr(600);
+        mockUsdc.mint(testCreator, 1_000_000 * (10 ** 6));
+
+        string memory metadata = "ipfs://QmTestHash";
+        bytes memory signature = _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Club, 0, metadata);
+
+        vm.prank(testCreator);
+        uint256 tokenId = instance.registerCreator(FriendKey.RoomTier.Club, 0, metadata, signature);
+
+        string memory retrievedUri = instance.uri(tokenId);
+        assertEq(retrievedUri, metadata, "URI should match metadata");
     }
 }

@@ -11,7 +11,7 @@ import {FriendKey} from "src/FriendKey.sol";
  */
 contract SetSigneeScript is Script {
     // Update this with your deployed FriendKey proxy address
-    address constant FRIEND_KEY_PROXY = 0x295577574FDc19EF2EbC4437462E2F5044591D14;
+    address constant FRIEND_KEY_PROXY = 0x7a1B04a98DF35fa44e998bD62FFC1690A109057D;
 
     function setUp() public {}
 
@@ -20,7 +20,8 @@ contract SetSigneeScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
-        address newSignee = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788;
+        // address newSignee = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788;
+        address newSignee = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D;
 
         // Update this with the new signee address
 
