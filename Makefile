@@ -43,7 +43,7 @@ deploy-mainnet:
 	@echo "Deploying to MAINNET (Base)"
 	@echo "Press Ctrl+C within 5 seconds to cancel..."
 	@sleep 5
-	forge script script/Deploy.s.sol:Deploy --rpc-url prod --broadcast --verify -vvvv
+	forge script script/Deploy.s.sol:Deploy --rpc-url prod --broadcast -vvvv
 
 # Deploy to local network (e.g., Anvil)
 # Uses 'local' endpoint from foundry.toml

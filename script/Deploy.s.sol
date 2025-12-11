@@ -32,7 +32,8 @@ contract Deploy is Script {
     uint16 constant CREATOR_SOCIAL_FEE_PERCENT = 200; // 2%
 
     uint256 constant ELIGIBILITY_DURATION = 1 days;
-    address constant SIGNEE = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788;
+    // address constant SIGNEE = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788; // mainnet signee
+    address constant SIGNEE = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D; // hl - test account signee
 
     function setUp() public {}
 
@@ -170,7 +171,8 @@ contract Deploy is Script {
         console2.log("FriendPool Proxy:", address(friendPool));
         console2.log("DLN Source:", dlnSourceAddress);
         console2.log("Authority:", authorityAddress);
-        console2.log("FriendRoomManager:", address(roomManager));
+        console2.log("Signee:", SIGNEE);
+        console2.log("FriendRoomManager Proxy:", address(roomManager));
         console2.log("");
         console2.log("=== Configuration ===");
         console2.log("Dev Fee: %s bps (%s%%)", DEV_FEE_PERCENT, DEV_FEE_PERCENT / 100);
