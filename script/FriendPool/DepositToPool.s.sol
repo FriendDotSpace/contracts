@@ -30,7 +30,7 @@ contract DepositToPoolScript is Script {
 
         // Deposit
         pool.depositToPool(TOKEN_ID, AMOUNT);
-        console2.log("Deposited", AMOUNT, "to tokenId", TOKEN_ID, "into FriendPoolV2");
+        console2.log("Deposited %s to tokenId %s into FriendPoolV2", AMOUNT, TOKEN_ID);
 
         vm.stopBroadcast();
     }
