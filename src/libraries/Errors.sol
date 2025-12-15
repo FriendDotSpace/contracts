@@ -36,6 +36,7 @@ library Errors {
     error UserDoesNotHoldToken();
     error UnauthorizedRegisterSignature();
     error TierNotAllowedForRoomType();
+    error InvalidAmount();
     // FriendPool specific errors
     error NotFriendKey();
     error NotDispatcher();
@@ -64,4 +65,5 @@ library Errors {
     error InvalidArrayLength();
     error FriendKeyMustBeERC1155();
     error MaxStakeEntriesExceeded();
+
 }

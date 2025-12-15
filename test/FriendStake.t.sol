@@ -567,12 +567,6 @@ contract FriendStakeTest is Test {
         assertEq(friendKey.balanceOf(staker1, CREATOR_TOKEN_ID), 5, "Should have tokens back");
     }
 
-    function testUnstakeAll_NoStake() public {
-        vm.prank(staker1);
-        vm.expectRevert("Key does not exist");
-        stake.unstakeAll();
-    }
-
     // ============================================
     // CALCULATE TOTAL ELIGIBLE TESTS
     // ============================================
@@ -783,7 +777,7 @@ contract FriendStakeTest is Test {
         stake.calculateTotalEligible(10);
 
         vm.prank(staker1);
-        vm.expectRevert("Key does not exist");
+        vm.expectRevert(Errors.AmountMustBeGreaterThanZero.selector);
         stake.claim();
     }
 

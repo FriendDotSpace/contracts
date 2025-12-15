@@ -583,21 +583,22 @@ contract FriendKey is
             uint256 balance = bondingToken.balanceOf(msg.sender);
             if (balance < totalCost) revert Errors.InsufficientBalance();
             // Transfer the bonding token from the user to this contract
-            bool ok = bondingToken.transferFrom(msg.sender, address(this), totalCost);
-            if (!ok) revert Errors.TransferFailed();
+            bondingToken.safeTransferFrom(msg.sender, address(this), totalCost);
         }
 
         emit Trade(tokenId, msg.sender, creatorAddress, true, amount, price, currentSupply + amount);
         (address devFeeDestination, address poolFeeDestination) = getFeeDestinations();
 
-        if (devFee > 0 && devFeeDestination != address(0)) {
+        if (devFee > 0) {
+            if (devFeeDestination == address(0)) revert Errors.ZeroAddress();
             bondingToken.safeTransfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
             bondingToken.safeTransfer(creatorAddress, creatorFee);
         }
-        if (tradingPoolFee > 0 && poolFeeDestination != address(0)) {
+        if (tradingPoolFee > 0) {
+            if (poolFeeDestination == address(0)) revert Errors.ZeroAddress();
             _transferToPool(tokenId, tradingPoolFee);
         }
     }
@@ -652,14 +653,16 @@ contract FriendKey is
         if (proceeds > 0) {
             bondingToken.safeTransfer(msg.sender, proceeds);
         }
-        if (devFee > 0 && devFeeDestination != address(0)) {
+        if (devFee > 0) {
+            if (devFeeDestination == address(0)) revert Errors.ZeroAddress();
             bondingToken.safeTransfer(devFeeDestination, devFee);
         }
         if (creatorFee > 0) {
             emit CreatorRewarded(tokenId, creatorAddress, creatorFee);
             bondingToken.safeTransfer(creatorAddress, creatorFee);
         }
-        if (tradingPoolFee > 0 && poolFeeDestination != address(0)) {
+        if (tradingPoolFee > 0) {
+            if (poolFeeDestination == address(0)) revert Errors.ZeroAddress();
             _transferToPool(tokenId, tradingPoolFee);
         }
     }
@@ -719,7 +722,7 @@ contract FriendKey is
         // Check if the destination has code (is a contract)
         if (poolDest.code.length > 0) {
             // try to approve and pull from the trading pool otherwise transfer
-            if (!bondingToken.approve(poolDest, tradingPoolFee)) revert Errors.ApproveFailed();
+            bondingToken.forceApprove(poolDest, tradingPoolFee);
             try IFriendPool(poolDest).pull(tokenId, tradingPoolFee) {
             // If the pull succeeds, we don't need to do anything else
             }
