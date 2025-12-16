@@ -228,13 +228,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256[] memory ids,
         uint256[] memory values,
         bytes memory data
-    )
-        public
-        virtual
-        override
-        whenNotPaused
-        returns (bytes4)
-    {
+    ) public virtual override whenNotPaused returns (bytes4) {
         if (!isOpenForStaking) revert Errors.StakingNotOpen();
         if (ids.length != values.length) revert Errors.InvalidArrayLength();
         if (_msgSender() != address(friendKeyToken)) revert Errors.CallerNotFriendKey();

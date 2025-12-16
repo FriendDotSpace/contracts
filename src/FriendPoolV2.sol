@@ -45,7 +45,6 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @param totalReserves Total reserves remaining for this token ID
     event FundsPulled(uint256 indexed tokenId, uint256 amount, uint256 totalReserves);
 
-
     /// @notice Emitted when dispatcher is set
     /// @param dispatcher The address of the dispatcher
     event DispatcherSet(address indexed dispatcher);

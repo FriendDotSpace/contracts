@@ -42,7 +42,15 @@ contract RegisterSignedCreatorScript is Script {
         bytes32 domainSeparator =
             keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(instance)));
         bytes32 structHash = keccak256(
-            abi.encode(REGISTER_CREATOR_TYPEHASH, creator, uint8(FriendKey.RoomType.Trading), uint8(tier), additionalKeys, nonce, metadataHash)
+            abi.encode(
+                REGISTER_CREATOR_TYPEHASH,
+                creator,
+                uint8(FriendKey.RoomType.Trading),
+                uint8(tier),
+                additionalKeys,
+                nonce,
+                metadataHash
+            )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 

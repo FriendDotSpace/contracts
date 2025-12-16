@@ -118,10 +118,9 @@ contract FriendKeyV2 is
     address public roomManager;
 
     /// @dev keccak256("RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
-    bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
-        keccak256(
-            "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
-        );
+    bytes32 private constant _REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
 
     /// @dev Private address authorized to sign room creation requests
     address private _signee;
@@ -365,9 +364,10 @@ contract FriendKeyV2 is
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
 
-        try IFriendRoomManager(roomManager).checkAndUpdateRoomRegistration(
-            creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
-        ) {}
+        try IFriendRoomManager(roomManager)
+            .checkAndUpdateRoomRegistration(
+                creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
+            ) {}
         catch {
             revert Errors.RoomLimitExceeded();
         }
@@ -410,7 +410,9 @@ contract FriendKeyV2 is
         uint256 nonce = registerCreatorNonces[account];
         bytes32 metadataHash = keccak256(bytes(metadata));
         bytes32 structHash = keccak256(
-            abi.encode(_REGISTER_CREATOR_TYPEHASH, account, uint8(roomType), uint8(tier), additionalKeys, nonce, metadataHash)
+            abi.encode(
+                _REGISTER_CREATOR_TYPEHASH, account, uint8(roomType), uint8(tier), additionalKeys, nonce, metadataHash
+            )
         );
         bytes32 digest = _hashTypedDataV4(structHash);
         address recoveredSigner = digest.recover(signature);
