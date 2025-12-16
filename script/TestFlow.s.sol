@@ -29,8 +29,9 @@ contract TestFlowScript is Script {
     address friendKeyProxy;
     address friendUSDAddress;
 
-    bytes32 private constant REGISTER_CREATOR_TYPEHASH =
-        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    bytes32 private constant REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant NAME_HASH = keccak256(bytes("FriendKey"));
@@ -87,6 +88,7 @@ contract TestFlowScript is Script {
             abi.encode(
                 REGISTER_CREATOR_TYPEHASH,
                 creator,
+                uint8(FriendKey.RoomType.Trading),
                 uint8(FriendKey.RoomTier.Club), // RoomTier.Club
                 uint256(0), // no additional keys
                 nonce,

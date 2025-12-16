@@ -29,9 +29,13 @@ library IterableMapping {
         view
         returns (uint256)
     {
-        require(map.inserted[key], "Key does not exist");
+        if (!map.inserted[key]) {
+            return 0;
+        }
         Stake[] storage stakes = map.values[key];
-        require(stakes.length > 0, "No stakes for this key");
+        if (stakes.length == 0) {
+            return 0;
+        }
         // Sum the stakes that are eligible for withdrawal
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < stakes.length; i++) {
@@ -43,7 +47,9 @@ library IterableMapping {
     }
 
     function getTotalStake(Map storage map, address key) internal view returns (uint256) {
-        require(map.inserted[key], "Key does not exist");
+        if (!map.inserted[key]) {
+            return 0;
+        }
         Stake[] storage stakes = map.values[key];
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < stakes.length; i++) {

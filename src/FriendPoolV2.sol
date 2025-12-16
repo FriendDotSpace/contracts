@@ -45,10 +45,9 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @param totalReserves Total reserves remaining for this token ID
     event FundsPulled(uint256 indexed tokenId, uint256 amount, uint256 totalReserves);
 
-    /// @notice Emitted when dispatch is allowed for a token ID
-    /// @param tokenId The token ID for which dispatch is authorized
-    /// @param recipient The address authorized to dispatch funds
-    event DispatchAllowed(uint256 indexed tokenId, address indexed recipient);
+    /// @notice Emitted when dispatcher is set
+    /// @param dispatcher The address of the dispatcher
+    event DispatcherSet(address indexed dispatcher);
 
     /// @notice Emitted when external funds are deposited (e.g., tips) into a room's pool reserves
     /// @param tokenId The creator token ID associated with the reserves
@@ -134,6 +133,7 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     function setDispatcher(address dispatcher) external onlyOwner {
         if (dispatcher == address(0)) revert Errors.ZeroAddress();
         _dispatcher = dispatcher;
+        emit DispatcherSet(dispatcher);
     }
 
     /**
@@ -169,6 +169,7 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     {
         uint256 amount = poolReserves[tokenId];
         if (amount == 0) revert Errors.NoFundsAvailable();
+        if (_orderCreation.giveAmount != amount) revert Errors.InvalidAmount();
 
         IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
         if (bondingToken.balanceOf(address(this)) < amount) revert Errors.InsufficientReserves();
@@ -177,7 +178,7 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         poolReserves[tokenId] -= amount;
 
         // approve funds to recipient
-        if (!bondingToken.approve(address(dlnSource), amount)) revert Errors.ApproveFailed();
+        bondingToken.forceApprove(address(dlnSource), amount);
 
         // dispatch funds to recipient
         bytes32 orderId = dlnSource.createSaltedOrder{value: msg.value}(_orderCreation, _salt, "", 0, "", "");
@@ -210,8 +211,7 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (bondingToken.balanceOf(from) < amount) revert Errors.InsufficientBalance();
 
         poolReserves[tokenId] += amount;
-        bool ok = bondingToken.transferFrom(from, address(this), amount);
-        if (!ok) revert Errors.TransferFailed();
+        bondingToken.safeTransferFrom(from, address(this), amount);
 
         return poolReserves[tokenId];
     }

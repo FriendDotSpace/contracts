@@ -28,6 +28,7 @@ import {IFriendKey} from "./interfaces/IFriendKey.sol";
 /**
  * @title FriendKey
  * @author FriendDotSpace
+ * @custom:oz-upgrades-from FriendKey
  * @notice A social token platform that allows creators to issue their own tokenized shares using bonding curves
  * @dev This contract implements an ERC-1155 based social token system with the following features:
  *      - Bonding curve pricing mechanism for token purchases/sales
@@ -37,7 +38,7 @@ import {IFriendKey} from "./interfaces/IFriendKey.sol";
  *      - Cross-chain functionality through FriendPool integration
  *      - Upgradeable contract using UUPS proxy pattern
  */
-contract FriendKey is
+contract FriendKeyV2 is
     Initializable,
     ERC1155Upgradeable,
     OwnableUpgradeable,
@@ -116,9 +117,10 @@ contract FriendKey is
     /// @notice Reference to the FriendRoomManager contract for room limit enforcement
     address public roomManager;
 
-    /// @dev keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
-    bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
-        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    /// @dev keccak256("RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
+    bytes32 private constant _REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
 
     /// @dev Private address authorized to sign room creation requests
     address private _signee;
@@ -307,7 +309,7 @@ contract FriendKey is
         returns (uint256)
     {
         // Tier allowance now checked via FriendRoomManager
-        _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
+        _verifyRegisterCreatorSignature(msg.sender, RoomType.Trading, tier, additionalKeys, metadata, signature);
         return _registerCreator(RoomType.Trading, tier, additionalKeys, metadata);
     }
 
@@ -337,7 +339,7 @@ contract FriendKey is
         string calldata metadata,
         bytes calldata signature
     ) public virtual whenNotPaused returns (uint256) {
-        _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
+        _verifyRegisterCreatorSignature(msg.sender, RoomType.Social, tier, additionalKeys, metadata, signature);
         return _registerCreator(RoomType.Social, tier, additionalKeys, metadata);
     }
 
@@ -362,16 +364,12 @@ contract FriendKey is
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
 
-        // Check room limits via RoomManager if set
-        if (roomManager != address(0)) {
-            // This will revert if limit exceeded
-            try IFriendRoomManager(roomManager)
-                .checkAndUpdateRoomRegistration(
-                    creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
-                ) {}
-            catch {
-                revert Errors.RoomLimitExceeded();
-            }
+        try IFriendRoomManager(roomManager)
+            .checkAndUpdateRoomRegistration(
+                creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
+            ) {}
+        catch {
+            revert Errors.RoomLimitExceeded();
         }
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
@@ -403,6 +401,7 @@ contract FriendKey is
 
     function _verifyRegisterCreatorSignature(
         address account,
+        RoomType roomType,
         RoomTier tier,
         uint256 additionalKeys,
         string calldata metadata,
@@ -411,7 +410,9 @@ contract FriendKey is
         uint256 nonce = registerCreatorNonces[account];
         bytes32 metadataHash = keccak256(bytes(metadata));
         bytes32 structHash = keccak256(
-            abi.encode(_REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash)
+            abi.encode(
+                _REGISTER_CREATOR_TYPEHASH, account, uint8(roomType), uint8(tier), additionalKeys, nonce, metadataHash
+            )
         );
         bytes32 digest = _hashTypedDataV4(structHash);
         address recoveredSigner = digest.recover(signature);
