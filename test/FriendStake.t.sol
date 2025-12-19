@@ -26,8 +26,9 @@ contract FriendStakeTest is Test {
 
     uint256 public CREATOR_TOKEN_ID = 1;
     uint256 private constant OWNER_PRIVATE_KEY = 1;
-    bytes32 private constant REGISTER_CREATOR_TYPEHASH =
-        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    bytes32 private constant REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant NAME_HASH = keccak256(bytes("FriendKey"));
@@ -65,7 +66,9 @@ contract FriendStakeTest is Test {
         // Register creator and mint initial share
         vm.startPrank(creatorAccount);
         string memory metadata = "";
-        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Club, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(
+            creatorAccount, FriendKey.RoomType.Trading, FriendKey.RoomTier.Club, 0, metadata
+        );
         friendKey.registerCreator(metadata, signature);
         stake = FriendStake(friendKey.stakingPoolByTokenId(CREATOR_TOKEN_ID));
         vm.stopPrank();
@@ -82,14 +85,18 @@ contract FriendStakeTest is Test {
 
     function _getRegisterCreatorSignature(
         address account,
+        FriendKey.RoomType roomType,
         FriendKey.RoomTier tier,
         uint256 additionalKeys,
         string memory metadata
     ) internal view returns (bytes memory) {
         uint256 nonce = friendKey.registerCreatorNonces(account);
         bytes32 metadataHash = keccak256(bytes(metadata));
-        bytes32 structHash =
-            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                REGISTER_CREATOR_TYPEHASH, account, uint8(roomType), uint8(tier), additionalKeys, nonce, metadataHash
+            )
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PRIVATE_KEY, digest);
         return abi.encodePacked(r, s, v);

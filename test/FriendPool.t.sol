@@ -112,8 +112,9 @@ contract FriendPoolTest is Test {
     uint256 public CREATOR_TOKEN_ID = 1;
 
     uint256 private constant OWNER_PRIVATE_KEY = 1;
-    bytes32 private constant REGISTER_CREATOR_TYPEHASH =
-        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    bytes32 private constant REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant NAME_HASH = keccak256(bytes("FriendKey"));
@@ -129,10 +130,23 @@ contract FriendPoolTest is Test {
         uint256 additionalKeys,
         string memory metadata
     ) internal view returns (bytes memory) {
+        return _getRegisterCreatorSignature(account, FriendKey.RoomType.Trading, tier, additionalKeys, metadata);
+    }
+
+    function _getRegisterCreatorSignature(
+        address account,
+        FriendKey.RoomType roomType,
+        FriendKey.RoomTier tier,
+        uint256 additionalKeys,
+        string memory metadata
+    ) internal view returns (bytes memory) {
         uint256 nonce = friendKey.registerCreatorNonces(account);
         bytes32 metadataHash = keccak256(bytes(metadata));
-        bytes32 structHash =
-            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                REGISTER_CREATOR_TYPEHASH, account, uint8(roomType), uint8(tier), additionalKeys, nonce, metadataHash
+            )
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PRIVATE_KEY, digest);
         return abi.encodePacked(r, s, v);
@@ -204,7 +218,9 @@ contract FriendPoolTest is Test {
         vm.startPrank(creatorAccount);
         // Register creator
         string memory metadata = "POOL_CREATOR";
-        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Club, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(
+            creatorAccount, FriendKey.RoomType.Trading, FriendKey.RoomTier.Club, 0, metadata
+        );
         friendKey.registerCreator(metadata, signature);
         assertEq(friendKey.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
         vm.stopPrank();
@@ -295,10 +311,10 @@ contract FriendPoolTest is Test {
     }
 
     // Helper to create a dummy DlnOrderLib.OrderCreation struct
-    function _dummyOrderCreation() internal pure returns (DlnOrderLib.OrderCreation memory) {
+    function _dummyOrderCreation(uint256 amount) internal view returns (DlnOrderLib.OrderCreation memory) {
         return DlnOrderLib.OrderCreation({
             giveTokenAddress: address(0),
-            giveAmount: 0,
+            giveAmount: amount,
             takeTokenAddress: "",
             takeAmount: 0,
             takeChainId: 0,
@@ -311,12 +327,25 @@ contract FriendPoolTest is Test {
         });
     }
 
+    function _ensureSufficientReserves(address buyer, uint256 tokenId)
+        internal
+        returns (uint256 poolBalance, uint256 netAmount, uint256 fee)
+    {
+        fee = friendPool.dispatchFee();
+        poolBalance = friendPool.poolReserves(tokenId);
+        // Keep buying until reserves exceed the dispatch fee.
+        while (poolBalance <= fee) {
+            _buyShares(buyer, tokenId, 10);
+            poolBalance = friendPool.poolReserves(tokenId);
+        }
+        netAmount = poolBalance - fee;
+    }
+
     function testDispatchByDispatcher() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 5);
 
-        uint256 poolBalance = friendPool.poolReserves(CREATOR_TOKEN_ID);
-        assertGt(poolBalance, 0, "Pool should have some balance before dispatch");
+        (uint256 poolBalance, uint256 netAmount,) = _ensureSufficientReserves(buyerAccount, CREATOR_TOKEN_ID);
 
         // Set dispatcher
         vm.startPrank(owner);
@@ -324,23 +353,23 @@ contract FriendPoolTest is Test {
         vm.stopPrank();
 
         // Prepare dummy order creation struct
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(netAmount);
 
         // Dispatcher dispatches funds
         vm.startPrank(creatorAccount);
         vm.expectEmit(true, true, false, true);
-        emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, poolBalance, bytes32(uint256(0x1234)));
+        emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, netAmount, bytes32(uint256(0x1234)));
 
         uint256 dispatchedAmount = friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
         vm.stopPrank();
 
         // Verify dispatch results
-        assertEq(dispatchedAmount, poolBalance, "Dispatched amount should equal pool balance");
+        assertEq(dispatchedAmount, netAmount, "Dispatched amount should equal net pool balance");
         assertEq(friendPool.poolReserves(CREATOR_TOKEN_ID), 0, "Pool reserves should be zero after dispatch");
         assertEq(
             mockUsdc.allowance(address(friendPool), address(dlnSourceMock)),
-            poolBalance,
-            "Target should have allowance for dispatched amount"
+            netAmount,
+            "Target should have allowance for dispatched net amount"
         );
     }
 
@@ -348,27 +377,26 @@ contract FriendPoolTest is Test {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 3);
 
-        uint256 poolBalance = friendPool.poolReserves(CREATOR_TOKEN_ID);
-        assertGt(poolBalance, 0, "Pool should have some balance before dispatch");
+        (uint256 poolBalance, uint256 netAmount,) = _ensureSufficientReserves(buyerAccount, CREATOR_TOKEN_ID);
 
         // Prepare dummy order creation struct
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(netAmount);
 
         // Owner dispatches funds
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true);
-        emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, poolBalance, bytes32(uint256(0x1234)));
+        emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, netAmount, bytes32(uint256(0x1234)));
 
         uint256 dispatchedAmount = friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
         vm.stopPrank();
 
         // Verify dispatch results
-        assertEq(dispatchedAmount, poolBalance, "Dispatched amount should equal pool balance");
+        assertEq(dispatchedAmount, netAmount, "Dispatched amount should equal net pool balance");
         assertEq(friendPool.poolReserves(CREATOR_TOKEN_ID), 0, "Pool reserves should be zero after dispatch");
         assertEq(
             mockUsdc.allowance(address(friendPool), address(dlnSourceMock)),
-            poolBalance,
-            "Target should have allowance for dispatched amount"
+            netAmount,
+            "Target should have allowance for dispatched net amount"
         );
     }
 
@@ -376,7 +404,7 @@ contract FriendPoolTest is Test {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
 
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(friendPool.poolReserves(CREATOR_TOKEN_ID));
 
         // Non-dispatcher/non-owner tries to dispatch (should fail)
         vm.startPrank(buyerAccount);
@@ -389,7 +417,7 @@ contract FriendPoolTest is Test {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
 
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(friendPool.poolReserves(CREATOR_TOKEN_ID));
 
         // Non-owner tries to dispatch as owner (should fail)
         vm.startPrank(buyerAccount);
@@ -400,7 +428,7 @@ contract FriendPoolTest is Test {
 
     function testDispatchFailsWithZeroBalance() public {
         // Try to dispatch when pool has no balance
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(0);
 
         vm.startPrank(owner);
         vm.expectRevert(Errors.NoFundsAvailable.selector);
@@ -412,9 +440,9 @@ contract FriendPoolTest is Test {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 4);
 
-        uint256 poolBalance = friendPool.poolReserves(CREATOR_TOKEN_ID);
+        (uint256 poolBalance, uint256 netAmount,) = _ensureSufficientReserves(buyerAccount, CREATOR_TOKEN_ID);
 
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(netAmount);
 
         // Check initial allowance
         assertEq(mockUsdc.allowance(address(friendPool), address(dlnSourceMock)), 0, "Initial allowance should be zero");
@@ -427,8 +455,8 @@ contract FriendPoolTest is Test {
         // Check final allowance
         assertEq(
             mockUsdc.allowance(address(friendPool), address(dlnSourceMock)),
-            poolBalance,
-            "Final allowance should equal dispatched amount"
+            netAmount,
+            "Final allowance should equal dispatched net amount"
         );
     }
 
@@ -444,11 +472,11 @@ contract FriendPoolTest is Test {
 
         // Second trade
         _buyShares(anotherBuyerAccount, CREATOR_TOKEN_ID, 3);
-        uint256 totalReserves = friendPool.poolReserves(CREATOR_TOKEN_ID);
+        (uint256 totalReserves, uint256 netAmount,) = _ensureSufficientReserves(anotherBuyerAccount, CREATOR_TOKEN_ID);
         assertGt(totalReserves, firstReserves, "Total reserves should be greater than first trade");
 
         // Partial dispatch (dispatch all available)
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(netAmount);
 
         vm.startPrank(owner);
         friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
@@ -461,7 +489,9 @@ contract FriendPoolTest is Test {
         // Register another creator
         vm.startPrank(anotherBuyerAccount);
         string memory metadata = "SECOND_CREATOR";
-        bytes memory signature = _getRegisterCreatorSignature(anotherBuyerAccount, FriendKey.RoomTier.Club, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(
+            anotherBuyerAccount, FriendKey.RoomType.Trading, FriendKey.RoomTier.Club, 0, metadata
+        );
         uint256 secondTokenId = friendKey.registerCreator(metadata, signature);
         vm.stopPrank();
 
@@ -477,7 +507,8 @@ contract FriendPoolTest is Test {
         assertGt(secondTokenReserves, 0, "Second token should have some reserves");
 
         // Dispatch from first token should not affect second
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        (, uint256 netAmount,) = _ensureSufficientReserves(buyerAccount, CREATOR_TOKEN_ID);
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(netAmount);
 
         vm.startPrank(owner);
         friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
@@ -522,7 +553,7 @@ contract FriendPoolTest is Test {
         roomManager.pause();
 
         // Try to dispatch - should revert
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(friendPool.poolReserves(CREATOR_TOKEN_ID));
         vm.startPrank(owner);
         vm.expectRevert(Errors.ContractPaused.selector);
         friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
@@ -544,7 +575,8 @@ contract FriendPoolTest is Test {
         // Operations should work again
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 2);
 
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        (, uint256 netAmount,) = _ensureSufficientReserves(buyerAccount, CREATOR_TOKEN_ID);
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation(netAmount);
         vm.startPrank(owner);
         friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
         vm.stopPrank();

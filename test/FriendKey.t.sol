@@ -109,8 +109,9 @@ contract FriendKeyTest is Test {
     FriendStake public friendStake;
 
     uint256 private constant OWNER_PRIVATE_KEY = 1;
-    bytes32 private constant REGISTER_CREATOR_TYPEHASH =
-        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    bytes32 private constant REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant NAME_HASH = keccak256(bytes("FriendKey"));
@@ -126,10 +127,23 @@ contract FriendKeyTest is Test {
         uint256 additionalKeys,
         string memory metadata
     ) internal view returns (bytes memory) {
+        return _getRegisterCreatorSignature(account, FriendKey.RoomType.Trading, tier, additionalKeys, metadata);
+    }
+
+    function _getRegisterCreatorSignature(
+        address account,
+        FriendKey.RoomType roomType,
+        FriendKey.RoomTier tier,
+        uint256 additionalKeys,
+        string memory metadata
+    ) internal view returns (bytes memory) {
         uint256 nonce = instance.registerCreatorNonces(account);
         bytes32 metadataHash = keccak256(bytes(metadata));
-        bytes32 structHash =
-            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                REGISTER_CREATOR_TYPEHASH, account, uint8(roomType), uint8(tier), additionalKeys, nonce, metadataHash
+            )
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PRIVATE_KEY, digest);
         return abi.encodePacked(r, s, v);
@@ -145,7 +159,8 @@ contract FriendKeyTest is Test {
     }
 
     function _registerCreator(address account) internal returns (uint256) {
-        bytes memory signature = _getRegisterCreatorSignature(account, FriendKey.RoomTier.Club, 0, "");
+        bytes memory signature =
+            _getRegisterCreatorSignature(account, FriendKey.RoomType.Trading, FriendKey.RoomTier.Club, 0, "");
         vm.prank(account);
         return instance.registerCreator("", signature);
     }
@@ -185,7 +200,9 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(creatorAccount);
         string memory metadata = "";
-        bytes memory signature = _getRegisterCreatorSignature(creatorAccount, FriendKey.RoomTier.Club, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(
+            creatorAccount, FriendKey.RoomType.Trading, FriendKey.RoomTier.Club, 0, metadata
+        );
         instance.registerCreator(metadata, signature);
         friendStake = FriendStake(instance.stakingPoolByTokenId(CREATOR_TOKEN_ID));
         assertEq(instance.creatorByTokenId(CREATOR_TOKEN_ID), creatorAccount, "TOKEN_ID mismatch");
@@ -1437,7 +1454,9 @@ contract FriendKeyTest is Test {
         mockUsdc.mint(socialCreator, 1_000_000 * (10 ** 6));
 
         string memory metadata = "SOCIAL_METADATA";
-        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(
+            socialCreator, FriendKey.RoomType.Social, FriendKey.RoomTier.Club, 0, metadata
+        );
 
         vm.startPrank(socialCreator);
         uint256 tokenId = instance.registerSocialCreator(FriendKey.RoomTier.Club, 0, metadata, signature);
@@ -1460,7 +1479,9 @@ contract FriendKeyTest is Test {
         mockUsdc.mint(socialCreator, 1_000_000 * (10 ** 6));
 
         string memory metadata = "SOCIAL_DEFAULT";
-        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, metadata);
+        bytes memory signature = _getRegisterCreatorSignature(
+            socialCreator, FriendKey.RoomType.Social, FriendKey.RoomTier.Club, 0, metadata
+        );
 
         vm.startPrank(socialCreator);
         uint256 tokenId = instance.registerSocialCreator(metadata, signature);
@@ -1482,7 +1503,8 @@ contract FriendKeyTest is Test {
         mockUsdc.mint(socialCreator, 10_000_000 * (10 ** 6));
         mockUsdc.mint(buyerAccount, 10_000_000 * (10 ** 6));
 
-        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, "");
+        bytes memory signature =
+            _getRegisterCreatorSignature(socialCreator, FriendKey.RoomType.Social, FriendKey.RoomTier.Club, 0, "");
         vm.startPrank(socialCreator);
         uint256 tokenId = instance.registerSocialCreator("", signature);
         vm.stopPrank();
@@ -1509,7 +1531,8 @@ contract FriendKeyTest is Test {
         mockUsdc.mint(socialCreator, 10_000_000 * (10 ** 6));
         mockUsdc.mint(buyerAccount, 10_000_000 * (10 ** 6));
 
-        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, "");
+        bytes memory signature =
+            _getRegisterCreatorSignature(socialCreator, FriendKey.RoomType.Social, FriendKey.RoomTier.Club, 0, "");
         vm.startPrank(socialCreator);
         uint256 tokenId = instance.registerSocialCreator("", signature);
         vm.stopPrank();
@@ -1540,7 +1563,8 @@ contract FriendKeyTest is Test {
         mockUsdc.mint(socialCreator, 10_000_000 * (10 ** 6));
         mockUsdc.mint(buyerAccount, 10_000_000 * (10 ** 6));
 
-        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, "");
+        bytes memory signature =
+            _getRegisterCreatorSignature(socialCreator, FriendKey.RoomType.Social, FriendKey.RoomTier.Club, 0, "");
         vm.startPrank(socialCreator);
         uint256 tokenId = instance.registerSocialCreator("", signature);
         vm.stopPrank();
@@ -1574,7 +1598,8 @@ contract FriendKeyTest is Test {
         );
 
         // Register Social room
-        bytes memory signature = _getRegisterCreatorSignature(testCreator, FriendKey.RoomTier.Club, 0, "");
+        bytes memory signature =
+            _getRegisterCreatorSignature(testCreator, FriendKey.RoomType.Social, FriendKey.RoomTier.Club, 0, "");
         vm.prank(testCreator);
         instance.registerSocialCreator("", signature);
 
@@ -1629,10 +1654,26 @@ contract FriendKeyTest is Test {
         string memory metadata,
         uint256 privateKey
     ) internal view returns (bytes memory) {
+        return _getRegisterCreatorSignatureWithKey(
+            account, FriendKey.RoomType.Trading, tier, additionalKeys, metadata, privateKey
+        );
+    }
+
+    function _getRegisterCreatorSignatureWithKey(
+        address account,
+        FriendKey.RoomType roomType,
+        FriendKey.RoomTier tier,
+        uint256 additionalKeys,
+        string memory metadata,
+        uint256 privateKey
+    ) internal view returns (bytes memory) {
         uint256 nonce = instance.registerCreatorNonces(account);
         bytes32 metadataHash = keccak256(bytes(metadata));
-        bytes32 structHash =
-            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                REGISTER_CREATOR_TYPEHASH, account, uint8(roomType), uint8(tier), additionalKeys, nonce, metadataHash
+            )
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v);
@@ -1653,7 +1694,8 @@ contract FriendKeyTest is Test {
         mockUsdc.mint(socialCreator, 10_000_000 * (10 ** 6));
         mockUsdc.mint(buyerAccount, 10_000_000 * (10 ** 6));
 
-        bytes memory signature = _getRegisterCreatorSignature(socialCreator, FriendKey.RoomTier.Club, 0, "");
+        bytes memory signature =
+            _getRegisterCreatorSignature(socialCreator, FriendKey.RoomType.Social, FriendKey.RoomTier.Club, 0, "");
         vm.startPrank(socialCreator);
         uint256 tokenId = instance.registerSocialCreator("", signature);
         vm.stopPrank();

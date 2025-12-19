@@ -7,6 +7,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IFriendKey} from "./interfaces/IFriendKey.sol";
 import {IFriendRoomManager} from "./interfaces/IFriendRoomManager.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDlnSource} from "./interfaces/IDlnSource.sol";
@@ -25,7 +26,7 @@ import {Errors} from "./libraries/Errors.sol";
  *      - Upgradeable contract using UUPS proxy pattern
  */
 contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    using SafeERC20 for IERC20Metadata;
+    using SafeERC20 for IERC20;
 
     /// @notice The FriendKey contract that can pull funds from this pool
     IFriendKey public friendKey;
@@ -44,10 +45,16 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @param totalReserves Total reserves remaining for this token ID
     event FundsPulled(uint256 indexed tokenId, uint256 amount, uint256 totalReserves);
 
-    /// @notice Emitted when dispatch is allowed for a token ID
-    /// @param tokenId The token ID for which dispatch is authorized
-    /// @param recipient The address authorized to dispatch funds
-    event DispatchAllowed(uint256 indexed tokenId, address indexed recipient);
+    /// @notice Emitted when dispatcher is set
+    /// @param dispatcher The address of the dispatcher
+    event DispatcherSet(address indexed dispatcher);
+
+    /// @notice Emitted when external funds are deposited (e.g., tips) into a room's pool reserves
+    /// @param tokenId The creator token ID associated with the reserves
+    /// @param from The address providing the funds
+    /// @param amount Amount deposited
+    /// @param totalReserves Total reserves after deposit
+    event FundsDeposited(uint256 indexed tokenId, address indexed from, uint256 amount, uint256 totalReserves);
 
     /// @notice Emitted when funds are dispatched cross-chain
     /// @param tokenId The token ID associated with the dispatched funds
@@ -115,6 +122,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     function setDispatcher(address dispatcher) external onlyOwner {
         if (dispatcher == address(0)) revert Errors.ZeroAddress();
         _dispatcher = dispatcher;
+        emit DispatcherSet(dispatcher);
     }
 
     /**
@@ -174,14 +182,36 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @param amount Amount of bonding tokens to pull into reserves
      */
     function pull(uint256 tokenId, uint256 amount) external onlyFriendKey whenNotPaused {
-        IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
-        if (bondingToken.balanceOf(msg.sender) < amount) revert Errors.InsufficientBalance();
-        if (bondingToken.allowance(msg.sender, address(this)) < amount) revert Errors.InsufficientAllowance();
+        uint256 newReserves = _collectToPool(tokenId, amount, msg.sender);
+        emit FundsPulled(tokenId, amount, newReserves);
+    }
+
+    /**
+     * @notice Deposits bonding tokens into a room's pool reserves (e.g., tips or manual funding)
+     * @dev Anyone can call; requires ERC20 allowance. Credits poolReserves so funds are dispatchable.
+     * @param tokenId The token ID whose pool reserves to credit
+     * @param amount Amount of bonding tokens to transfer in and credit
+     */
+    function depositToPool(uint256 tokenId, uint256 amount) external whenNotPaused {
+        uint256 newReserves = _collectToPool(tokenId, amount, msg.sender);
+        emit FundsDeposited(tokenId, msg.sender, amount, newReserves);
+    }
+
+    /**
+     * @dev Internal helper to collect bonding tokens into pool reserves from a given address.
+     *
+     */
+    function _collectToPool(uint256 tokenId, uint256 amount, address from) internal returns (uint256) {
+        if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
+        if (friendKey.creatorByTokenId(tokenId) == address(0)) revert Errors.CreatorNotRegistered();
+
+        IERC20 bondingToken = IERC20(friendKey.bondingToken());
+        if (bondingToken.allowance(from, address(this)) < amount) revert Errors.InsufficientAllowance();
+        if (bondingToken.balanceOf(from) < amount) revert Errors.InsufficientBalance();
 
         poolReserves[tokenId] += amount;
+        bondingToken.safeTransferFrom(from, address(this), amount);
 
-        emit FundsPulled(tokenId, amount, poolReserves[tokenId]);
-        bool success = bondingToken.transferFrom(msg.sender, address(this), amount);
-        if (!success) revert Errors.TransferFailed();
+        return poolReserves[tokenId];
     }
 }
