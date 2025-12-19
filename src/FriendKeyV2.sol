@@ -365,9 +365,10 @@ contract FriendKeyV2 is
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
 
-        IFriendRoomManager(roomManager).checkAndUpdateRoomRegistration(
-            creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
-        );
+        IFriendRoomManager(roomManager)
+            .checkAndUpdateRoomRegistration(
+                creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
+            );
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
         roomTypes[id] = roomType;
