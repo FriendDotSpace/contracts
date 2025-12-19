@@ -116,7 +116,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 _eligibilityDuration
     ) public initializer {
         __Ownable_init(initialOwner);
-        // __UUPSUpgradeable_init();
+        __UUPSUpgradeable_init();
         if (_friendKeyAddress == address(0)) revert Errors.ZeroAddress();
         if (_rewardToken == address(0)) revert Errors.ZeroAddress();
         rewardToken = IERC20(_rewardToken);

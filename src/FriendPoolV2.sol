@@ -7,6 +7,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IFriendKey} from "./interfaces/IFriendKey.sol";
 import {IFriendRoomManager} from "./interfaces/IFriendRoomManager.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDlnSource} from "./interfaces/IDlnSource.sol";
@@ -26,7 +27,7 @@ import {Errors} from "./libraries/Errors.sol";
  *      - Upgradeable contract using UUPS proxy pattern
  */
 contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    using SafeERC20 for IERC20Metadata;
+    using SafeERC20 for IERC20;
 
     /// @notice The FriendKey contract that can pull funds from this pool
     IFriendKey public friendKey;
@@ -171,7 +172,7 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (amount == 0) revert Errors.NoFundsAvailable();
         if (_orderCreation.giveAmount != amount) revert Errors.InvalidAmount();
 
-        IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
+        IERC20 bondingToken = IERC20(friendKey.bondingToken());
         if (bondingToken.balanceOf(address(this)) < amount) revert Errors.InsufficientReserves();
 
         // remove funds from pool reserves
@@ -206,7 +207,7 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (amount == 0) revert Errors.AmountMustBeGreaterThanZero();
         if (friendKey.creatorByTokenId(tokenId) == address(0)) revert Errors.CreatorNotRegistered();
 
-        IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
+        IERC20 bondingToken = IERC20(friendKey.bondingToken());
         if (bondingToken.allowance(from, address(this)) < amount) revert Errors.InsufficientAllowance();
         if (bondingToken.balanceOf(from) < amount) revert Errors.InsufficientBalance();
 
