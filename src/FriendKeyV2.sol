@@ -13,6 +13,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
@@ -47,7 +48,7 @@ contract FriendKeyV2 is
     UUPSUpgradeable,
     EIP712Upgradeable
 {
-    using SafeERC20 for IERC20Metadata;
+    using SafeERC20 for IERC20;
     using Strings for uint256;
     using ECDSA for bytes32;
 
@@ -77,7 +78,7 @@ contract FriendKeyV2 is
     address public friendStakeBeacon;
 
     /// @notice The ERC20 token used for bonding curve transactions (e.g., USDC)
-    IERC20Metadata public bondingToken;
+    IERC20 public bondingToken;
     /// @notice Price unit based on bonding token decimals (e.g., 10^6 for USDC)
     uint256 public bondingTokenPriceUnit;
 
@@ -234,7 +235,7 @@ contract FriendKeyV2 is
         uint8 decimals = IERC20Metadata(_bondingTokenAddress).decimals();
         if (decimals == 0) revert Errors.InvalidDecimals();
         bondingTokenPriceUnit = 10 ** decimals;
-        bondingToken = IERC20Metadata(_bondingTokenAddress);
+        bondingToken = IERC20(_bondingTokenAddress);
         friendStakeBeacon = _friendStakeBeacon;
         roomManager = _roomManager;
     }
@@ -364,13 +365,9 @@ contract FriendKeyV2 is
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
 
-        try IFriendRoomManager(roomManager)
-            .checkAndUpdateRoomRegistration(
-                creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
-            ) {}
-        catch {
-            revert Errors.RoomLimitExceeded();
-        }
+        IFriendRoomManager(roomManager).checkAndUpdateRoomRegistration(
+            creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
+        );
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
         roomTypes[id] = roomType;
