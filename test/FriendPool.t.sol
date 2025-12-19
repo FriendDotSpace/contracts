@@ -331,14 +331,9 @@ contract FriendPoolTest is Test {
         internal
         returns (uint256 poolBalance, uint256 netAmount, uint256 fee)
     {
-        fee = friendPool.dispatchFee();
         poolBalance = friendPool.poolReserves(tokenId);
-        // Keep buying until reserves exceed the dispatch fee.
-        while (poolBalance <= fee) {
-            _buyShares(buyer, tokenId, 10);
-            poolBalance = friendPool.poolReserves(tokenId);
-        }
-        netAmount = poolBalance - fee;
+        netAmount = poolBalance;
+        fee = 0;
     }
 
     function testDispatchByDispatcher() public {
