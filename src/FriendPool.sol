@@ -90,6 +90,8 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         if (_dlnSource == address(0)) revert Errors.ZeroAddress();
         dlnSource = IDlnSource(_dlnSource);
+
+        dispatchFee = 3 * 10 ** IERC20Metadata(friendKey.bondingToken()).decimals();
     }
 
     /**
@@ -237,8 +239,8 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (bondingToken.allowance(from, address(this)) < amount) revert Errors.InsufficientAllowance();
         if (bondingToken.balanceOf(from) < amount) revert Errors.InsufficientBalance();
 
-        poolReserves[tokenId] += amount;
         bondingToken.safeTransferFrom(from, address(this), amount);
+        poolReserves[tokenId] += amount;
 
         return poolReserves[tokenId];
     }
