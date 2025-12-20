@@ -7,7 +7,8 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 
 contract FriendKeyUpgradeScript is Script {
-    address constant KEY = 0x4eF7037118303098bd7EbA64feB19d9d7D7e3682;
+    // address constant KEY = 0x4eF7037118303098bd7EbA64feB19d9d7D7e3682; // pre-prod
+    address constant KEY = 0x7a1B04a98DF35fa44e998bD62FFC1690A109057D; // testnet
 
     function setUp() public {}
 
@@ -17,7 +18,7 @@ contract FriendKeyUpgradeScript is Script {
 
         address initialOwner = vm.addr(deployerPrivateKey);
 
-        Upgrades.upgradeProxy(KEY, "FriendKey.sol", "", initialOwner);
+        Upgrades.upgradeProxy(KEY, "FriendKeyV2.sol", "", initialOwner);
         FriendKey instance = FriendKey(KEY);
 
         console2.log("FriendKey deployed to %s", address(instance));

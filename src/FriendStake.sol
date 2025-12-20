@@ -116,7 +116,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 _eligibilityDuration
     ) public initializer {
         __Ownable_init(initialOwner);
-        // __UUPSUpgradeable_init();
+        __UUPSUpgradeable_init();
         if (_friendKeyAddress == address(0)) revert Errors.ZeroAddress();
         if (_rewardToken == address(0)) revert Errors.ZeroAddress();
         rewardToken = IERC20(_rewardToken);
@@ -227,17 +227,15 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         address from,
         uint256[] memory ids,
         uint256[] memory values,
-        bytes memory /* data */
-    )
-        public
-        virtual
-        override
-        whenNotPaused
-        returns (bytes4)
-    {
+        bytes memory data
+    ) public virtual override whenNotPaused returns (bytes4) {
         if (!isOpenForStaking) revert Errors.StakingNotOpen();
         if (ids.length != values.length) revert Errors.InvalidArrayLength();
         if (_msgSender() != address(friendKeyToken)) revert Errors.CallerNotFriendKey();
+
+        if (data.length != 0) {
+            from = abi.decode(data, (address));
+        }
 
         // uint256 balance = stakedBalances.get(from);
         for (uint256 i = 0; i < ids.length; i++) {
@@ -275,6 +273,11 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         totalStaked -= amount;
         emit KeyUnstaked(user, tokenId, amount);
         friendKeyToken.safeTransferFrom(address(this), user, tokenId, amount, "");
+
+        // clean up empty stake list to prevent stale keys and eligibilty lookups to revert
+        if (stakes.length == 0) {
+            stakedBalances.remove(user);
+        }
     }
 
     function claimRewards(address user) internal {
