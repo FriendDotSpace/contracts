@@ -39,6 +39,9 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @dev These reserves come from trading pool fees collected by FriendKey
     mapping(uint256 => uint256) public poolReserves;
 
+    /// @notice Flat dispatch fee (in bonding token units) charged per cross-chain dispatch
+    uint256 public dispatchFee;
+
     /// @notice Emitted when funds are pulled from reserves by FriendKey contract
     /// @param tokenId The creator token ID associated with the reserves
     /// @param amount Amount of tokens pulled
@@ -61,6 +64,10 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @param amount Amount of tokens dispatched
     /// @param orderId The DLN order ID for tracking the cross-chain transaction
     event FundsDispatched(uint256 indexed tokenId, uint256 amount, bytes32 orderId);
+
+    /// @notice Emitted when the flat dispatch fee is updated
+    /// @param newFee The new dispatch fee in bonding token units
+    event DispatchFeeSet(uint256 newFee);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -126,6 +133,16 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     /**
+     * @notice Sets the flat dispatch fee charged on each cross-chain dispatch
+     * @dev Only callable by owner. Fee is denominated in the bonding token's smallest units.
+     * @param newFee The new dispatch fee amount
+     */
+    function setDispatchFee(uint256 newFee) external onlyOwner {
+        dispatchFee = newFee;
+        emit DispatchFeeSet(newFee);
+    }
+
+    /**
      * @notice Dispatches funds cross-chain for a specific token ID
      * @dev Only callable by authorized dispatcher or contract owner
      * @param tokenId The token ID whose reserves to dispatch
@@ -158,21 +175,32 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     {
         uint256 amount = poolReserves[tokenId];
         if (amount == 0) revert Errors.NoFundsAvailable();
+        if (amount <= dispatchFee) revert Errors.InsufficientReserves();
 
-        IERC20Metadata bondingToken = IERC20Metadata(friendKey.bondingToken());
+        // Deduct a flat dispatch fee and bridge the net amount.
+        uint256 netAmount = amount - dispatchFee;
+        if (_orderCreation.giveAmount != netAmount) revert Errors.InvalidAmount();
+
+        IERC20 bondingToken = IERC20(friendKey.bondingToken());
         if (bondingToken.balanceOf(address(this)) < amount) revert Errors.InsufficientReserves();
 
         // remove funds from pool reserves
         poolReserves[tokenId] -= amount;
 
+        // pay dispatch fee to dev destination
+        address devDest;
+        (devDest,) = friendKey.getFeeDestinations();
+        if (devDest == address(0)) revert Errors.ZeroAddress();
+        bondingToken.safeTransfer(devDest, dispatchFee);
+
         // approve funds to recipient
-        if (!bondingToken.approve(address(dlnSource), amount)) revert Errors.ApproveFailed();
+        bondingToken.forceApprove(address(dlnSource), netAmount);
 
         // dispatch funds to recipient
         bytes32 orderId = dlnSource.createSaltedOrder{value: msg.value}(_orderCreation, _salt, "", 0, "", "");
 
-        emit FundsDispatched(tokenId, amount, orderId);
-        return amount;
+        emit FundsDispatched(tokenId, netAmount, orderId);
+        return netAmount;
     }
 
     /**
