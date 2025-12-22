@@ -70,6 +70,10 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @param newFee The new dispatch fee in bonding token units
     event DispatchFeeSet(uint256 newFee);
 
+    /// @notice Emitted when the flat dispatch fee is updated
+    /// @param newFee The new dispatch fee in bonding token units
+    event DispatchFeeSet(uint256 newFee);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
