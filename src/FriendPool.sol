@@ -62,8 +62,9 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @notice Emitted when funds are dispatched cross-chain
     /// @param tokenId The token ID associated with the dispatched funds
     /// @param amount Amount of tokens dispatched
+    /// @param netAmount Amount of tokens dispatched after deducting the dispatch fee (amount - dispatchFee)
     /// @param orderId The DLN order ID for tracking the cross-chain transaction
-    event FundsDispatched(uint256 indexed tokenId, uint256 amount, bytes32 orderId);
+    event FundsDispatched(uint256 indexed tokenId, uint256 amount, uint256 netAmount, bytes32 orderId);
 
     /// @notice Emitted when the flat dispatch fee is updated
     /// @param newFee The new dispatch fee in bonding token units
@@ -201,7 +202,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         // dispatch funds to recipient
         bytes32 orderId = dlnSource.createSaltedOrder{value: msg.value}(_orderCreation, _salt, "", 0, "", "");
 
-        emit FundsDispatched(tokenId, netAmount, orderId);
+        emit FundsDispatched(tokenId, amount, netAmount, orderId);
         return netAmount;
     }
 

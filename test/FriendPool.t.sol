@@ -358,7 +358,7 @@ contract FriendPoolTest is Test {
         // Dispatcher dispatches funds
         vm.startPrank(creatorAccount);
         vm.expectEmit(true, true, false, true);
-        emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, netAmount, bytes32(uint256(0x1234)));
+        emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, poolBalance, netAmount, bytes32(uint256(0x1234)));
 
         uint256 dispatchedAmount = friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
         vm.stopPrank();
@@ -385,7 +385,7 @@ contract FriendPoolTest is Test {
         // Owner dispatches funds
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true);
-        emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, netAmount, bytes32(uint256(0x1234)));
+        emit FriendPool.FundsDispatched(CREATOR_TOKEN_ID, poolBalance, netAmount, bytes32(uint256(0x1234)));
 
         uint256 dispatchedAmount = friendPool.dispatchAs(CREATOR_TOKEN_ID, orderCreation, 1);
         vm.stopPrank();
