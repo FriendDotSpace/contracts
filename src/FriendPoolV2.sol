@@ -77,17 +77,6 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     /**
-     * @notice Deposits bonding tokens into a room's pool reserves (e.g., tips or manual funding)
-     * @dev Anyone can call; requires ERC20 allowance. Credits poolReserves so funds are dispatchable.
-     * @param tokenId The token ID whose pool reserves to credit
-     * @param amount Amount of bonding tokens to transfer in and credit
-     */
-    function depositToPool(uint256 tokenId, uint256 amount) external whenNotPaused {
-        uint256 newReserves = _collectToPool(tokenId, amount, msg.sender);
-        emit FundsDeposited(tokenId, msg.sender, amount, newReserves);
-    }
-
-    /**
      * @notice Initializes the FriendPool contract
      * @dev This function replaces the constructor in upgradeable contracts
      * @param initialOwner The address that will own this contract
@@ -214,6 +203,17 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         emit FundsDispatched(tokenId, amount, netAmount, orderId);
         return netAmount;
+    }
+
+    /**
+     * @notice Deposits bonding tokens into a room's pool reserves (e.g., tips or manual funding)
+     * @dev Anyone can call; requires ERC20 allowance. Credits poolReserves so funds are dispatchable.
+     * @param tokenId The token ID whose pool reserves to credit
+     * @param amount Amount of bonding tokens to transfer in and credit
+     */
+    function depositToPool(uint256 tokenId, uint256 amount) external whenNotPaused {
+        uint256 newReserves = _collectToPool(tokenId, amount, msg.sender);
+        emit FundsDeposited(tokenId, msg.sender, amount, newReserves);
     }
 
     /**
