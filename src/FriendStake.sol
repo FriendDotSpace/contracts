@@ -9,6 +9,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IterableMapping} from "./lib/IterableMapping.sol";
 import {IFriendKey} from "./interfaces/IFriendKey.sol";
@@ -63,6 +64,8 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     uint256 public eligibilityDuration;
     /// @notice Address with authority to lock staking
     address public authority;
+    /// @notice Flat dispatch fee (in reward token units) same asFriendPool dispatch fee (default $3) - bridgeFee
+    uint256 public bridgeFee;
 
     using IterableMapping for IterableMapping.Map;
 
@@ -113,13 +116,16 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         address _rewardToken,
         uint256 _tokenId,
         address _authority,
-        uint256 _eligibilityDuration
+        uint256 _eligibilityDuration,
+        uint256 _bridgeFee
     ) public initializer {
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
         if (_friendKeyAddress == address(0)) revert Errors.ZeroAddress();
         if (_rewardToken == address(0)) revert Errors.ZeroAddress();
         rewardToken = IERC20(_rewardToken);
+        uint256 defaultBridgeFee = 3 * 10 ** IERC20Metadata(_rewardToken).decimals();
+        bridgeFee = _bridgeFee == 0 ? defaultBridgeFee : _bridgeFee;
         if (!IFriendKey(_friendKeyAddress).supportsInterface(type(IERC1155).interfaceId)) {
             revert Errors.FriendKeyMustBeERC1155();
         }
@@ -180,6 +186,15 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     function setAuthority(address _authority) external onlyOwner {
         if (_authority == address(0)) revert Errors.ZeroAddress();
         authority = _authority;
+    }
+
+    /**
+     * @notice Sets the flat dispatch fee (in reward token units)
+     * @dev Only callable by the contract owner
+     * @param newFee The new dispatch fee amount
+     */
+    function setBridgeFee(uint256 newFee) external onlyOwner {
+        bridgeFee = newFee;
     }
 
     /**
@@ -325,7 +340,14 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         if (!isOpenForStaking) revert Errors.StakingAlreadyClosed();
         isOpenForStaking = false;
         lockTime = block.timestamp;
-        rewardAmount = rewardToken.balanceOf(address(this));
+        uint256 balance = rewardToken.balanceOf(address(this));
+        if (balance <= bridgeFee) revert Errors.NoRewardsToDistribute();
+        // Deduct flat bridge fee and send to dev destination; remaining becomes reward pool
+        (address devFeeDestination,) = friendKeyToken.getFeeDestinations();
+        rewardToken.safeTransfer(devFeeDestination, bridgeFee);
+        emit RewardClaimed(devFeeDestination, tokenId, bridgeFee);
+
+        rewardAmount = balance - bridgeFee;
         if (rewardAmount == 0) revert Errors.NoRewardsToDistribute();
 
         (uint16 devPerformanceFeePercent, uint16 creatorPerformanceFeePercent) = friendKeyToken.getPerformanceFees();
@@ -333,7 +355,6 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 creatorShare = (rewardAmount * creatorPerformanceFeePercent) / friendKeyToken.BPS_SCALE();
 
         rewardAmount -= platformShare;
-        (address devFeeDestination,) = friendKeyToken.getFeeDestinations();
         rewardToken.safeTransfer(devFeeDestination, platformShare);
         emit RewardClaimed(devFeeDestination, tokenId, platformShare);
 

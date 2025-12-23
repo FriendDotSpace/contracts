@@ -233,13 +233,15 @@ contract FriendStakeTest is Test {
         vm.prank(owner);
         stake.distributeRewards(10);
 
+        uint256 bridgeFee = stake.bridgeFee();
         (uint16 devPerformanceFee, uint16 creatorPerformanceFee) = friendKey.getPerformanceFees();
         // Both stakers should have received rewards
-        uint256 platformShare = (rewardAmount * devPerformanceFee) / friendKey.BPS_SCALE();
-        uint256 creatorShare = (rewardAmount * creatorPerformanceFee) / friendKey.BPS_SCALE();
-        rewardAmount -= platformShare + creatorShare;
-        uint256 staker1Reward = (rewardAmount * 2) / expectedStaked;
-        uint256 staker2Reward = (rewardAmount * 3) / expectedStaked;
+        uint256 netRewards = rewardAmount - bridgeFee;
+        uint256 platformShare = (netRewards * devPerformanceFee) / friendKey.BPS_SCALE();
+        uint256 creatorShare = (netRewards * creatorPerformanceFee) / friendKey.BPS_SCALE();
+        netRewards -= platformShare + creatorShare;
+        uint256 staker1Reward = (netRewards * 2) / expectedStaked;
+        uint256 staker2Reward = (netRewards * 3) / expectedStaked;
         assertEq(mockUsdc.balanceOf(staker1), staker1InitialBalance + staker1Reward);
         assertEq(mockUsdc.balanceOf(staker2), staker2InitialBalance + staker2Reward);
 

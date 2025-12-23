@@ -11,4 +11,9 @@ interface IFriendPool {
      * @dev pulls the funds from the FriendKey contract.
      */
     function pull(uint256 tokenId, uint256 amount) external;
+
+    /**
+     * @dev gets the dispatch fee.
+     */
+    function dispatchFee() external view returns (uint256);
 }

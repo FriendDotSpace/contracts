@@ -385,7 +385,8 @@ contract FriendKey is
                 address(bondingToken),
                 id,
                 IFriendRoomManager(roomManager).authority(),
-                IFriendRoomManager(roomManager).eligibilityDuration()
+                IFriendRoomManager(roomManager).eligibilityDuration(),
+                _getDispatchFeeFromPool()
             );
             address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
             stakingPoolByTokenId[id] = friendStake;
@@ -438,6 +439,16 @@ contract FriendKey is
 
         // If token URI is set, concatenate base URI and tokenURI (via string.concat).
         return bytes(base).length > 0 ? string.concat(base, tokenURI) : base;
+    }
+
+    function _getDispatchFeeFromPool() internal view returns (uint256) {
+        (, address poolDest) = getFeeDestinations();
+        if (poolDest == address(0)) return 0;
+        try IFriendPool(poolDest).dispatchFee() returns (uint256 fee) {
+            return fee;
+        } catch {
+            return 0;
+        }
     }
 
     // --- Pricing Logic ---
