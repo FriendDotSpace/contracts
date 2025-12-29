@@ -13,8 +13,8 @@ import {FriendPoolV2} from "src/FriendPoolV2.sol";
 contract DepositToPoolScript is Script {
     // Set these before running
     address constant FRIEND_POOL_PROXY = 0xE0419931d9bCB71F4e529562Cc51a8cd8C3ed1AA;
-    uint256 constant TOKEN_ID = 1; // room tokenId to credit
-    uint256 constant AMOUNT = 5_000_000; // example: 5 USDC with 6 decimals
+    uint256 constant TOKEN_ID = 4; // room tokenId to credit
+    uint256 constant AMOUNT = 1_000_000; // example: 5 USDC with 6 decimals
 
     function setUp() public {}
 
