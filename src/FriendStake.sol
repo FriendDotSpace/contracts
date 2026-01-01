@@ -67,6 +67,26 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     /// @notice Flat dispatch fee (in reward token units) same asFriendPool dispatch fee (default $3) - bridgeFee
     uint256 public bridgeFee;
 
+    /// @notice Emitted when fees are distributed on lockStaking
+    /// @param tokenId The staking pool tokenId
+    /// @param bridgeFee Amount sent as bridge fee to dev destination
+    /// @param platformShare Performance fee sent to dev destination
+    /// @param creatorShare Performance fee sent to creator
+    /// @param creator Address of the creator for this tokenId
+    /// @param devFeeDestination Address receiving bridgeFee and platformShare
+    /// @param amountBeforeFee Amount before bridge fee
+    /// @param amountTotalDistributed Amount total distributed
+    event DistributeFeeSent(
+        uint256 indexed tokenId,
+        uint256 bridgeFee,
+        uint256 platformShare,
+        uint256 creatorShare,
+        address indexed creator,
+        address indexed devFeeDestination,
+        uint256 amountBeforeFee,
+        uint256 amountTotalDistributed
+    );
+
     using IterableMapping for IterableMapping.Map;
 
     /// @dev Internal mapping to track staked balances and timing for each user
@@ -345,7 +365,6 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         // Deduct flat bridge fee and send to dev destination; remaining becomes reward pool
         (address devFeeDestination,) = friendKeyToken.getFeeDestinations();
         rewardToken.safeTransfer(devFeeDestination, bridgeFee);
-        emit RewardClaimed(devFeeDestination, tokenId, bridgeFee);
 
         rewardAmount = balance - bridgeFee;
         if (rewardAmount == 0) revert Errors.NoRewardsToDistribute();
@@ -356,11 +375,19 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
 
         rewardAmount -= platformShare;
         rewardToken.safeTransfer(devFeeDestination, platformShare);
-        emit RewardClaimed(devFeeDestination, tokenId, platformShare);
 
         rewardAmount -= creatorShare;
         rewardToken.safeTransfer(friendKeyToken.creatorByTokenId(tokenId), creatorShare);
-        emit RewardClaimed(friendKeyToken.creatorByTokenId(tokenId), tokenId, creatorShare);
+        emit DistributeFeeSent(
+            tokenId,
+            bridgeFee,
+            platformShare,
+            creatorShare,
+            friendKeyToken.creatorByTokenId(tokenId),
+            devFeeDestination,
+            balance,
+            rewardAmount
+        );
 
         distributionRound++;
         usersProcessedThisRound = 0; // Reset for new round's processing
