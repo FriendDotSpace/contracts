@@ -95,7 +95,9 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     /// @param totalStaked Total amount of tokens staked by the user
     /// @param netAmount Amount actually transferred to the user (after fees)
     /// @param grossAmount User’s pro-rata share before fees
-    event RewardClaimed(address indexed user, uint256 tokenId, uint256 totalStaked, uint256 netAmount, uint256 grossAmount);
+    event RewardClaimed(
+        address indexed user, uint256 tokenId, uint256 totalStaked, uint256 netAmount, uint256 grossAmount
+    );
 
     /// @notice Emitted when the eligibility duration is set
     /// @param tokenId ID of the token for which eligibility duration is set
