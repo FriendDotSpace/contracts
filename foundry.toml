@@ -20,6 +20,8 @@ extra_output = ["storageLayout"]
 via_ir = true
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+[profile.ci]
+skip_upgrade_safety_validation = true
 
 [rpc_endpoints]
 testnet = "${TEST_RPC_URL}"
