@@ -42,7 +42,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     uint256 usersProcessedThisRound;
     /// @notice Internal counter for reward eligibility calculation rounds
     uint256 calculateEligibleIndex;
-    /// @notice Total amount of reward tokens available for distribution
+    /// @notice Total amount of reward tokens available for distribution (after fees)
     uint256 public rewardAmount;
     /// @notice Time period that staked tokens are locked (in seconds)
     uint256 public lockTime;
@@ -64,8 +64,43 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
     uint256 public eligibilityDuration;
     /// @notice Address with authority to lock staking
     address public authority;
-    /// @notice Flat dispatch fee (in reward token units) same asFriendPool dispatch fee (default $3) - bridgeFee
+
+    using IterableMapping for IterableMapping.Map;
+
+    /// @dev Internal mapping to track staked balances and timing for each user
+    IterableMapping.Map private stakedBalances;
+
+    /// @notice Flat bridge fee (in reward token units) charged per cross-chain bridge
+    /// @dev Same as FriendPool bridge fee (default $3)
     uint256 public bridgeFee;
+
+    /// @notice Snapshot of total rewards before deducting bridge/performance fees for the current round
+    uint256 public roundRewardAmount;
+
+    /// @notice Emitted when a user stakes tokens
+    /// @param user Address of the user staking tokens
+    /// @param tokenId ID of the token being staked
+    /// @param amount Number of tokens staked
+    event KeyStaked(address indexed user, uint256 tokenId, uint256 amount);
+
+    /// @notice Emitted when a user unstakes tokens
+    /// @param user Address of the user unstaking tokens
+    /// @param tokenId ID of the token being unstaked
+    /// @param amount Number of tokens unstaked
+    event KeyUnstaked(address indexed user, uint256 tokenId, uint256 amount);
+
+    /// @notice Emitted when a user claims rewards
+    /// @param user Address of the user claiming rewards
+    /// @param tokenId ID of the token for which rewards are claimed
+    /// @param totalStaked Total amount of tokens staked by the user
+    /// @param netAmount Amount actually transferred to the user (after fees)
+    /// @param grossAmount User’s pro-rata share before fees
+    event RewardClaimed(address indexed user, uint256 tokenId, uint256 totalStaked, uint256 netAmount, uint256 grossAmount);
+
+    /// @notice Emitted when the eligibility duration is set
+    /// @param tokenId ID of the token for which eligibility duration is set
+    /// @param duration Duration in seconds
+    event EligibilityDurationSet(uint256 tokenId, uint256 duration);
 
     /// @notice Emitted when fees are distributed on lockStaking
     /// @param tokenId The staking pool tokenId
@@ -86,34 +121,6 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 amountBeforeFee,
         uint256 amountTotalDistributed
     );
-
-    using IterableMapping for IterableMapping.Map;
-
-    /// @dev Internal mapping to track staked balances and timing for each user
-    IterableMapping.Map private stakedBalances;
-
-    /// @notice Emitted when a user stakes tokens
-    /// @param user Address of the user staking tokens
-    /// @param tokenId ID of the token being staked
-    /// @param amount Number of tokens staked
-    event KeyStaked(address indexed user, uint256 tokenId, uint256 amount);
-
-    /// @notice Emitted when a user unstakes tokens
-    /// @param user Address of the user unstaking tokens
-    /// @param tokenId ID of the token being unstaked
-    /// @param amount Number of tokens unstaked
-    event KeyUnstaked(address indexed user, uint256 tokenId, uint256 amount);
-
-    /// @notice Emitted when a user claims rewards
-    /// @param user Address of the user claiming rewards
-    /// @param tokenId ID of the token for which rewards are claimed
-    /// @param amount Amount of reward tokens claimed
-    event RewardClaimed(address indexed user, uint256 tokenId, uint256 amount);
-
-    /// @notice Emitted when the eligibility duration is set
-    /// @param tokenId ID of the token for which eligibility duration is set
-    /// @param duration Duration in seconds
-    event EligibilityDurationSet(uint256 tokenId, uint256 duration);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -324,6 +331,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         uint256 remainingAmount = rewardToken.balanceOf(address(this));
 
         uint256 userReward = (rewardAmount * userStake) / totalEligible;
+        uint256 grossBeforeFees = (roundRewardAmount * userStake) / totalEligible;
         uint256 userClaim = userReward > remainingAmount ? remainingAmount : userReward;
 
         if (claimed[distributionRound][user]) revert Errors.AlreadyClaimed();
@@ -334,7 +342,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             rewardToken.safeTransfer(user, userClaim);
         }
 
-        emit RewardClaimed(user, tokenId, userClaim);
+        emit RewardClaimed(user, tokenId, userStake, userClaim, grossBeforeFees);
     }
 
     function claim() external whenNotPaused {
@@ -365,7 +373,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
         // Deduct flat bridge fee and send to dev destination; remaining becomes reward pool
         (address devFeeDestination,) = friendKeyToken.getFeeDestinations();
         rewardToken.safeTransfer(devFeeDestination, bridgeFee);
-
+        roundRewardAmount = balance;
         rewardAmount = balance - bridgeFee;
         if (rewardAmount == 0) revert Errors.NoRewardsToDistribute();
 
@@ -385,10 +393,9 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             creatorShare,
             friendKeyToken.creatorByTokenId(tokenId),
             devFeeDestination,
-            balance,
-            rewardAmount
+            roundRewardAmount, // before fees
+            rewardAmount // after fees
         );
-
         distributionRound++;
         usersProcessedThisRound = 0; // Reset for new round's processing
     }
@@ -441,6 +448,7 @@ contract FriendStake is Initializable, OwnableUpgradeable, ERC1155HolderUpgradea
             calculateEligibleIndex = 0;
             totalEligible = 0;
             usersProcessedThisRound = 0;
+            roundRewardAmount = 0;
         }
     }
 
