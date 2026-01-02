@@ -13,7 +13,7 @@ docs/
 # Dotenv file
 .env
 gas_report.json
-
+.env.prod
 # Misc
 .DS_Store
 .vscode
