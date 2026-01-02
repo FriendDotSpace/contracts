@@ -111,6 +111,8 @@ contract FriendStakeV2 is Initializable, OwnableUpgradeable, ERC1155HolderUpgrad
     /// @param devFeeDestination Address receiving bridgeFee and platformShare
     /// @param amountBeforeFee Amount before bridge fee
     /// @param amountTotalDistributed Amount total distributed
+    /// @param distributionRound Current distribution round
+    /// @param totalEligible Total amount of tokens eligible for current reward distribution
     event DistributeFeeSent(
         uint256 indexed tokenId,
         uint256 bridgeFee,
@@ -119,7 +121,9 @@ contract FriendStakeV2 is Initializable, OwnableUpgradeable, ERC1155HolderUpgrad
         address indexed creator,
         address indexed devFeeDestination,
         uint256 amountBeforeFee,
-        uint256 amountTotalDistributed
+        uint256 amountTotalDistributed,
+        uint256 distributionRound,
+        uint256 totalEligible
     );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -385,7 +389,9 @@ contract FriendStakeV2 is Initializable, OwnableUpgradeable, ERC1155HolderUpgrad
             friendKeyToken.creatorByTokenId(tokenId),
             devFeeDestination,
             roundRewardAmount, // before fees
-            rewardAmount // after fees
+            rewardAmount, // after fees
+            distributionRound,
+            totalEligible
         );
         distributionRound++;
         usersProcessedThisRound = 0; // Reset for new round's processing
