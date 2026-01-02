@@ -32,8 +32,8 @@ contract Deploy is Script {
     uint16 constant CREATOR_SOCIAL_FEE_PERCENT = 200; // 2%
 
     uint256 constant ELIGIBILITY_DURATION = 1 days;
-    // address constant SIGNEE = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788; // mainnet signee
-    address constant SIGNEE = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D; // hl - test account signee
+    address constant SIGNEE = 0x0fc7d5925B7519062f10c0b659dC9f1371B42B52;
+    address constant DEV_FEE_DESTINATION = 0x953832A125B091cC8C99f90d2f7DaB79e8326076;
 
     function setUp() public {}
 
