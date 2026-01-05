@@ -444,11 +444,7 @@ contract FriendKey is
     function _getDispatchFeeFromPool() internal view returns (uint256) {
         (, address poolDest) = getFeeDestinations();
         if (poolDest == address(0)) return 0;
-        try IFriendPool(poolDest).dispatchFee() returns (uint256 fee) {
-            return fee;
-        } catch {
-            return 0;
-        }
+        return IFriendPool(poolDest).dispatchFee();
     }
 
     // --- Pricing Logic ---
