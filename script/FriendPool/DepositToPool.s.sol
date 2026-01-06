@@ -12,7 +12,8 @@ import {FriendPool} from "src/FriendPool.sol";
  */
 contract DepositToPoolScript is Script {
     // Set these before running
-    address constant FRIEND_POOL_PROXY = 0xE0419931d9bCB71F4e529562Cc51a8cd8C3ed1AA;
+    // address constant FRIEND_POOL_PROXY = 0xE0419931d9bCB71F4e529562Cc51a8cd8C3ed1AA; // pre-prod
+    address constant FRIEND_POOL_PROXY = 0xE184b042597d462ccc097d6413b70C819eDC5E51; // testnet
     uint256 constant TOKEN_ID = 3; // room tokenId to credit
     uint256 constant AMOUNT = 10_000_000; // example: 5 USDC with 6 decimals
 

@@ -11,7 +11,7 @@ import {FriendRoomManager} from "src/FriendRoomManager.sol";
  */
 contract PauseRoomManagerScript is Script {
     // Update with deployed RoomManager proxy
-    address constant ROOM_MANAGER_PROXY = 0x0000000000000000000000000000000000000000;
+    address constant ROOM_MANAGER_PROXY = 0xbF4E9bF4aefBbA62bA1964fD70f69581bA9691d8;
 
     function setUp() public {}
 

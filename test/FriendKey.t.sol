@@ -84,6 +84,10 @@ contract MockPool {
         console.log("Pull called with tokenId:", tokenId, "and amount:", amount);
         return success;
     }
+
+    function dispatchFee() external pure returns (uint256) {
+        return 0; // Mock dispatch fee
+    }
 }
 
 contract FriendKeyTest is Test {
@@ -351,9 +355,7 @@ contract FriendKeyTest is Test {
 
         vm.startPrank(buyerAccount);
         mockUsdc.approve(address(instance), price);
-        vm.startSnapshotGas("buyShares");
         instance.buyShares(CREATOR_TOKEN_ID, shareAmount, type(uint256).max);
-        vm.stopSnapshotGas();
         vm.stopPrank();
 
         assertBalances(buyerAccount, initialBuyerBalance - price, shareAmount);
