@@ -247,7 +247,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return poolReserves[tokenId];
     }
 
-        /**
+    /**
      * @notice Transfers funds from pool reserves to a room destination, deducting a topup fee
      * @dev Callable only by authority or owner. Deducts topupFeeAmount from the pool reserves
      *      and sends it to dev destination, then transfers the remaining net amount to destination.
@@ -255,12 +255,9 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @param topupFeeAmount The fee amount (in USDC) to deduct and send to dev destination
      * @param destination The address to receive the net amount after fee deduction
      */
-    function transferFundsToRoom(uint256 tokenId, uint256 topupFeeAmount, address destination)
-        external
-        whenNotPaused
-    {
+    function transferFundsToRoom(uint256 tokenId, uint256 topupFeeAmount, address destination) external whenNotPaused {
         if (msg.sender != _dispatcher && msg.sender != owner()) revert Errors.CallerNotAuthorityOrOwner();
-        
+
         uint256 amount = poolReserves[tokenId];
         if (amount == 0) revert Errors.NoFundsAvailable();
         if (amount <= topupFeeAmount) revert Errors.InsufficientReserves();
@@ -276,7 +273,7 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         poolReserves[tokenId] -= amount;
 
         // pay topupFeeAmount fee to dev destination
-        if(topupFeeAmount > 0) {
+        if (topupFeeAmount > 0) {
             address devDest;
             (devDest,) = friendKey.getFeeDestinations();
             if (devDest == address(0)) revert Errors.ZeroAddress();

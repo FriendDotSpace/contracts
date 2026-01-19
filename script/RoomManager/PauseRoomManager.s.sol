@@ -13,7 +13,7 @@ contract PauseRoomManagerScript is Script {
     // Update with deployed RoomManager proxy
     // address constant ROOM_MANAGER_PROXY = 0xbF4E9bF4aefBbA62bA1964fD70f69581bA9691d8;
     // address constant ROOM_MANAGER_PROXY = 0x94C36A05D72C75d70eDa968FFa034a018508018A;
-    address constant ROOM_MANAGER_PROXY = 0xbF4E9bF4aefBbA62bA1964fD70f69581bA9691d8; // prod 
+    address constant ROOM_MANAGER_PROXY = 0xbF4E9bF4aefBbA62bA1964fD70f69581bA9691d8; // prod
 
     function setUp() public {}
 
