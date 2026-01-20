@@ -26,8 +26,9 @@ contract FriendStakeTest is Test {
 
     uint256 public CREATOR_TOKEN_ID = 1;
     uint256 private constant OWNER_PRIVATE_KEY = 1;
-    bytes32 private constant REGISTER_CREATOR_TYPEHASH =
-        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    bytes32 private constant REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant NAME_HASH = keccak256(bytes("FriendKey"));
@@ -77,7 +78,12 @@ contract FriendStakeTest is Test {
     }
 
     function _domainSeparator() internal view returns (bytes32) {
-        return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(friendKey)));
+        // Use the contract's eip712Domain() to get the correct domain separator
+        (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+            friendKey.eip712Domain();
+        bytes32 nameHash = keccak256(bytes(name));
+        bytes32 versionHash = keccak256(bytes(version));
+        return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, nameHash, versionHash, chainId, verifyingContract));
     }
 
     function _getRegisterCreatorSignature(
@@ -88,8 +94,17 @@ contract FriendStakeTest is Test {
     ) internal view returns (bytes memory) {
         uint256 nonce = friendKey.registerCreatorNonces(account);
         bytes32 metadataHash = keccak256(bytes(metadata));
-        bytes32 structHash =
-            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                REGISTER_CREATOR_TYPEHASH,
+                account,
+                uint8(FriendKey.RoomType.Trading),
+                uint8(tier),
+                additionalKeys,
+                nonce,
+                metadataHash
+            )
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PRIVATE_KEY, digest);
         return abi.encodePacked(r, s, v);

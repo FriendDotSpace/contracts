@@ -112,15 +112,21 @@ contract FriendPoolTest is Test {
     uint256 public CREATOR_TOKEN_ID = 1;
 
     uint256 private constant OWNER_PRIVATE_KEY = 1;
-    bytes32 private constant REGISTER_CREATOR_TYPEHASH =
-        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    bytes32 private constant REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant NAME_HASH = keccak256(bytes("FriendKey"));
     bytes32 private constant VERSION_HASH = keccak256(bytes("1"));
 
     function _domainSeparator() internal view returns (bytes32) {
-        return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(friendKey)));
+        // Use the contract's eip712Domain() to get the correct domain separator
+        (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+            friendKey.eip712Domain();
+        bytes32 nameHash = keccak256(bytes(name));
+        bytes32 versionHash = keccak256(bytes(version));
+        return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, nameHash, versionHash, chainId, verifyingContract));
     }
 
     function _getRegisterCreatorSignature(
@@ -131,8 +137,17 @@ contract FriendPoolTest is Test {
     ) internal view returns (bytes memory) {
         uint256 nonce = friendKey.registerCreatorNonces(account);
         bytes32 metadataHash = keccak256(bytes(metadata));
-        bytes32 structHash =
-            keccak256(abi.encode(REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                REGISTER_CREATOR_TYPEHASH,
+                account,
+                uint8(FriendKey.RoomType.Trading),
+                uint8(tier),
+                additionalKeys,
+                nonce,
+                metadataHash
+            )
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PRIVATE_KEY, digest);
         return abi.encodePacked(r, s, v);
@@ -311,6 +326,17 @@ contract FriendPoolTest is Test {
         });
     }
 
+    // Helper to create order creation with specific giveAmount
+    function _dummyOrderCreationWithAmount(uint256 giveAmount)
+        internal
+        pure
+        returns (DlnOrderLib.OrderCreation memory)
+    {
+        DlnOrderLib.OrderCreation memory order = _dummyOrderCreation();
+        order.giveAmount = giveAmount;
+        return order;
+    }
+
     function testDispatchByDispatcher() public {
         // Setup: Generate some fees in the pool
         _buyShares(buyerAccount, CREATOR_TOKEN_ID, 5);
@@ -323,8 +349,8 @@ contract FriendPoolTest is Test {
         friendPool.setDispatcher(creatorAccount);
         vm.stopPrank();
 
-        // Prepare dummy order creation struct
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        // Prepare dummy order creation struct with correct giveAmount (V1: full pool balance)
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreationWithAmount(poolBalance);
 
         // Dispatcher dispatches funds
         vm.startPrank(creatorAccount);
@@ -351,8 +377,8 @@ contract FriendPoolTest is Test {
         uint256 poolBalance = friendPool.poolReserves(CREATOR_TOKEN_ID);
         assertGt(poolBalance, 0, "Pool should have some balance before dispatch");
 
-        // Prepare dummy order creation struct
-        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreation();
+        // Prepare dummy order creation struct with correct giveAmount (V1: full pool balance)
+        DlnOrderLib.OrderCreation memory orderCreation = _dummyOrderCreationWithAmount(poolBalance);
 
         // Owner dispatches funds
         vm.startPrank(owner);
