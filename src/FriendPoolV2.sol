@@ -244,4 +244,42 @@ contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         return poolReserves[tokenId];
     }
+
+    /**
+     * @notice Transfers funds from pool reserves to a room destination, deducting a topup fee
+     * @dev Callable only by authority or owner. Deducts topupFeeAmount from the pool reserves
+     *      and sends it to dev destination, then transfers the remaining net amount to destination.
+     * @param tokenId The token ID whose reserves to transfer
+     * @param topupFeeAmount The fee amount (in USDC) to deduct and send to dev destination
+     * @param destination The address to receive the net amount after fee deduction
+     */
+    function transferFundsToRoom(uint256 tokenId, uint256 topupFeeAmount, address destination) external whenNotPaused {
+        if (msg.sender != _dispatcher && msg.sender != owner()) revert Errors.CallerNotAuthorityOrOwner();
+
+        uint256 amount = poolReserves[tokenId];
+        if (amount == 0) revert Errors.NoFundsAvailable();
+        if (amount <= topupFeeAmount) revert Errors.InsufficientReserves();
+        if (destination == address(0)) revert Errors.ZeroAddress();
+
+        // Deduct a flat topupFeeAmount fee and transfer the net amount.
+        uint256 netAmount = amount - topupFeeAmount;
+
+        IERC20 bondingToken = IERC20(friendKey.bondingToken());
+        if (bondingToken.balanceOf(address(this)) < amount) revert Errors.InsufficientReserves();
+
+        // remove funds from pool reserves
+        poolReserves[tokenId] -= amount;
+
+        // pay topupFeeAmount fee to dev destination
+        if (topupFeeAmount > 0) {
+            address devDest;
+            (devDest,) = friendKey.getFeeDestinations();
+            if (devDest == address(0)) revert Errors.ZeroAddress();
+            bondingToken.safeTransfer(devDest, topupFeeAmount);
+        }
+
+        // transfer the remaining funds to the destination
+        bondingToken.safeTransfer(destination, netAmount);
+        emit FundsPulled(tokenId, amount, poolReserves[tokenId]);
+    }
 }
