@@ -26,7 +26,7 @@ import {Errors} from "./libraries/Errors.sol";
  *      - Integration with FriendKey contract for automatic fee collection
  *      - Upgradeable contract using UUPS proxy pattern
  */
-contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract FriendPoolV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
     /// @notice The FriendKey contract that can pull funds from this pool
