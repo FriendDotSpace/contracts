@@ -184,4 +184,22 @@ contract FriendPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         bool success = bondingToken.transferFrom(msg.sender, address(this), amount);
         if (!success) revert Errors.TransferFailed();
     }
+
+    /**
+     * @notice Returns the dispatch fee ( always returns 0, fees added in V2)
+     * @dev This function exists for interface compatibility with FriendKey
+     * @return Always returns 0 for V1
+     */
+    function dispatchFee() external pure returns (uint256) {
+        return 0;
+    }
+
+    /**
+     * @notice Transfers funds from pool reserves to a room destination (V1: not implemented, use V2)
+     * @dev This function exists for interface compatibility but reverts in V1
+     *      Upgrade to FriendPoolV2 to use this functionality
+     */
+    function transferFundsToRoom(uint256, uint256, address) external pure {
+        revert("Function not available in V1, upgrade to V2");
+    }
 }

@@ -13,6 +13,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
@@ -46,7 +47,7 @@ contract FriendKey is
     UUPSUpgradeable,
     EIP712Upgradeable
 {
-    using SafeERC20 for IERC20Metadata;
+    using SafeERC20 for IERC20;
     using Strings for uint256;
     using ECDSA for bytes32;
 
@@ -76,7 +77,7 @@ contract FriendKey is
     address public friendStakeBeacon;
 
     /// @notice The ERC20 token used for bonding curve transactions (e.g., USDC)
-    IERC20Metadata public bondingToken;
+    IERC20 public bondingToken;
     /// @notice Price unit based on bonding token decimals (e.g., 10^6 for USDC)
     uint256 public bondingTokenPriceUnit;
 
@@ -116,9 +117,10 @@ contract FriendKey is
     /// @notice Reference to the FriendRoomManager contract for room limit enforcement
     address public roomManager;
 
-    /// @dev keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
-    bytes32 private constant _REGISTER_CREATOR_TYPEHASH =
-        keccak256("RegisterCreator(address account,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)");
+    /// @dev keccak256("RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)")
+    bytes32 private constant _REGISTER_CREATOR_TYPEHASH = keccak256(
+        "RegisterCreator(address account,uint8 roomType,uint8 tier,uint256 additionalKeys,uint256 nonce,string metadata)"
+    );
 
     /// @dev Private address authorized to sign room creation requests
     address private _signee;
@@ -232,7 +234,7 @@ contract FriendKey is
         uint8 decimals = IERC20Metadata(_bondingTokenAddress).decimals();
         if (decimals == 0) revert Errors.InvalidDecimals();
         bondingTokenPriceUnit = 10 ** decimals;
-        bondingToken = IERC20Metadata(_bondingTokenAddress);
+        bondingToken = IERC20(_bondingTokenAddress);
         friendStakeBeacon = _friendStakeBeacon;
         roomManager = _roomManager;
     }
@@ -307,7 +309,7 @@ contract FriendKey is
         returns (uint256)
     {
         // Tier allowance now checked via FriendRoomManager
-        _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
+        _verifyRegisterCreatorSignature(msg.sender, RoomType.Trading, tier, additionalKeys, metadata, signature);
         return _registerCreator(RoomType.Trading, tier, additionalKeys, metadata);
     }
 
@@ -337,7 +339,7 @@ contract FriendKey is
         string calldata metadata,
         bytes calldata signature
     ) public virtual whenNotPaused returns (uint256) {
-        _verifyRegisterCreatorSignature(msg.sender, tier, additionalKeys, metadata, signature);
+        _verifyRegisterCreatorSignature(msg.sender, RoomType.Social, tier, additionalKeys, metadata, signature);
         return _registerCreator(RoomType.Social, tier, additionalKeys, metadata);
     }
 
@@ -362,17 +364,10 @@ contract FriendKey is
         address creator = msg.sender;
         uint256 id = ++_nextTokenId;
 
-        // Check room limits via RoomManager if set
-        if (roomManager != address(0)) {
-            // This will revert if limit exceeded
-            try IFriendRoomManager(roomManager)
-                .checkAndUpdateRoomRegistration(
-                    creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
-                ) {}
-            catch {
-                revert Errors.RoomLimitExceeded();
-            }
-        }
+        IFriendRoomManager(roomManager)
+            .checkAndUpdateRoomRegistration(
+                creator, IFriendKey.RoomType(uint8(roomType)), IFriendKey.RoomTier(uint8(tier)), id
+            );
         creatorByTokenId[id] = creator;
         roomTiers[id] = tier;
         roomTypes[id] = roomType;
@@ -390,7 +385,8 @@ contract FriendKey is
                 address(bondingToken),
                 id,
                 IFriendRoomManager(roomManager).authority(),
-                IFriendRoomManager(roomManager).eligibilityDuration()
+                IFriendRoomManager(roomManager).eligibilityDuration(),
+                _getDispatchFeeFromPool()
             );
             address friendStake = address(new BeaconProxy(friendStakeBeacon, parameters));
             stakingPoolByTokenId[id] = friendStake;
@@ -403,6 +399,7 @@ contract FriendKey is
 
     function _verifyRegisterCreatorSignature(
         address account,
+        RoomType roomType,
         RoomTier tier,
         uint256 additionalKeys,
         string calldata metadata,
@@ -411,7 +408,9 @@ contract FriendKey is
         uint256 nonce = registerCreatorNonces[account];
         bytes32 metadataHash = keccak256(bytes(metadata));
         bytes32 structHash = keccak256(
-            abi.encode(_REGISTER_CREATOR_TYPEHASH, account, uint8(tier), additionalKeys, nonce, metadataHash)
+            abi.encode(
+                _REGISTER_CREATOR_TYPEHASH, account, uint8(roomType), uint8(tier), additionalKeys, nonce, metadataHash
+            )
         );
         bytes32 digest = _hashTypedDataV4(structHash);
         address recoveredSigner = digest.recover(signature);
@@ -440,6 +439,12 @@ contract FriendKey is
 
         // If token URI is set, concatenate base URI and tokenURI (via string.concat).
         return bytes(base).length > 0 ? string.concat(base, tokenURI) : base;
+    }
+
+    function _getDispatchFeeFromPool() internal view returns (uint256) {
+        (, address poolDest) = getFeeDestinations();
+        if (poolDest == address(0)) return 0;
+        return IFriendPool(poolDest).dispatchFee();
     }
 
     // --- Pricing Logic ---
