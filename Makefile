@@ -15,6 +15,7 @@ help:
 	@echo "  make deploy-friendkey    - Deploy only FriendKey"
 	@echo "  make deploy-friendpool   - Deploy only FriendPool"
 	@echo "  make test                - Run tests"
+	@echo "  make transfer-ownership  - Transfer ownership of all contracts (requires NEW_OWNER_ADDRESS)"
 	@echo "  make verify              - Verify deployed contracts"
 	@echo "  make clean               - Clean build artifacts"
 	@echo ""
@@ -96,6 +97,33 @@ coverage:
 test-flow:
 	@echo "Running test flow..."
 	forge script script/TestFlow.s.sol:TestFlowScript --rpc-url testnet --broadcast -vvv
+
+# Transfer ownership of all contracts (requires NEW_OWNER_ADDRESS env var)
+transfer-ownership:
+	@echo "Transferring ownership of all contracts to $$NEW_OWNER_ADDRESS..."
+	@test -n "$$NEW_OWNER_ADDRESS" || (echo "Error: NEW_OWNER_ADDRESS is required" && exit 1)
+	forge script script/FriendKey/TransferOwnership.s.sol:TransferFriendKeyOwnershipScript --rpc-url testnet --broadcast -vvvv
+	forge script script/FriendPool/TransferOwnership.s.sol:TransferFriendPoolOwnershipScript --rpc-url testnet --broadcast -vvvv
+	forge script script/RoomManager/TransferOwnership.s.sol:TransferFriendRoomManagerOwnershipScript --rpc-url testnet --broadcast -vvvv
+	forge script script/FriendStake/TransferBeaconOwnership.s.sol:TransferFriendStakeBeaconOwnershipScript --rpc-url testnet --broadcast -vvvv
+
+# Transfer ownership of individual contracts (requires NEW_OWNER_ADDRESS env var)
+transfer-ownership-friendkey:
+	@test -n "$$NEW_OWNER_ADDRESS" || (echo "Error: NEW_OWNER_ADDRESS is required" && exit 1)
+	forge script script/FriendKey/TransferOwnership.s.sol:TransferFriendKeyOwnershipScript --rpc-url testnet --broadcast -vvvv
+
+transfer-ownership-friendpool:
+	@test -n "$$NEW_OWNER_ADDRESS" || (echo "Error: NEW_OWNER_ADDRESS is required" && exit 1)
+	forge script script/FriendPool/TransferOwnership.s.sol:TransferFriendPoolOwnershipScript --rpc-url testnet --broadcast -vvvv
+
+transfer-ownership-roommanager:
+	@test -n "$$NEW_OWNER_ADDRESS" || (echo "Error: NEW_OWNER_ADDRESS is required" && exit 1)
+	forge script script/RoomManager/TransferOwnership.s.sol:TransferFriendRoomManagerOwnershipScript --rpc-url testnet --broadcast -vvvv
+
+transfer-ownership-friendstake-beacon:
+	@test -n "$$NEW_OWNER_ADDRESS" || (echo "Error: NEW_OWNER_ADDRESS is required" && exit 1)
+	forge script script/FriendStake/TransferBeaconOwnership.s.sol:TransferFriendStakeBeaconOwnershipScript --rpc-url testnet --broadcast -vvvv
+
 # Verify contracts on Etherscan
 verify:
 	@echo "Verifying contracts..."

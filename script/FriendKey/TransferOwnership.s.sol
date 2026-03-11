@@ -6,10 +6,10 @@ import {console2} from "forge-std/console2.sol";
 import {FriendKey} from "src/FriendKey.sol";
 
 /**
- * @title SetSigneeScript
- * @notice Script to update the signee address for FriendKey contract
+ * @title TransferFriendKeyOwnershipScript
+ * @notice Script to transfer ownership of FriendKey contract
  */
-contract SetSigneeScript is Script {
+contract TransferFriendKeyOwnershipScript is Script {
     // Update this with your deployed FriendKey proxy address
     address constant FRIEND_KEY_PROXY = 0x76357013CE72c13c736A897a4F905f59A08e3154;
 
@@ -17,18 +17,14 @@ contract SetSigneeScript is Script {
 
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address newOwner = 0xDc32D567Fdffa0D982222b257874f23b5818B7A8;
+
         vm.startBroadcast(deployerPrivateKey);
 
         FriendKey instance = FriendKey(FRIEND_KEY_PROXY);
-        // address newSignee = 0x96b4A9c744F813a40b6a4D2B8EC0040E8EC4B788;
-        address newSignee = 0xe18b241E97793C05d7dF05d0C1a3Dec8ac08586D;
-
-        // Update this with the new signee address
-
-        instance.setSignee(newSignee);
-        console2.log("Signee updated to:", newSignee);
+        instance.transferOwnership(newOwner);
+        console2.log("FriendKey ownership transferred to:", newOwner);
 
         vm.stopBroadcast();
     }
 }
-

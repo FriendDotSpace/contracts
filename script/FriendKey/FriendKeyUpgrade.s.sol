@@ -8,7 +8,7 @@ import {FriendKey} from "src/FriendKey.sol";
 
 contract FriendKeyUpgradeScript is Script {
     // address constant KEY = 0x4eF7037118303098bd7EbA64feB19d9d7D7e3682; // pre-prod
-    address constant KEY = 0x7a1B04a98DF35fa44e998bD62FFC1690A109057D; // testnet
+    address constant KEY = 0x76357013CE72c13c736A897a4F905f59A08e3154; // testnet
 
     function setUp() public {}
 
