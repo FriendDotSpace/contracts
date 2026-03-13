@@ -15,8 +15,8 @@ contract FriendPoolUpgradeScript is Script {
         address initialOwner = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
         if (FRIEND_POOL_PROXY != address(0)) {
-            Upgrades.upgradeProxy(FRIEND_POOL_PROXY, "FriendPoolV2.sol", "", initialOwner);
-            console2.log("FriendPoolV2 upgraded to V2 at proxy:", FRIEND_POOL_PROXY);
+            Upgrades.upgradeProxy(FRIEND_POOL_PROXY, "FriendPoolV3.sol", "", initialOwner);
+            console2.log("FriendPoolV3 upgraded to V3 at proxy:", FRIEND_POOL_PROXY);
         } else {
             console2.log("FriendPool proxy is not set");
         }

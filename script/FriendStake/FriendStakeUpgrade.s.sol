@@ -15,7 +15,7 @@ contract FriendStakeUpgradeScript is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         if (FRIEND_STAKE_PROXY != address(0)) {
-            Upgrades.upgradeProxy(FRIEND_STAKE_PROXY, "FriendStakeV2.sol", "");
+            Upgrades.upgradeProxy(FRIEND_STAKE_PROXY, "FriendStakeV3.sol", "");
         } else {
             console2.log("FriendStake proxy is not set");
         }

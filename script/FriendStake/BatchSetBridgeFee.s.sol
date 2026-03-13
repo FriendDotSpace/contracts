@@ -12,7 +12,8 @@ contract BatchSetBridgeFee is Script {
     // Inclusive upper bound to scan tokenIds [1..MAX_TOKEN_ID]
     uint256 public MAX_TOKEN_ID = vm.envOr("MAX_TOKEN_ID", uint256(10));
     // New bridge fee; defaults to 3 USDC (6 decimals)
-    uint256 public BRIDGE_FEE = vm.envOr("BRIDGE_FEE", uint256(3 * 10 ** 6));
+    // uint256 public BRIDGE_FEE = vm.envOr("BRIDGE_FEE", uint256(3 * 10 ** 6));
+    uint256 public BRIDGE_FEE = 100000;
 
     function run() external {
         require(FRIEND_KEY != address(0), "FRIEND_KEY not set");
