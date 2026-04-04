@@ -150,7 +150,7 @@ contract Deploy is Script {
         console2.log("FriendPool deployed to:", address(friendPool));
 
         // Now set fee destinations in RoomManager
-        roomManager.setFeeDestinations(initialOwner, address(friendPool));
+        roomManager.setFeeDestinations(DEV_FEE_DESTINATION, address(friendPool));
         console2.log("Fee destinations set in RoomManager (dev: owner, pool: FriendPool)");
 
         // ============================================

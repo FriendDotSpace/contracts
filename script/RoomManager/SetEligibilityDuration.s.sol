@@ -11,7 +11,7 @@ import {FriendRoomManager} from "src/FriendRoomManager.sol";
  */
 contract SetEligibilityDurationScript is Script {
     // Update with deployed RoomManager proxy
-    address constant ROOM_MANAGER_PROXY = 0x0000000000000000000000000000000000000000;
+    address constant ROOM_MANAGER_PROXY = 0x85f77d7D29e3f641CCdA8AC47c599A97738041B9; // pre-prod
 
     function setUp() public {}
 
@@ -21,7 +21,7 @@ contract SetEligibilityDurationScript is Script {
 
         FriendRoomManager mgr = FriendRoomManager(ROOM_MANAGER_PROXY);
 
-        uint256 newDuration = 2 days;
+        uint256 newDuration = 1 days;
         mgr.setEligibilityDuration(newDuration);
         console2.log("Eligibility duration set to %s seconds", newDuration);
 

@@ -7,8 +7,8 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FriendKey} from "src/FriendKey.sol";
 
 contract FriendKeyUpgradeScript is Script {
-    // address constant KEY = 0x4eF7037118303098bd7EbA64feB19d9d7D7e3682; // pre-prod
-    address constant KEY = 0x7a1B04a98DF35fa44e998bD62FFC1690A109057D; // testnet
+    address constant KEY = 0xdfD77610dd30A21385b1B4C3AA6D20069624F792; // pre-prod
+    // address constant KEY = 0x7a1B04a98DF35fa44e998bD62FFC1690A109057D; // testnet
 
     function setUp() public {}
 
