@@ -19,6 +19,11 @@ build_info = true
 extra_output = ["storageLayout"]
 via_ir = true
 
+fs_permissions = [
+    { access = "read", path = "out/" },
+    { access = "read", path = "deployments/" },
+]
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
 [rpc_endpoints]
@@ -26,7 +31,14 @@ testnet = "${TEST_RPC_URL}"
 prod = "${RPC_URL}"
 local = "${LOCAL_RPC_URL}"
 
-[lint]
+[profile.ci]
+ffi = true
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
+via_ir = true
+
+[profile.lint]
 exclude_lints = ["mixed-case-variable"]
 
 [etherscan]

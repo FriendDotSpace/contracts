@@ -1,0 +1,7 @@
+{
+  "filter_paths": ["lib/", "test/", "script/", "src/mocks/"],
+  "exclude_informational": true,
+  "exclude_low": false,
+  "exclude_optimization": true,
+  "detectors_to_exclude": "naming-convention"
+}

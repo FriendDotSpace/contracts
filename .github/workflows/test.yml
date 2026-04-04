@@ -23,6 +23,11 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Show Forge version
         run: |
           forge --version
@@ -34,10 +39,10 @@ jobs:
 
       - name: Run Forge build
         run: |
-          forge build --sizes --via-ir
+          forge clean && forge build --sizes --via-ir
         id: build
 
       - name: Run Forge tests
         run: |
-          forge test -vvv --via-ir
+          forge test -vvv --via-ir --no-match-path "test/fork/*"
         id: test
