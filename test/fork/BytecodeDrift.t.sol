@@ -134,11 +134,7 @@ contract BytecodeDriftTest is Test {
         uint256 threshold = maxLen * 2 / 100;
         if (threshold < 200) threshold = 200;
 
-        assertLe(
-            diff,
-            threshold,
-            string.concat(name, ": bytecode length differs significantly (>2% or >200 bytes)")
-        );
+        assertLe(diff, threshold, string.concat(name, ": bytecode length differs significantly (>2% or >200 bytes)"));
     }
 
     /// @dev Strip CBOR metadata suffix and compare remaining bytecode.
@@ -148,9 +144,8 @@ contract BytecodeDriftTest is Test {
         bytes memory localStripped = _stripMetadata(local);
 
         // Compare the shorter of the two (metadata stripping may not be perfect)
-        uint256 compareLen = onChainStripped.length < localStripped.length
-            ? onChainStripped.length
-            : localStripped.length;
+        uint256 compareLen =
+            onChainStripped.length < localStripped.length ? onChainStripped.length : localStripped.length;
 
         if (compareLen == 0) return;
 
@@ -166,9 +161,7 @@ contract BytecodeDriftTest is Test {
         if (maxDiffs < 40) maxDiffs = 40; // At least 40 bytes (one address = 20 bytes, could appear twice)
 
         assertLe(
-            diffCount,
-            maxDiffs,
-            string.concat(name, ": bytecode differs beyond immutable/metadata tolerance (>0.5%)")
+            diffCount, maxDiffs, string.concat(name, ": bytecode differs beyond immutable/metadata tolerance (>0.5%)")
         );
     }
 
