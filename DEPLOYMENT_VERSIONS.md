@@ -44,18 +44,18 @@ Addresses are taken from `script/**` as of this branch. **Prod** and **preprod**
 
 | Component | Role | Prod (script label) | Preprod / staging (script label) |
 |-----------|------|----------------------|-----------------------------------|
-| FriendKey | UUPS proxy | *(no prod constant in `FriendKeyUpgrade.s.sol` — verify mainnet proxy)* | `0xdfD77610dd30A21385b1B4C3AA6D20069624F792` |
-| FriendPool | UUPS proxy | `0xa1bf9bb17C283CF17F01516f78f3127D2C84C79d` | `0xE0419931d9bCB71F4e529562Cc51a8cd8C3ed1AA` (commented in script) |
-| FriendRoomManager | UUPS proxy | `0xbF4E9bF4aefBbA62bA1964fD70f69581bA9691d8` | `0x85f77d7D29e3f641CCdA8AC47c599A97738041B9` (commented) |
-| FriendStake | **Beacon** (not a proxy) | `0x53BdEfB3E2faEB90b766B459AF96F3E357D3c3f9` (commented) | `0x2e03f3b2C0845b3b9e7B63E55280D93C1577D634` |
+| FriendKey | UUPS proxy | `0xAF0Bf8593dC6CA973DF2132731B0F9B5F974FA9F` | `0xdfD77610dd30A21385b1B4C3AA6D20069624F792` |
+| FriendPool | UUPS proxy | `0xa1bf9bb17C283CF17F01516f78f3127D2C84C79d` | `0xE0419931d9bCB71F4e529562Cc51a8cd8C3ed1AA` |
+| FriendRoomManager | UUPS proxy | `0xbF4E9bF4aefBbA62bA1964fD70f69581bA9691d8` | `0x85f77d7D29e3f641CCdA8AC47c599A97738041B9`|
+| FriendStake | **Beacon** (not a proxy) | `0x53BdEfB3E2faEB90b766B459AF96F3E357D3c3f9` | `0x2e03f3b2C0845b3b9e7B63E55280D93C1577D634` |
 
-### Answering “what is live?” (prod vs preprod)
+### what is live? (prod vs preprod)
 
-- **FriendKey — V1 or V2?** Preprod upgrade script targets **V2** (`FriendKeyV2.sol`) at `0xdfD7…`. **Prod** is not set in that script; confirm the mainnet proxy’s implementation — if that upgrade was not executed, prod remains **V1**.
-- **FriendPool — V2 or V3?** Upgrade script points at **V3** for the prod proxy `0xa1bf…`. If that transaction was executed on prod, prod is **V3** (possibly via **V2** as an intermediate implementation history).
-- **FriendRoomManager — V1 or V2?** Prod script upgrades `0xbF4E…` to **`FriendRoomManagerV2`**. If executed, prod is **V2**.
-- **FriendStake — V2 or V3?** Stake uses a **beacon**; upgrades must use **`upgradeBeacon`**, not `upgradeProxy`. If the beacon was upgraded to **`FriendStakeV3`**, new clone logic uses V3’s `initialize` / default `bridgeFee`; confirm beacon implementation on-chain for prod vs preprod.
+- **FriendKey — V1 or V2?** Preprod upgrade script targets **V2** (`FriendKeyV2.sol`) at `0xdfD7…`. **Prod** still use V1, PreProd need upgrade V2 bc it was use a different code, need upgrade.
+- **FriendPool — V2 or V3?** Upgrade script points at **V3** for the prod proxy `0xa1bf…`. Prod is **V3** 
+- **FriendRoomManager — V1 or V2?** Prod script upgrades `0xbF4E…` to **`FriendRoomManagerV2`**, prod is **V2**.
+- **FriendStake — V2 or V3?** both used V3
 
 ## Broadcast artifacts
 
-Forge `broadcast/` JSON traces are **not** required for building or testing. This repo may ignore them so PRs stay reviewable; if you need a permanent audit trail, commit broadcast outputs in a **separate** branch or PR.
+Forge `broadcast/` JSON traces are **not** required for building or testing. This repo may ignore them so PRs stay reviewable;
