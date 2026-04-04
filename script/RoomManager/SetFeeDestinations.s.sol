@@ -11,7 +11,7 @@ import {FriendRoomManager} from "src/FriendRoomManager.sol";
  */
 contract SetFeeDestinationsScript is Script {
     // Update with deployed RoomManager proxy
-    address constant ROOM_MANAGER_PROXY = 0x0000000000000000000000000000000000000000;
+    address constant ROOM_MANAGER_PROXY = 0xbF4E9bF4aefBbA62bA1964fD70f69581bA9691d8; // prod
 
     function setUp() public {}
 
@@ -22,8 +22,8 @@ contract SetFeeDestinationsScript is Script {
         FriendRoomManager mgr = FriendRoomManager(ROOM_MANAGER_PROXY);
 
         // Configure destinations
-        address devDest = 0x000000000000000000000000000000000000dEaD;
-        address poolDest = 0x000000000000000000000000000000000000bEEF;
+        address devDest = 0x953832A125B091cC8C99f90d2f7DaB79e8326076; // prod
+        address poolDest = 0xa1bf9bb17C283CF17F01516f78f3127D2C84C79d; // prod
 
         mgr.setFeeDestinations(devDest, poolDest);
         console2.log("Fee destinations set: dev %s, pool %s", devDest, poolDest);
