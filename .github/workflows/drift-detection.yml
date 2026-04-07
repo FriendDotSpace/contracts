@@ -1,0 +1,37 @@
+name: Bytecode Drift Detection
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  drift:
+    name: Check on-chain bytecode drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Full build
+        run: forge clean && forge build --via-ir
+
+      - name: Run drift detection
+        env:
+          RPC_URL: ${{ secrets.BASE_RPC_URL }}
+        run: |
+          forge test --match-path "test/fork/*" --via-ir -vvv

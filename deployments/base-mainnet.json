@@ -1,0 +1,33 @@
+{
+  "chainId": 8453,
+  "contracts": {
+    "FriendKey": {
+      "proxy": "0xAF0Bf8593dC6CA973DF2132731B0F9B5F974FA9F",
+      "implementation": "0x0b50bf9b7774e5049d7e85f4fe44fcb46a1109f1",
+      "artifact": "FriendKey.sol",
+      "proxyType": "uups",
+      "synced": true
+    },
+    "FriendStake": {
+      "beacon": "0x53BdEfB3E2faEB90b766B459AF96F3E357D3c3f9",
+      "implementation": "0x68A66470be5a52C26B0D354A98Ee31DBd0C6c180",
+      "artifact": "FriendStakeV3.sol",
+      "proxyType": "beacon",
+      "synced": true
+    },
+    "FriendPool": {
+      "proxy": "0xa1bf9bb17C283CF17F01516f78f3127D2C84C79d",
+      "implementation": "0x8b28f050bce1186ad67c546d4bad097cf9c0fcba",
+      "artifact": "FriendPoolV3.sol",
+      "proxyType": "uups",
+      "synced": true
+    },
+    "FriendRoomManager": {
+      "proxy": "0xbf4e9bf4aefbba62ba1964fd70f69581ba9691d8",
+      "implementation": "0xd1c16d916cf7525aa3d995fdcb364af9a1e46142",
+      "artifact": "FriendRoomManagerV2.sol",
+      "proxyType": "uups",
+      "synced": true
+    }
+  }
+}
