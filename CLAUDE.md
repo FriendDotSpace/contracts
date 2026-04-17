@@ -1,88 +1,41 @@
 # contracts
 
-Solidity smart contract suite for the FriendKey social token platform — ERC-1155 tokenized shares with bonding curve pricing, staking, and cross-chain operations on Base blockchain.
+FriendKey Solidity contracts — ERC-1155 creator shares with bonding curve, staking, cross-chain on Base. Foundry + OpenZeppelin upgradeable v5, Solidity ^0.8.27.
 
-## Stack
-- Solidity ^0.8.27, Foundry
-- OpenZeppelin Contracts Upgradeable v5
-- ERC-1155 multi-token standard
-- UUPS + Beacon proxy patterns
-- deBridge DLN for cross-chain
+## Setup & commands
 
-## Setup
 ```bash
-# Install Foundry
-curl -L https://foundry.paradigm.xyz | bash && ~/.foundry/bin/foundryup
+curl -L https://foundry.paradigm.xyz | bash && foundryup   # one-time
+forge install                                              # submodule deps
 
-# Install dependencies (git submodules)
-forge install
-# or
-make install
+forge build --via-ir
+forge test -vv                 # or: make test
+forge test --gas-report
+forge coverage --ir-minimum
+forge fmt --check
+make slither                   # static analysis
+
+make deploy-testnet | deploy-mainnet | deploy-local
+make simulate                  # dry-run
 ```
 
-## Commands
-```bash
-forge build                          # Compile
-forge build --sizes --via-ir         # Build with size report (CI mode)
-forge test -vv                       # Run tests
-forge test --gas-report              # Tests with gas report
-forge coverage --ir-minimum          # Coverage report
-forge fmt                            # Format code
-forge fmt --check                    # Check formatting (CI)
+## Env (`.env`)
 
-make test                            # forge test -vv
-make test-gas                        # forge test --gas-report
-make coverage                        # Coverage
-make format                          # forge fmt
-make format-check                    # forge fmt --check
-make deploy-testnet                  # Deploy to Base Sepolia
-make deploy-mainnet                  # Deploy to Base mainnet
-make deploy-local                    # Deploy to local Anvil
-make simulate                        # Dry-run deployment
-make slither                         # Static analysis
-```
+`PRIVATE_KEY`, `RPC_URL` (Base mainnet), `TEST_RPC_URL` (Sepolia), `LOCAL_RPC_URL`, `USDC_ADDRESS` (empty → deploy FriendUSD), `DLN_SOURCE_ADDRESS` (for FriendPool), `AUTHORITY_ADDRESS` (defaults to deployer), `ETHERSCAN_API_KEY`.
 
-## Environment Variables (`.env`)
-```bash
-PRIVATE_KEY=0x...
-RPC_URL=https://mainnet.base.org        # Base mainnet
-TEST_RPC_URL=https://sepolia.base.org   # Base Sepolia
-LOCAL_RPC_URL=http://localhost:8545
-USDC_ADDRESS=                           # Leave empty to deploy FriendUSD
-DLN_SOURCE_ADDRESS=                     # Required for FriendPool
-AUTHORITY_ADDRESS=                      # Defaults to deployer
-ETHERSCAN_API_KEY=
-```
+## Contracts
 
-## Contract Architecture
-```
-src/
-├── FriendKey.sol          # Core ERC-1155 token contract (36KB)
-├── FriendStake.sol        # Per-creator staking/rewards (20KB)
-├── FriendPool.sol         # Cross-chain pool management (11KB)
-├── FriendRoomManager.sol  # Room limits & fee config (19KB)
-├── FriendUSD.sol          # Mock USDC for testing
-├── interfaces/            # IFriendKey, IFriendPool, IFriendRoomManager, IDlnSource
-├── libraries/
-│   ├── BondingCurveLib.sol  # Polynomial pricing: price = (sum_of_squares * unit) / divisor
-│   ├── DlnOrderLib.sol      # Cross-chain order structures
-│   └── Errors.sol           # Custom error definitions
-└── mocks/                 # MockBridge, MockPool for tests
-```
+- `FriendKey` — ERC-1155 shares + bonding curve (UUPS)
+- `FriendStake` — per-creator staking/rewards (Beacon proxy, per-creator instance)
+- `FriendPool` — cross-chain reserves via deBridge DLN (UUPS)
+- `FriendRoomManager` — fees + room-creation limits (UUPS)
+- `FriendUSD` — mock USDC for local testing
+- `libraries/BondingCurveLib.sol` — `price = (sum_of_squares * unit) / divisor`
 
-## Key Concepts
-- **Room tiers**: Casual (divisor 4000), Club (40), Exclusive (4) — affects bonding curve pricing
-- **Room types**: Trading (full features) vs Social (no staking/pool)
-- **Proxy pattern**: UUPS for FriendKey/FriendPool/FriendRoomManager; Beacon for FriendStake (per-creator instances)
-- **Creator registration**: requires EIP-712 signature from authority address
-- **Fee split**: Dev fee (2%) + Creator fee (2%) + Trading pool fee (6%)
+## Concepts
 
-## Deployment Order (handled by `Deploy.s.sol`)
-1. FriendUSD (if USDC not provided)
-2. FriendStake Beacon
-3. FriendRoomManager (UUPS Proxy)
-4. FriendKey (UUPS Proxy)
-5. FriendPool (UUPS Proxy)
-
-## CI/CD
-GitHub Actions (`.github/workflows/test.yml`): fmt check → build → test (all with `--via-ir`)
+- **Tiers** (bonding-curve divisor): Casual 4000, Club 40, Exclusive 4
+- **Types**: Trading (full) vs Social (no stake/pool)
+- **Creator registration**: requires EIP-712 signature from authority
+- **Fee split**: dev 2% + creator 2% + trading pool 6%
+- **Deploy order** (see `script/Deploy.s.sol`): FriendUSD → StakeBeacon → RoomManager → FriendKey → FriendPool
