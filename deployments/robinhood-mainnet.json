@@ -1,0 +1,16 @@
+{
+  "chainId": 4663,
+  "contracts": {},
+  "external": {
+    "USDG": { "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", "decimals": 6 },
+    "uniswapV3": {
+      "factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "positionManager": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3",
+      "swapRouter": "0x0B6678e34C44CBBa84399ab56a855a3C06d82425",
+      "feeTier": 10000,
+      "tickSpacing": 200,
+      "verification": "Checked 2026-07-30 against https://rpc.mainnet.chain.robinhood.com and https://robinhoodchain.blockscout.com. Discovery: Blockscout smart-contract search returned 17 verified 'UniswapV3Factory'/'UniswapV3FactoryFoundry' contracts; runtime bytecode compared (metadata-stripped) against test/artifacts/UniswapV3Factory.json's deployedBytecode with the one NoDelegateCall self-address immutable slot (byte offset 1373, 20 bytes) masked -- 10 of the 17 are byte-identical official builds. Of those 10, tx-activity via /api/v2/addresses/{addr}/counters singled out 0x1f7d7550B1b028f7571E69A784071F0205FD2EfA (290 txs, ~1.15e9 gas vs <=4 txs for the other 9) as the live one; confirmed by pulling its most recent PoolCreated log (block 23222505, fee 10000, tickSpacing 200, pool 0xcacd5375af3302b9834A1a27fB2e8203709d9DB9) and calling pool.factory() == this address. NonfungiblePositionManager: 30 verified candidates: filtered to those whose factory() returns the pinned factory (6 matches), then by tx-activity -- 0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3 (322463 txs) vs 0 for the other 5. Bytecode-matched (metadata-stripped) against test/artifacts/NonfungiblePositionManager.json's deployedBytecode after masking the factory/WETH9/tokenDescriptor immutable slots (offsets 677,2739,3562,3761,5924,6170,6306,10793,10895,11055,11856,14061,15977,16047,16163, 20 bytes each) and the two 32-byte PoolAddress.POOL_INIT_CODE_HASH constant slots (offsets 5342,5375) -- exact match. SwapRouter: filtered exact-name 'SwapRouter' candidates (12 of ~50) to factory()-matches (2), then by tx-activity -- 0x0B6678e34C44CBBa84399ab56a855a3C06d82425 (57 txs) vs 0 for the other. Bytecode-matched the same way, masking factory/WETH9 immutable slots (offsets 315,1423,1721,1875,1939,2237,3538,5144,7247,7343,7472,7730) -- exact match; no POOL_INIT_CODE_HASH divergence, meaning the deployed UniswapV3Pool bytecode this router was built against also matches the canonical build. Masked deployedBytecode keccaks: factory 0xad4d58f3e327b131492bd5d66fc514771f109a727b29f24052e80ac7c0c56746, positionManager 0x717a9e96777f02607309fb745cdc68c4f0a9c804e0051f9bf0323e32b4fa6307, swapRouter 0x9e9c509dffd9d77ec62b94df15d0dcc2d93643e6d26b7cb6bf9c8e6e3f03a27b (see test/artifacts/HASHES.md for the unmasked artifact hashes). Note: this router's WETH9() reads back as the USDG address (0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168) rather than the chain's real WETH (0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73, which is what the NPM's WETH9() returns) -- an operator misconfiguration on Pons's side. Harmless for us: our flows only call exactInputSingle/mint/collect/createAndInitializePoolIfNecessary, never wrapETH/unwrapWETH9/refundETH.",
+      "ponsEvidence": "0xcacd5375af3302b9834A1a27fB2e8203709d9DB9"
+    }
+  }
+}

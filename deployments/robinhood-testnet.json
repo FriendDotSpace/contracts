@@ -1,0 +1,16 @@
+{
+  "chainId": 46630,
+  "contracts": {},
+  "external": {
+    "USDG": "pending",
+    "uniswapV3": {
+      "factory": "0xdf9e3D6ffaC4513dD7b053212bbECcbCD15ec932",
+      "positionManager": "0xFFe6CFc4f759b65f9B62c9D05A9E21a78cE93e12",
+      "swapRouter": null,
+      "feeTier": 10000,
+      "tickSpacing": 200,
+      "verification": "Checked 2026-07-30 against https://rpc.testnet.chain.robinhood.com and https://explorer.testnet.chain.robinhood.com. Discovery: Blockscout returned 8 verified 'UniswapV3Factory' contracts (plus 2 unrelated 'MockUniswapV3Factory'); runtime bytecode compared (metadata-stripped) against test/artifacts/UniswapV3Factory.json's deployedBytecode with the NoDelegateCall self-address immutable slot masked -- 3 of the 8 are byte-identical official builds. Of those, tx-activity singled out 0xdf9e3D6ffaC4513dD7b053212bbECcbCD15ec932 (10 txs, ~4.1e7 gas vs 0-1 for the other 2); confirmed via a recent PoolCreated log (fee 10000, tickSpacing 200, pool 0xd7d0633672834b9f85A22D0EC66635f7021b4f8C) and pool.factory() cross-check. NonfungiblePositionManager: 10 verified candidates, one (0xFFe6CFc4f759b65f9B62c9D05A9E21a78cE93e12) has factory() == the pinned factory and 41 txs of activity; bytecode-matched (metadata-stripped, immutables + POOL_INIT_CODE_HASH masked at the same offsets as mainnet) -- exact match against test/artifacts/NonfungiblePositionManager.json. SwapRouter: GAP -- none of the ~44 verified 'SwapRouter'-family contracts on this chain (checked every candidate's factory(), not just exact-name matches) return the pinned factory EXCEPT 0xb79cB26e90EBBD9bC02c75267c9a86dBa1AFedB7, which is verified-named 'SwapRouter02' (Uniswap's swap-router-contracts IV3SwapRouter), not v3-periphery 1.4.4 SwapRouter: its ExactInputSingleParams struct omits `deadline` (7 fields vs our pinned interface's 8), so it is ABI-incompatible with ISwapRouterMinimal.exactInputSingle and cannot be pinned as swapRouter here. No plain v3-periphery-compatible SwapRouter paired with this factory exists on 46630 as of this check. Per the LOCAL-ONLY rule this session cannot broadcast a deployment to fill the gap (test/artifacts/SwapRouter.json + UniswapV3Deployer-style deployCode against factory=0xdf9e3D6ffaC4513dD7b053212bbECcbCD15ec932 and the same WETH9 the NPM uses, 0x7943e237c7F95DA44E0301572D358911207852Fa, would produce a compatible one) -- deploy a canonical SwapRouter (or confirm ISwapRouterMinimal against SwapRouter02's 7-field IV3SwapRouter ABI instead) before Task 8 e2e.",
+      "ponsEvidence": "0xd7d0633672834b9f85A22D0EC66635f7021b4f8C"
+    }
+  }
+}
