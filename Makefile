@@ -1,4 +1,4 @@
-.PHONY: help deploy deploy-testnet deploy-mainnet verify clean test
+.PHONY: help deploy deploy-testnet deploy-mainnet verify clean test deploy-roomtoken-testnet verify-roomtoken-testnet
 
 # Default target
 help:
@@ -142,4 +142,13 @@ update:
 sizes:
 	@echo "Contract sizes:"
 	forge build --sizes
+
+# Deploy RoomToken contracts to testnet
+deploy-roomtoken-testnet:
+	@echo "Deploying RoomToken to testnet..."
+	forge script script/RoomToken/DeployRoomToken.s.sol --rpc-url https://rpc.testnet.chain.robinhood.com --broadcast -vvvv
+
+# Verify RoomToken contracts on testnet Blockscout
+verify-roomtoken-testnet:
+	@echo "Verify on Blockscout: use forge verify-contract with --verifier blockscout --verifier-url https://explorer.testnet.chain.robinhood.com/api"
 
