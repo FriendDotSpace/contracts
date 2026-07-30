@@ -221,4 +221,70 @@ contract RoomFeeSplitter is IERC721Receiver {
         operator = next;
         emit OperatorSet(next);
     }
+
+    // ------------------------------------------------------------- conversion
+
+    uint256 private constant Q96 = 2 ** 96;
+
+    /// Collects the token side (bounded by the impact cap) and sells it into
+    /// the pool for USDG in the same transaction, guarded by a TWAP-derived
+    /// minimum output. Deferral is the failure mode: any revert leaves fees
+    /// accrued inside the position, never in this contract.
+    function convertAndDistribute() external returns (uint256 tokenIn, uint256 quoteOut) {
+        if (msg.sender != operator) revert NotOperator();
+        if (!positionSet) revert PositionNotSet();
+
+        uint160 sqrtTwap = _twapSqrtPrice();
+
+        // Impact cap against TWAP-implied token reserve.
+        uint256 virtualTokenReserve = Math.mulDiv(pool.liquidity(), sqrtTwap, Q96);
+        uint256 cap = (virtualTokenReserve * maxConversionImpactBps) / BPS;
+        uint128 amount1Max = cap > type(uint128).max ? type(uint128).max : uint128(cap);
+        if (amount1Max == 0) revert NothingToConvert();
+
+        (, tokenIn) = npm.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: positionTokenId,
+                recipient: address(this),
+                amount0Max: 0,
+                amount1Max: amount1Max
+            })
+        );
+        if (tokenIn == 0) revert NothingToConvert();
+
+        uint256 expectedQuoteOut = Math.mulDiv(Math.mulDiv(tokenIn, Q96, sqrtTwap), Q96, sqrtTwap);
+        uint256 minOut = (expectedQuoteOut * (BPS - POOL_FEE_BPS)) / BPS;
+        minOut = (minOut * (BPS - maxConversionDeviationBps)) / BPS;
+
+        token.forceApprove(address(swapRouter), tokenIn);
+        quoteOut = swapRouter.exactInputSingle(
+            ISwapRouterMinimal.ExactInputSingleParams({
+                tokenIn: address(token),
+                tokenOut: address(quote),
+                fee: pool.fee(),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: tokenIn,
+                amountOutMinimum: minOut,
+                sqrtPriceLimitX96: 0
+            })
+        );
+        _credit(quoteOut);
+        emit Converted(tokenIn, quoteOut);
+    }
+
+    function _twapSqrtPrice() internal view returns (uint160) {
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = twapWindowSecs;
+        secondsAgos[1] = 0;
+        try pool.observe(secondsAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
+            int56 delta = tickCumulatives[1] - tickCumulatives[0];
+            int24 avgTick = int24(delta / int56(uint56(twapWindowSecs)));
+            // Round toward negative infinity (standard OracleLibrary adjustment).
+            if (delta < 0 && (delta % int56(uint56(twapWindowSecs)) != 0)) avgTick--;
+            return TickMath.getSqrtRatioAtTick(avgTick);
+        } catch {
+            revert OracleNotReady();
+        }
+    }
 }
