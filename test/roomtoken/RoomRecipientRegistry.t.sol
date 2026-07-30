@@ -41,4 +41,18 @@ contract RoomRecipientRegistryTest is Test {
         (, address platform) = registry.recipientsOf(7);
         assertEq(platform, next);
     }
+
+    function test_ownershipTransferRequiresAcceptance() public {
+        address nextSafe = makeAddr("nextSafe");
+        vm.prank(safe);
+        registry.transferOwnership(nextSafe);
+        // Two-step: owner() must NOT change until the pending owner accepts.
+        assertEq(registry.owner(), safe);
+        assertEq(registry.pendingOwner(), nextSafe);
+
+        vm.prank(nextSafe);
+        registry.acceptOwnership();
+        assertEq(registry.owner(), nextSafe);
+        assertEq(registry.pendingOwner(), address(0));
+    }
 }

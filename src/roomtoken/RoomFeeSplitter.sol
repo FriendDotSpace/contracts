@@ -84,6 +84,8 @@ contract RoomFeeSplitter is IERC721Receiver {
     error NotDeployer();
     error PositionAlreadySet();
     error PositionNotSet();
+    error PositionNotOwned();
+    error FeeTierMismatch();
     error NotCreatorRecipient();
     error NotRegistryOwner();
     error NotOperator();
@@ -108,6 +110,10 @@ contract RoomFeeSplitter is IERC721Receiver {
         npm = INonfungiblePositionManager(p.npm);
         swapRouter = ISwapRouterMinimal(p.swapRouter);
         pool = IUniswapV3PoolMinimal(p.pool);
+        // The hardcoded POOL_FEE_BPS=100 slack in convertAndDistribute is only
+        // sound for the 1% tier — refuse to custody a position in any other
+        // tier's pool.
+        if (pool.fee() != 10_000) revert FeeTierMismatch();
         token = IERC20(p.token);
         quote = IERC20(p.quote);
         roomId = p.roomId;
@@ -130,6 +136,7 @@ contract RoomFeeSplitter is IERC721Receiver {
     function registerPosition(uint256 tokenId) external {
         if (msg.sender != deployer) revert NotDeployer();
         if (positionSet) revert PositionAlreadySet();
+        if (npm.ownerOf(tokenId) != address(this)) revert PositionNotOwned();
         positionSet = true;
         positionTokenId = tokenId;
     }

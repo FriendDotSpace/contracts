@@ -103,8 +103,8 @@ interface INonfungiblePositionManager {
     /// @return Returns the address of the Uniswap V3 factory
     function factory() external view returns (address);
 
-    /// @dev Vendored from IERC721 (parent of INonfungiblePositionManager); the 3-arg
-    /// overload used to move a position NFT (e.g. factory -> creator during launch finalize).
+    /// @dev Vendored for interface completeness; deliberately unused — the position NFT
+    /// never moves once owned by the splitter.
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
 
     /// @dev Vendored from IERC721 (parent of INonfungiblePositionManager); not in the

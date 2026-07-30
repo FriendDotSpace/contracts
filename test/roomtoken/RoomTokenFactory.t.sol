@@ -12,6 +12,7 @@ import {RoomFeeSplitter} from "../../src/roomtoken/RoomFeeSplitter.sol";
 import {RoomRecipientRegistry} from "../../src/roomtoken/RoomRecipientRegistry.sol";
 import {INonfungiblePositionManager} from "../../src/roomtoken/interfaces/INonfungiblePositionManager.sol";
 import {IUniswapV3PoolMinimal} from "../../src/roomtoken/interfaces/IUniswapV3PoolMinimal.sol";
+import {TickMath} from "../../src/roomtoken/libraries/TickMath.sol";
 
 contract RoomTokenFactoryTest is UniswapV3Deployer {
     RoomTokenFactory internal factory;
@@ -334,6 +335,65 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
         p.permitS = bytes32(uint256(1));
         vm.prank(creator);
         vm.expectRevert(RoomTokenFactory.PermitValueMismatch.selector);
+        factory.launch(p);
+    }
+
+    /// A griefer who predicts the CREATE2 token address for a signed launch
+    /// and pre-creates+initializes the pool at a different price must turn
+    /// the launch into a clean revert, not a broken mint against the wrong
+    /// price.
+    function test_launchRevertsWhenPoolPreInitializedAtWrongPrice() public {
+        LaunchParams memory p = _signedParams(0, 0);
+
+        // Predict the CREATE2 token address for this salt against the
+        // deployer child (never the factory address itself).
+        bytes32 initHash = keccak256(
+            abi.encodePacked(
+                type(RoomToken).creationCode,
+                abi.encode(p.name, p.symbol, ROOM_ID, address(factory), p.tradingOpensAt, uint32(300), uint16(500))
+            )
+        );
+        address deployerAddr = factory.tokenDeployer();
+        address predictedToken =
+            address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployerAddr, p.salt, initHash)))));
+        assertGt(uint160(predictedToken), uint160(address(usdg)));
+
+        // Pre-create + initialize the (usdg, predictedToken, 1%) pool at a
+        // DIFFERENT tick than the config's initTick (400600).
+        uint160 attackerSqrtPrice = TickMath.getSqrtRatioAtTick(400000);
+        INonfungiblePositionManager(npmAddr).createAndInitializePoolIfNecessary(
+            address(usdg), predictedToken, 10000, attackerSqrtPrice
+        );
+
+        vm.prank(creator);
+        vm.expectRevert(RoomTokenFactory.PoolPriceMismatch.selector);
+        factory.launch(p);
+    }
+
+    /// The config existence check runs before signature verification (the
+    /// very first line of `launch`), so an unknown configId reverts
+    /// UnknownConfig regardless of what the signature covers.
+    function test_launchRevertsOnUnknownConfig() public {
+        LaunchParams memory p = _signedParams(0, 0);
+        p.configId = 1; // only config 0 was appended in setUp
+        // The config check fires before signature verification, so a bogus
+        // signature (left over from configId=0) is never even reached.
+        vm.prank(creator);
+        vm.expectRevert(RoomTokenFactory.UnknownConfig.selector);
+        factory.launch(p);
+    }
+
+    /// Countdown upper bound: tradingOpensAt more than 24h out must revert,
+    /// mirroring the existing lower-bound test.
+    function test_rejectsCountdownOverUpperBound() public {
+        LaunchParams memory p = _signedParams(0, 0);
+        p.tradingOpensAt = uint64(block.timestamp + 86401); // > 24h ceiling
+        // re-sign for the altered field
+        bytes32 digest = _launchDigest(p);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorityKey, digest);
+        p.authoritySignature = abi.encodePacked(r, s, v);
+        vm.prank(creator);
+        vm.expectRevert(RoomTokenFactory.CountdownOutOfBounds.selector);
         factory.launch(p);
     }
 }

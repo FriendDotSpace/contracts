@@ -8,6 +8,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {RoomToken} from "./RoomToken.sol";
 import {RoomFeeSplitter, SplitterParams} from "./RoomFeeSplitter.sol";
 import {INonfungiblePositionManager} from "./interfaces/INonfungiblePositionManager.sol";
@@ -119,6 +120,7 @@ contract RoomTokenFactory is Ownable, EIP712 {
     error BadAuthoritySignature();
     error TokenOrderingBroken();
     error PermitValueMismatch();
+    error PoolPriceMismatch();
 
     event RoomTokenLaunched(
         uint256 indexed roomId,
@@ -241,6 +243,12 @@ contract RoomTokenFactory is Ownable, EIP712 {
         // Pool at the config's tick; USDG is token0 by the ordering guarantee.
         uint160 sqrtInit = TickMath.getSqrtRatioAtTick(c.initTick);
         poolAddr = npm.createAndInitializePoolIfNecessary(address(quote), tokenAddr, POOL_FEE, sqrtInit);
+        // An attacker who pre-creates+initializes this pool at a different
+        // price cannot be undone by createAndInitializePoolIfNecessary (it is
+        // a no-op if already initialized) — fail the launch cleanly instead
+        // of proceeding with a mint against the wrong price.
+        (uint160 sqrtPriceX96,,,,,,) = IUniswapV3PoolMinimal(poolAddr).slot0();
+        if (sqrtPriceX96 != sqrtInit) revert PoolPriceMismatch();
         IUniswapV3PoolMinimal(poolAddr).increaseObservationCardinalityNext(c.cardinalityTarget);
 
         splitterAddr = address(
@@ -265,8 +273,9 @@ contract RoomTokenFactory is Ownable, EIP712 {
             )
         );
 
-        uint128 devBuyMaxOut =
-            p.devBuyQuoteIn == 0 ? 0 : uint128(Math.mulDiv(Math.mulDiv(p.devBuyQuoteIn, sqrtInit, Q96), sqrtInit, Q96));
+        uint128 devBuyMaxOut = p.devBuyQuoteIn == 0
+            ? 0
+            : SafeCast.toUint128(Math.mulDiv(Math.mulDiv(p.devBuyQuoteIn, sqrtInit, Q96), sqrtInit, Q96));
         token.initializeLaunch(poolAddr, splitterAddr, msg.sender, devBuyMaxOut);
 
         // Seed the full supply as a single-sided position owned by the splitter.
