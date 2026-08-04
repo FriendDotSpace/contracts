@@ -14,6 +14,7 @@ contract RoomToken is ERC20 {
     uint64 public immutable tradingOpensAt;
     uint32 public immutable capWindowSecs;
     uint16 public immutable walletCapBps;
+    uint16 public immutable devBuyCapBps;
 
     address public pool;
     address public splitter;
@@ -47,13 +48,15 @@ contract RoomToken is ERC20 {
         address factory_,
         uint64 tradingOpensAt_,
         uint32 capWindowSecs_,
-        uint16 walletCapBps_
+        uint16 walletCapBps_,
+        uint16 devBuyCapBps_
     ) ERC20(name_, symbol_) {
         roomId = roomId_;
         factory = factory_;
         tradingOpensAt = tradingOpensAt_;
         capWindowSecs = capWindowSecs_;
         walletCapBps = walletCapBps_;
+        devBuyCapBps = devBuyCapBps_;
         _mint(factory_, TOTAL_SUPPLY);
     }
 
@@ -99,6 +102,14 @@ contract RoomToken is ERC20 {
                 if (devBuyConsumed) revert PreOpenTransferForbidden();
                 if (devBuyMaxOut == 0 || value == 0 || value > devBuyMaxOut) {
                     revert DevBuyNotAuthorized();
+                }
+                // The dev buy is bounded by its own cap, not the public wallet
+                // cap: devBuyMaxOut is only a zero-impact theoretical ceiling,
+                // not a guarantee that the resulting balance obeys
+                // devBuyCapBps. Enforce the real post-transfer balance here as
+                // the authoritative gate.
+                if (balanceOf(to) + value > (TOTAL_SUPPLY * devBuyCapBps) / 10_000) {
+                    revert WalletCapExceeded();
                 }
                 devBuyConsumed = true;
                 super._update(from, to, value);

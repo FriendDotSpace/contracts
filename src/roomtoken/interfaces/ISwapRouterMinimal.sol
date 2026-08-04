@@ -20,4 +20,10 @@ interface ISwapRouterMinimal {
     /// @param params The parameters necessary for the swap, encoded as `ExactInputSingleParams` in calldata
     /// @return amountOut The amount of the received token
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+
+    /// @dev Vendored from PeripheryImmutableState (parent of the real SwapRouter);
+    /// not in the upstream ISwapRouter.sol minimal signature set, added so the
+    /// factory can validate the pinned router against the pinned V3 factory.
+    /// @return Returns the address of the Uniswap V3 factory
+    function factory() external view returns (address);
 }

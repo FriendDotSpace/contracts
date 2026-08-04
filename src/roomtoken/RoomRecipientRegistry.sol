@@ -18,11 +18,21 @@ contract RoomRecipientRegistry is Ownable2Step {
     mapping(uint256 roomId => Recipients) private _recipients;
     address public defaultPlatformRecipient;
 
+    error RenounceDisabled();
+
     event RecipientsSet(uint256 indexed roomId, address roomFund, address platform);
     event DefaultPlatformRecipientSet(address recipient);
 
     constructor(address owner_, address defaultPlatformRecipient_) Ownable(owner_) {
         defaultPlatformRecipient = defaultPlatformRecipient_;
+    }
+
+    /// The registry owner is the permanent authority anchor for every
+    /// splitter deployed against it (operator rotation, creator rescue).
+    /// Renouncing would brick all of them irreversibly, so it is disabled —
+    /// use transferOwnership (Ownable2Step) to move control instead.
+    function renounceOwnership() public view override onlyOwner {
+        revert RenounceDisabled();
     }
 
     function setRecipients(uint256 roomId, address roomFund, address platform) external onlyOwner {

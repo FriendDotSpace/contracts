@@ -99,9 +99,15 @@ contract RoomTokenInvariants is Harness {
         assertEq(handler.ledgerTotal() + handler.claimedTotal(), handler.totalCredited());
     }
 
-    /// SPEC INVARIANT 3: the splitter never holds a token bag between
-    /// transactions (conversion is atomic collect->swap).
-    function invariant_noTokenBagInSplitter() public view {
+    /// SPEC INVARIANT 3: this is NOT a global "splitter never holds tokens"
+    /// invariant — any holder can transfer tokens to the splitter at any
+    /// time, and an unsolicited external transfer would break the literal
+    /// assertion below without indicating a defect. What this actually
+    /// asserts is that the handler's own actions (buy/sell/collect/convert/
+    /// claim) never leave a token balance behind, i.e. the splitter's
+    /// collect->swap conversion path is atomic under every sequence the
+    /// fuzzer tries.
+    function invariant_conversionLeavesNoTokenBag() public view {
         assertEq(handler.tokenBalanceOfSplitter(), 0);
     }
 }

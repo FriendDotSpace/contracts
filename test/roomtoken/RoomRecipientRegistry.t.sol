@@ -42,6 +42,13 @@ contract RoomRecipientRegistryTest is Test {
         assertEq(platform, next);
     }
 
+    function test_renounceOwnershipIsDisabled() public {
+        vm.prank(safe);
+        vm.expectRevert(RoomRecipientRegistry.RenounceDisabled.selector);
+        registry.renounceOwnership();
+        assertEq(registry.owner(), safe);
+    }
+
     function test_ownershipTransferRequiresAcceptance() public {
         address nextSafe = makeAddr("nextSafe");
         vm.prank(safe);

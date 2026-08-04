@@ -15,11 +15,12 @@ contract RoomTokenTest is Test {
 
     uint32 internal constant WINDOW = 300;
     uint16 internal constant CAP_BPS = 500;
+    uint16 internal constant DEV_BUY_CAP_BPS = 1000;
 
     function setUp() public {
         opensAt = uint64(block.timestamp + 1 hours);
         vm.prank(factory);
-        token = new RoomToken("Room 42", "R42", 42, factory, opensAt, WINDOW, CAP_BPS);
+        token = new RoomToken("Room 42", "R42", 42, factory, opensAt, WINDOW, CAP_BPS, DEV_BUY_CAP_BPS);
     }
 
     function _initialize(uint128 devMax) internal {
@@ -73,6 +74,38 @@ contract RoomTokenTest is Test {
         vm.prank(pool);
         vm.expectRevert(RoomToken.DevBuyNotAuthorized.selector);
         token.transfer(creator, 100e18 + 1);
+    }
+
+    /// The dev buy has its own 10% cap (devBuyCapBps), independent of the
+    /// 5% public wallet cap (walletCapBps).
+    function test_preFinalize_devBuyExceedingWalletCapReverts() public {
+        uint256 cap = (token.TOTAL_SUPPLY() * DEV_BUY_CAP_BPS) / 10_000;
+        _initialize(uint128(cap + 1));
+        address npm = makeAddr("npm");
+        vm.prank(factory);
+        token.approve(npm, type(uint256).max);
+        vm.prank(npm);
+        token.transferFrom(factory, pool, 1_000_000_000e18);
+
+        vm.prank(pool);
+        vm.expectRevert(RoomToken.WalletCapExceeded.selector);
+        token.transfer(creator, cap + 1);
+        assertFalse(token.devBuyConsumed());
+    }
+
+    function test_preFinalize_devBuyAtExactCapSucceeds() public {
+        uint256 cap = (token.TOTAL_SUPPLY() * DEV_BUY_CAP_BPS) / 10_000;
+        _initialize(uint128(cap));
+        address npm = makeAddr("npm");
+        vm.prank(factory);
+        token.approve(npm, type(uint256).max);
+        vm.prank(npm);
+        token.transferFrom(factory, pool, 1_000_000_000e18);
+
+        vm.prank(pool);
+        token.transfer(creator, cap);
+        assertEq(token.balanceOf(creator), cap);
+        assertTrue(token.devBuyConsumed());
     }
 
     function test_gated_blocksAllTransfersUntilOpen() public {

@@ -57,6 +57,7 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
             initTick: 400600,
             capWindowSecs: 300,
             walletCapBps: 500,
+            devBuyCapBps: 1000,
             minCountdownSecs: 900,
             maxCountdownSecs: 86400,
             cardinalityTarget: 700,
@@ -70,7 +71,7 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
         bytes32 initHash = keccak256(
             abi.encodePacked(
                 type(RoomToken).creationCode,
-                abi.encode(name, symbol, ROOM_ID, address(factory), opensAt, uint32(300), uint16(500))
+                abi.encode(name, symbol, ROOM_ID, address(factory), opensAt, uint32(300), uint16(500), uint16(1000))
             )
         );
         // CREATE2 addresses derive from the factory's deployer child, not the
@@ -132,7 +133,13 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
         (address tokenAddr, address poolAddr, address splitterAddr) = factory.launch(p);
 
         RoomToken token = RoomToken(tokenAddr);
-        assertEq(token.balanceOf(tokenAddr), 0);
+        // The NPM's single-sided mint rounds down, so a tiny dust remainder
+        // is left stranded at the factory — this is reality, not a bug, and
+        // there is no sweep path for it (do not add one). Assert the residue
+        // is nonzero-but-tiny rather than asserting the TOKEN's own balance
+        // (always 0, a meaningless check).
+        assertGt(token.balanceOf(address(factory)), 0);
+        assertLt(token.balanceOf(address(factory)), 1e12); // under a millionth of a token
         assertEq(factory.tokenOf(ROOM_ID), tokenAddr);
         assertTrue(token.finalized());
         // Position NFT owned by the splitter.
@@ -159,6 +166,33 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
         assertTrue(token.devBuyConsumed());
         // Fee + dev buy both left the creator's USDG.
         assertEq(usdg.balanceOf(creator), 10_000_000_000 - 1_000_000 - 100_000_000);
+    }
+
+    /// $300 devBuyQuoteIn measures ~7.48% of supply under the zero-impact
+    /// devBuyMaxOut bound — over the old 5% walletCapBps but comfortably
+    /// under the dev buy's own 10% devBuyCapBps, so it must now succeed.
+    /// This is the load-bearing proof that the two caps are independent:
+    /// this exact devBuyQuoteIn would have reverted before this change.
+    function test_launchWithDevBuyAboveOldWalletCapButWithinDevBuyCap() public {
+        LaunchParams memory p = _signedParams(300_000_000, 1); // $300 dev buy
+        vm.prank(creator);
+        (address tokenAddr,,) = factory.launch(p);
+        RoomToken token = RoomToken(tokenAddr);
+        assertGt(token.balanceOf(creator), (token.TOTAL_SUPPLY() * 500) / 10_000); // over the 5% wallet cap
+        assertLt(token.balanceOf(creator), (token.TOTAL_SUPPLY() * 1000) / 10_000); // under the 10% dev buy cap
+        assertTrue(token.devBuyConsumed());
+    }
+
+    /// $500 devBuyQuoteIn measures ~12.47% of supply under the zero-impact
+    /// devBuyMaxOut bound (reviewer measured ~11% via the real, slippage-
+    /// bearing swap) — over the dev buy's own 10% (devBuyCapBps=1000) cap,
+    /// so the factory must reject the launch before any state is touched.
+    function test_rejectsDevBuyExceedingCap() public {
+        LaunchParams memory p = _signedParams(500_000_000, 1); // $500 dev buy
+        vm.prank(creator);
+        vm.expectRevert(RoomTokenFactory.DevBuyExceedsCap.selector);
+        factory.launch(p);
+        assertEq(factory.tokenOf(ROOM_ID), address(0));
     }
 
     function test_rejectsSecondLaunchForSameRoom() public {
@@ -214,7 +248,16 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
         bytes32 initHash = keccak256(
             abi.encodePacked(
                 type(RoomToken).creationCode,
-                abi.encode(p.name, p.symbol, ROOM_ID, address(factory), p.tradingOpensAt, uint32(300), uint16(500))
+                abi.encode(
+                    p.name,
+                    p.symbol,
+                    ROOM_ID,
+                    address(factory),
+                    p.tradingOpensAt,
+                    uint32(300),
+                    uint16(500),
+                    uint16(1000)
+                )
             )
         );
         address deployer = factory.tokenDeployer();
@@ -252,7 +295,9 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
             bytes32 initHash = keccak256(
                 abi.encodePacked(
                     type(RoomToken).creationCode,
-                    abi.encode(p.name, p.symbol, uint256(77), address(factory), opensAt, uint32(300), uint16(500))
+                    abi.encode(
+                        p.name, p.symbol, uint256(77), address(factory), opensAt, uint32(300), uint16(500), uint16(1000)
+                    )
                 )
             );
             address deployer = factory.tokenDeployer();
@@ -320,7 +365,7 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
     function test_deployerRejectsNonFactoryCaller() public {
         RoomTokenDeployer deployer = RoomTokenDeployer(factory.tokenDeployer());
         vm.expectRevert(RoomTokenDeployer.NotFactory.selector);
-        deployer.deploy(bytes32(0), "X", "X", 999, address(factory), uint64(block.timestamp + 1 hours), 300, 500);
+        deployer.deploy(bytes32(0), "X", "X", 999, address(factory), uint64(block.timestamp + 1 hours), 300, 500, 1000);
     }
 
     function test_rejectsPermitValueBelowFeePlusDevBuy() public {
@@ -350,7 +395,16 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
         bytes32 initHash = keccak256(
             abi.encodePacked(
                 type(RoomToken).creationCode,
-                abi.encode(p.name, p.symbol, ROOM_ID, address(factory), p.tradingOpensAt, uint32(300), uint16(500))
+                abi.encode(
+                    p.name,
+                    p.symbol,
+                    ROOM_ID,
+                    address(factory),
+                    p.tradingOpensAt,
+                    uint32(300),
+                    uint16(500),
+                    uint16(1000)
+                )
             )
         );
         address deployerAddr = factory.tokenDeployer();
@@ -395,5 +449,26 @@ contract RoomTokenFactoryTest is UniswapV3Deployer {
         vm.prank(creator);
         vm.expectRevert(RoomTokenFactory.CountdownOutOfBounds.selector);
         factory.launch(p);
+    }
+
+    /// The pinned NPM must genuinely front the pinned v3Factory_ — a foreign
+    /// NPM from an independently deployed V3 stack must be rejected at
+    /// construction, not silently accepted with v3Factory_ stored-but-unused.
+    function test_constructorRejectsMismatchedNpm() public {
+        (,, address npmB,) = deployAll();
+        vm.expectRevert(RoomTokenFactory.DependencyMismatch.selector);
+        new RoomTokenFactory(
+            platformSafe, authority, defaultOperator, address(usdg), npmB, routerAddr, v3, address(registry)
+        );
+    }
+
+    /// Same for the router: a foreign router fronting a different V3 factory
+    /// must be rejected at construction.
+    function test_constructorRejectsMismatchedRouter() public {
+        (,,, address routerB) = deployAll();
+        vm.expectRevert(RoomTokenFactory.DependencyMismatch.selector);
+        new RoomTokenFactory(
+            platformSafe, authority, defaultOperator, address(usdg), npmAddr, routerB, v3, address(registry)
+        );
     }
 }

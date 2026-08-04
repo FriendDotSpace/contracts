@@ -24,6 +24,7 @@ struct LaunchConfig {
     int24 initTick;
     uint32 capWindowSecs;
     uint16 walletCapBps;
+    uint16 devBuyCapBps;
     uint32 minCountdownSecs;
     uint32 maxCountdownSecs;
     uint16 cardinalityTarget;
@@ -77,11 +78,14 @@ contract RoomTokenDeployer {
         address tokenFactory,
         uint64 tradingOpensAt,
         uint32 capWindowSecs,
-        uint16 walletCapBps
+        uint16 walletCapBps,
+        uint16 devBuyCapBps
     ) external returns (address) {
         if (msg.sender != factory) revert NotFactory();
         return address(
-            new RoomToken{salt: salt}(name, symbol, roomId, tokenFactory, tradingOpensAt, capWindowSecs, walletCapBps)
+            new RoomToken{salt: salt}(
+                name, symbol, roomId, tokenFactory, tradingOpensAt, capWindowSecs, walletCapBps, devBuyCapBps
+            )
         );
     }
 }
@@ -121,6 +125,8 @@ contract RoomTokenFactory is Ownable, EIP712 {
     error TokenOrderingBroken();
     error PermitValueMismatch();
     error PoolPriceMismatch();
+    error DevBuyExceedsCap();
+    error DependencyMismatch();
 
     event RoomTokenLaunched(
         uint256 indexed roomId,
@@ -145,6 +151,14 @@ contract RoomTokenFactory is Ownable, EIP712 {
         address v3Factory_,
         address registry_
     ) Ownable(owner_) EIP712("RoomTokenFactory", "1") {
+        // The pinned periphery must genuinely front the pinned V3 factory —
+        // otherwise v3Factory_ is stored but never actually enforced, and a
+        // mismatched NPM/router could point pools/swaps at a foreign factory.
+        if (
+            INonfungiblePositionManager(npm_).factory() != v3Factory_
+                || ISwapRouterMinimal(swapRouter_).factory() != v3Factory_
+        ) revert DependencyMismatch();
+
         authority = authority_;
         defaultOperator = defaultOperator_;
         quote = IERC20(quote_);
@@ -206,6 +220,7 @@ contract RoomTokenFactory is Ownable, EIP712 {
                 c.initTick,
                 c.capWindowSecs,
                 c.walletCapBps,
+                c.devBuyCapBps,
                 devBuyQuoteIn,
                 devBuyMinOut,
                 name,
@@ -233,7 +248,15 @@ contract RoomTokenFactory is Ownable, EIP712 {
         // enforced here, never mined here.
         RoomToken token = RoomToken(
             RoomTokenDeployer(tokenDeployer).deploy(
-                p.salt, p.name, p.symbol, p.roomId, address(this), p.tradingOpensAt, c.capWindowSecs, c.walletCapBps
+                p.salt,
+                p.name,
+                p.symbol,
+                p.roomId,
+                address(this),
+                p.tradingOpensAt,
+                c.capWindowSecs,
+                c.walletCapBps,
+                c.devBuyCapBps
             )
         );
         if (address(token) <= address(quote)) revert TokenOrderingBroken();
@@ -276,9 +299,18 @@ contract RoomTokenFactory is Ownable, EIP712 {
         uint128 devBuyMaxOut = p.devBuyQuoteIn == 0
             ? 0
             : SafeCast.toUint128(Math.mulDiv(Math.mulDiv(p.devBuyQuoteIn, sqrtInit, Q96), sqrtInit, Q96));
+        // devBuyMaxOut is a zero-impact theoretical ceiling — an over-estimate
+        // of the real swap output — so bounding it against the dev-buy cap
+        // here is conservative and gives the creator a clear early revert
+        // instead of a confusing token-level one deep in the swap.
+        if (devBuyMaxOut > (token.TOTAL_SUPPLY() * c.devBuyCapBps) / 10_000) {
+            revert DevBuyExceedsCap();
+        }
         token.initializeLaunch(poolAddr, splitterAddr, msg.sender, devBuyMaxOut);
 
-        // Seed the full supply as a single-sided position owned by the splitter.
+        // Seed the supply as a single-sided position owned by the splitter.
+        // The mint rounds down, stranding sub-microtoken dust here; there is
+        // deliberately no sweep path for it.
         token.approve(address(npm), token.TOTAL_SUPPLY());
         (uint256 positionId,,,) = npm.mint(
             INonfungiblePositionManager.MintParams({

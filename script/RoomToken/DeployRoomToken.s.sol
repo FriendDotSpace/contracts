@@ -60,6 +60,7 @@ contract DeployRoomToken is Script {
                     initTick: 400600,
                     capWindowSecs: 300,
                     walletCapBps: 500,
+                    devBuyCapBps: 1000,
                     minCountdownSecs: 900,
                     maxCountdownSecs: 86400,
                     cardinalityTarget: 700,

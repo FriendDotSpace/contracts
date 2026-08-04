@@ -30,6 +30,7 @@ contract Harness is UniswapV3Deployer {
     uint24 internal constant FEE = 10000;
     uint32 internal constant WINDOW = 300;
     uint16 internal constant CAP_BPS = 500;
+    uint16 internal constant DEV_BUY_CAP_BPS = 1000;
 
     address internal v3Factory;
     address internal weth9;
@@ -114,7 +115,8 @@ contract Harness is UniswapV3Deployer {
     /// CREATE2-mine a salt so the token sorts above USDG (USDG stays token0).
     function _deployTokenAboveQuote() internal returns (RoomToken t) {
         bytes memory creation = abi.encodePacked(
-            type(RoomToken).creationCode, abi.encode("Room 42", "R42", ROOM_ID, address(this), opensAt, WINDOW, CAP_BPS)
+            type(RoomToken).creationCode,
+            abi.encode("Room 42", "R42", ROOM_ID, address(this), opensAt, WINDOW, CAP_BPS, DEV_BUY_CAP_BPS)
         );
         bytes32 initHash = keccak256(creation);
         for (uint256 i = 0;; i++) {
